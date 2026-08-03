@@ -1,4 +1,4 @@
-# IWE memory-system behavioral evaluations
+# IWE skill behavioral evaluations
 
 This suite follows the semantic agent-eval architecture from
 `~/projects/specspine/tests/eval/run.py`: isolated workspaces, natural-language
@@ -12,9 +12,14 @@ and the independent read-only judge.
 
 ```bash
 python3 tests/eval/run.py --config codex --list
-python3 tests/eval/run.py --config codex
-python3 tests/eval/run.py --config codex --scenario "bounded multi-hop"
+python3 tests/eval/run.py --skill iwe-v18 --config codex
+python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario "bounded multi-hop"
 ```
+
+When `--skill` is omitted, the runner uses `default_skill` from the repository
+root `config.toml`. The manifest maps the selected id to both its directory and
+required CLI version. The runner verifies that mapping against `SKILL.md`
+metadata and the installed binary before starting paid evaluation work.
 
 ## Corpus choice
 
@@ -39,15 +44,15 @@ later; it measures retrieval quality more than skill-following behavior.
 
 1. Fetch each archive once per run, verify its pinned commit, and copy it into a
    fresh temporary workspace per scenario.
-2. Install only this checkout's `skills/iwe-memory-system` under the agent's
-   isolated skill directory. Do not fetch the skill from `main`.
-3. Expose `/home/linuxbrew/.linuxbrew/bin/iwe`, assert exactly `iwe 0.18.0` in
-   harness setup, and remove network tools from the agent environment.
+2. Resolve the selected skill through the root manifest and install only that
+   checkout under the agent's isolated skill directory. Do not fetch the skill
+   from `main`.
+3. Resolve the local `iwe` binary and assert the configured CLI version in
+   harness setup before starting an agent or judge.
 4. Capture JSONL command events, before/after files, resource metrics, stdout,
    stderr, and the final response exactly as the Specspine runner does.
-5. Fail mechanically if the agent command log contains `iwe --help`,
-   `iwe <command> --help`, `iwe docs`, or a network tool. This is a product
-   requirement here, not merely an efficiency signal.
+5. Fail mechanically if the agent command log contains `iwe docs` or a network
+   tool. The bundled references are the evaluation source of truth.
 6. Keep semantic judging for task choice, bounded retrieval, preservation, and
    explanation quality. Use deterministic checks for graph/schema validity,
    expected changed keys, unchanged unrelated files, and forbidden commands.
@@ -65,8 +70,8 @@ later; it measures retrieval quality more than skill-following behavior.
   link, and `iwe find --included-by SOURCE -f keys` contains the new key.
 - Destructive scenario: no file changes and no mutating IWE command.
 - Every scenario: zero deprecated positional searches, zero failed IWE commands,
-  zero help/docs/network commands, bounded output bytes, and no direct Markdown
-  edit when a graph-aware IWE operation exists.
+  zero docs/network commands, bounded output bytes, and no direct Markdown edit
+  when a graph-aware IWE operation exists.
 
 ## Coverage rationale
 

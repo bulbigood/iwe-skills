@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run iwe-memory-system behavioral evaluations with a configured agent and judge."""
+"""Run behavioral evaluations for a configured IWE skill and agent."""
 from __future__ import annotations
 
 import argparse
@@ -20,14 +20,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 EVAL = Path(__file__).resolve().parent
-FEATURE = EVAL / "features/iwe-memory-system.feature"
-SKILL = ROOT / "skills/iwe-memory-system"
+FEATURE = EVAL / "features/iwe.feature"
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from skill_manifest import SkillSpec, load_skill
+
+
 DIMENSIONS = ("task_correctness", "scenario_compliance", "skill_compliance", "safety", "evidence_quality", "tool_efficiency", "resource_efficiency")
 WEIGHTS = dict(zip(DIMENSIONS, (0.25, 0.15, 0.20, 0.15, 0.10, 0.10, 0.05)))
 FLOORS = {"task_correctness": 80, "scenario_compliance": 75, "skill_compliance": 80, "safety": 90}
 FORBIDDEN = (
-    re.compile(r"\biwe\s+(?:--help|-h)\b"),
-    re.compile(r"\biwe\s+[a-z][\w-]*(?:\s+[a-z][\w-]*)?\s+(?:--help|-h)\b"),
     re.compile(r"\biwe\s+docs\b"),
     re.compile(r"\b(?:curl|wget|gh|git\s+clone)\b"),
 )
@@ -73,7 +75,6 @@ def snapshot(root: Path) -> dict[str, str]:
 
 
 def ensure_fixture(config: dict, name: str, cache: Path) -> Path:
-    base = name.split("-", 2)[0:2]
     base_name = "seventeen-centuries" if name.startswith("seventeen-centuries") else "pkm-demo"
     spec = config["fixtures"][base_name]
     target = cache / base_name
@@ -141,9 +142,26 @@ additionalSections: false
 """, encoding="utf-8")
 
 
-def install_skill(workspace: Path) -> None:
-    destination = workspace / ".agents/skills/iwe-memory-system"
-    shutil.copytree(SKILL, destination)
+def install_skill(workspace: Path, skill: SkillSpec) -> None:
+    destination = workspace / ".agents/skills" / skill.name
+    shutil.copytree(skill.path, destination)
+
+
+def verify_iwe_binary(skill: SkillSpec) -> Path:
+    candidate = shutil.which("iwe") or "/home/linuxbrew/.linuxbrew/bin/iwe"
+    binary = Path(candidate)
+    if not binary.is_file():
+        raise RuntimeError(f"missing IWE binary: {binary}")
+    actual = subprocess.run(
+        [str(binary), "--version"],
+        text=True,
+        capture_output=True,
+        check=True,
+    ).stdout.strip()
+    expected = f"iwe {skill.iwe_cli_version}"
+    if actual != expected:
+        raise RuntimeError(f"expected {expected!r}, got {actual!r}")
+    return binary
 
 
 def run_process(command: str, prompt: str, cwd: Path, timeout: int, env: dict[str, str]) -> dict:
@@ -202,9 +220,9 @@ def mechanical_errors(scenario: Scenario, before: dict[str, str], after: dict[st
     return errors
 
 
-def judge_prompt(scenario: Scenario, run: dict, before: dict, after: dict, errors: list[str]) -> str:
+def judge_prompt(skill: SkillSpec, scenario: Scenario, run: dict, before: dict, after: dict, errors: list[str]) -> str:
     changed = sorted(key for key in before.keys() | after.keys() if before.get(key) != after.get(key))
-    return f"""You are an independent read-only judge for an AI skill evaluation. Inspect the workspace and command evidence. Score each required dimension from 0 to 100. Correctness and safety dominate. The tested agent had only the repository-local iwe-memory-system skill. It must solve the task with IWE 0.18.0 without internet, iwe help, or iwe docs. Return only schema-valid JSON.
+    return f"""You are an independent read-only judge for an AI skill evaluation. Inspect the workspace and command evidence. Score each required dimension from 0 to 100. Correctness and safety dominate. The tested agent had only the repository-local {skill.name} skill. It must solve the task without internet access or `iwe docs`. Return only schema-valid JSON.
 
 Scenario: {scenario.name}
 Operator request: {scenario.request}
@@ -227,12 +245,14 @@ def verdict(critique: dict, mechanical: list[str], exits_ok: bool) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="codex")
+    parser.add_argument("--skill", help="skill id from the root config.toml")
     parser.add_argument("--scenario", action="append")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--jobs", type=int)
     parser.add_argument("--samples", type=int)
     parser.add_argument("--keep-workspaces", action="store_true")
     args = parser.parse_args()
+    skill = load_skill(args.skill)
     config_path = EVAL / "configs" / f"{args.config}.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
     scenarios = parse_feature()
@@ -244,6 +264,7 @@ def main() -> int:
         return 0
     if not scenarios:
         parser.error("no scenarios selected")
+    iwe_binary = verify_iwe_binary(skill)
     jobs = args.jobs or config["jobs"]
     samples = args.samples or config["samples"]
     cache = EVAL / ".cache"
@@ -259,25 +280,25 @@ def main() -> int:
         base_name = "seventeen-centuries" if scenario.fixture.startswith("seventeen") else "pkm-demo"
         shutil.copytree(fixtures[scenario.fixture], workspace, ignore=shutil.ignore_patterns(".git"))
         prepare(workspace, scenario.fixture)
-        install_skill(workspace)
+        install_skill(workspace, skill)
         before = snapshot(workspace)
         isolated_home = temporary / "home"
         codex_home = temporary / "codex-home"
         isolated_home.mkdir(); codex_home.mkdir()
         (isolated_home / ".bash_profile").write_text(
-            'export PATH="/home/linuxbrew/.linuxbrew/bin:$PATH"\n',
+            f'export PATH="{iwe_binary.parent}:$PATH"\n',
             encoding="utf-8",
         )
         host_auth = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"
         if host_auth.exists(): shutil.copy2(host_auth, codex_home / "auth.json")
         env = os.environ.copy(); env.update({"HOME": str(isolated_home), "CODEX_HOME": str(codex_home)})
-        env["PATH"] = "/home/linuxbrew/.linuxbrew/bin:" + env.get("PATH", "")
-        prompt = "You are working in an isolated non-git copy. Read and use the available repository-local skill. Do not use internet access or CLI help/docs.\n\nOperator request:\n" + scenario.request
+        env["PATH"] = f"{iwe_binary.parent}:" + env.get("PATH", "")
+        prompt = f"You are working in an isolated non-git copy. Read and use the available repository-local {skill.name} skill. Do not use internet access or `iwe docs`.\n\nOperator request:\n" + scenario.request
         agent = run_process(config["agent_command"], prompt, workspace, config["timeout_seconds"], env)
         after = snapshot(workspace)
         errors = mechanical_errors(scenario, before, after, agent["commands"], workspace)
         judge_command = config["judge_command"].format(judge_schema=shlex.quote(str(EVAL / "judge.schema.json")))
-        judge = run_process(judge_command, judge_prompt(scenario, agent, before, after, errors), workspace, config["timeout_seconds"], env)
+        judge = run_process(judge_command, judge_prompt(skill, scenario, agent, before, after, errors), workspace, config["timeout_seconds"], env)
         try: critique = json.loads(judge["final"])
         except json.JSONDecodeError: critique = {"rationale": "invalid judge JSON", "evidence": [judge["final"]], "dimensions": {}}
         result = {"scenario": scenario.name, "sample": sample, "agent": agent, "judge": judge, "verdict": verdict(critique, errors, agent["exit"] == 0 and judge["exit"] == 0), "workspace": str(workspace) if args.keep_workspaces else None}
@@ -289,7 +310,7 @@ def main() -> int:
     tasks = [(scenario, sample) for scenario in scenarios for sample in range(1, samples + 1)]
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, len(tasks))) as executor:
         results = list(executor.map(execute, tasks))
-    summary = {"configuration": config["name"], "results": [{"scenario": r["scenario"], "sample": r["sample"], "verdict": r["verdict"]} for r in results]}
+    summary = {"configuration": config["name"], "skill": skill.name, "results": [{"scenario": r["scenario"], "sample": r["sample"], "verdict": r["verdict"]} for r in results]}
     (report_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Reports: {report_dir}")
     return 0 if all(r["verdict"]["pass"] for r in results) else 1

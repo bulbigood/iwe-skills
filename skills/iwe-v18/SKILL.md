@@ -1,9 +1,8 @@
 ---
 name: iwe-v18
-description: "Use this skill when working in an IWE knowledge-graph workspace, especially to help an agent read, navigate, retrieve context from, query frontmatter, and safely refactor Markdown notes with the `iwe` CLI instead of ad-hoc file edits. Covers project discovery, inclusion links, context-building, analysis, the frontmatter query language, and the IWE 0.18.0 command surface: `init`, `create`, `new`, `retrieve`, `find`, `count`, `normalize`, `tree`, `squash`, `export`, `schema`, `stats`, `rename`, `delete`, `extract`, `inline`, `update`, `attach`, `completions`, and `docs`."
+description: "Use this skill when working in an IWE knowledge-graph workspace, especially to help an agent read, navigate, retrieve context from, query frontmatter, and safely refactor Markdown notes with the `iwe` CLI instead of ad-hoc file edits. Covers project discovery, inclusion links, context-building, analysis, the frontmatter query language, and the command surface: `init`, `create`, `new`, `retrieve`, `find`, `count`, `normalize`, `tree`, `squash`, `export`, `schema`, `stats`, `rename`, `delete`, `extract`, `inline`, `update`, `attach`, `completions`, and `docs`."
 metadata:
   version: 0.1.0
-  iwe_cli_version: 0.18.0
 ---
 
 # IWE
@@ -12,7 +11,7 @@ IWE is local-first and markdown-based. Prefer `iwe` commands for graph-aware rea
 
 IWE does not impose a single graph structure or file naming convention. Do not assume a particular hierarchy, naming scheme, or note layout unless the workspace itself shows one.
 
-Bundled references (use these first; they are pinned to IWE 0.18.0):
+Bundled references (use these first):
 
 - Docs index: https://iwe.md/docs/
 - Agentic tools: https://iwe.md/docs/agentic/
@@ -20,21 +19,8 @@ Bundled references (use these first; they are pinned to IWE 0.18.0):
 - Query language: https://iwe.md/docs/concepts/query-language/
 - CLI reference: https://iwe.md/docs/cli/
 
-The linked files below contain the complete CLI help and every built-in
-`iwe docs` topic. An agent using this skill should not need internet access,
-`iwe --help`, `iwe <command> --help`, or `iwe docs` for normal 0.18.0 work.
-
-## Compatibility
-
-This skill is adapted and mechanically checked against **IWE CLI 0.18.0**. The
-skill version (`metadata.version`) and the adapted CLI version
-(`metadata.iwe_cli_version`) are independent.
-
-Do **not** run `iwe --version` merely because this skill is loaded. Use the
-installed CLI normally. Investigate a version mismatch only after an IWE
-interaction fails or behaves unexpectedly. First consult the bundled complete
-references. If they still disagree with runtime behavior, run `iwe --version`,
-report the incompatible instruction, and only then consult installed help.
+The linked files below contain the bundled CLI contract and built-in reference
+topics needed for normal work.
 
 ## Quick start
 
@@ -106,10 +92,10 @@ The two child links above are structural because each link is isolated by blank 
 - For read and navigation flows, read [./references/read-and-navigate.md](./references/read-and-navigate.md).
 - For write and refactor flows, read [./references/write-and-refactor.md](./references/write-and-refactor.md).
 - For the frontmatter query language used by `--filter` (operators, projection, sort, `$set` / `$unset`), read [./references/query-language.md](./references/query-language.md).
-- For the complete `iwe 0.18.0 --help` contract for every command and nested
+- For command-specific syntax for every command and nested
   subcommand, read [./references/cli-reference.md](./references/cli-reference.md).
-- For the complete offline query-language, configuration, and document-schema
-  manuals embedded in IWE 0.18.0, read
+- For the complete query-language, configuration, and document-schema manuals,
+  read
   [./references/builtin-reference.md](./references/builtin-reference.md).
 
 ## Guardrails
@@ -129,10 +115,8 @@ The two child links above are structural because each link is isolated by blank 
 - If the task is a structural change and the CLI supports it, use the CLI instead of editing markdown references by hand.
 - For frontmatter changes on more than one document, prefer `iwe update --filter ... --set/--unset` over manual edits, and run with `--dry-run` first.
 - Treat `iwe update --filter '{}'` and `iwe delete --filter '{}'` as workspace-wide operations; never run them without explicit user intent.
-- If exact command arguments matter, consult the bundled CLI reference instead of guessing flags or invoking help.
-- Do not proactively compare IWE versions. Only diagnose version compatibility
-  after a real command problem reveals that this skill disagrees with runtime
-  behavior; consult installed help only as the final compatibility fallback.
+- If exact command arguments matter, consult the bundled CLI reference instead
+  of guessing flags.
 - Treat `iwe normalize` as an in-place bulk rewrite of the whole library, not a
   harmless read command. Establish a rollback point or backup when practical,
   then obtain fresh, focused confirmation immediately before running it.

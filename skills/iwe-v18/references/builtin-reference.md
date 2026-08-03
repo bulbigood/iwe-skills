@@ -1,6 +1,6 @@
-# IWE 0.18.0 Built-in Reference
+# IWE Built-in Reference
 
-This file is generated from every topic exposed by `iwe 0.18.0 docs`. It is bundled so an agent can use the complete query, configuration, and document-schema contracts without internet access or exploratory CLI help.
+This bundled reference contains the complete query, configuration, and document-schema contracts.
 
 ## Contents
 

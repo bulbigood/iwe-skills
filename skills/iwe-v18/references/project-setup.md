@@ -27,7 +27,7 @@ Running `iwe init` creates that directory and a starter `.iwe/config.toml`.
 The marker directory alone is sufficient for IWE to discover the project;
 `config.toml` may be absent, in which case IWE uses its built-in defaults.
 
-For IWE 0.18.0, prefer discovery before hand-authoring configuration:
+Prefer discovery before hand-authoring configuration:
 
 ```bash
 iwe init --dry-run --json   # inspect detected settings and evidence
@@ -126,7 +126,8 @@ match = "notes/**"
 - `actions.*`: `iwe extract --action ...` and `iwe inline --action ...` resolve here.
 - `templates.*`: controls how `iwe new` and template-mode `iwe create` name files and render content.
 - `schemas.*`: binds `.iwe/schemas/<name>.yaml` to document-key globs for `iwe schema validate`.
-- The bundled `builtin-reference.md` configuration section is the exact 0.18.0 reference; use it before adding fields not already present in the workspace.
+- The bundled `builtin-reference.md` configuration section is the exact
+  reference; use it before adding fields not already present in the workspace.
 
 ## Working notes
 

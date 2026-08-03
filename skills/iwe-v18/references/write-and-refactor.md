@@ -292,6 +292,5 @@ Current behavior worth knowing:
 
 If the user asks for a structural change and the CLI supports it, use the CLI
 instead of editing markdown references by hand. If exact arguments matter,
-consult `cli-reference.md`; use installed help only as the compatibility
-fallback described in `SKILL.md`. After a write operation, inspect affected
-files or rerun `find` or `retrieve` to confirm the graph state.
+consult `cli-reference.md`. After a write operation, inspect affected files or
+rerun `find` or `retrieve` to confirm the graph state.

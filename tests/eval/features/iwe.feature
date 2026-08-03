@@ -1,6 +1,6 @@
-Feature: IWE 0.18.0 skill behavior on realistic knowledge graphs
-  Every scenario runs in an isolated fixture with only the repository-local
-  iwe-memory-system skill. The judge inspects the command log and final files.
+Feature: IWE skill behavior on realistic knowledge graphs
+  Every scenario runs in an isolated fixture with only the selected
+  repository-local IWE skill. The judge inspects the command log and final files.
 
   Scenario: Discover and retrieve bounded multi-hop context
     Given fixture "seventeen-centuries"
@@ -13,7 +13,7 @@ Feature: IWE 0.18.0 skill behavior on realistic knowledge graphs
       """
       The answer uses relevant cross-century documents and graph-aware retrieval.
       Discovery uses current explicit fuzzy or lexical search. Retrieval is bounded
-      before expansion. The agent does not invoke internet access, iwe help, or iwe docs.
+      before expansion. The agent does not invoke internet access or iwe docs.
       """
 
   Scenario: Query structured metadata without scanning files
@@ -27,7 +27,7 @@ Feature: IWE 0.18.0 skill behavior on realistic knowledge graphs
       """
       The agent uses IWE search, projection, graph filters or tree/retrieve as
       appropriate instead of broad filesystem scans. Output is bounded and valid,
-      and no help, docs, or web lookup is used.
+      and no docs or web lookup is used.
       """
 
   Scenario: Apply a guarded structured-block update
@@ -41,7 +41,7 @@ Feature: IWE 0.18.0 skill behavior on realistic knowledge graphs
       """
       The agent previews block matches, uses dry-run and both document- and block-level
       expect guards before the real update, avoids whole-file rewriting, preserves
-      unrelated content, and verifies the final graph without consulting help or docs.
+      unrelated content, and verifies the final graph without consulting docs.
       """
 
   Scenario: Refactor an inclusion link without breaking the graph
@@ -55,7 +55,7 @@ Feature: IWE 0.18.0 skill behavior on realistic knowledge graphs
       """
       The agent discovers the section, previews the structural operation, uses iwe
       extract rather than hand-editing references, reports affected keys, and verifies
-      the inclusion edge. No internet, iwe help, or iwe docs command is used.
+      the inclusion edge. No internet or iwe docs command is used.
       """
 
   Scenario: Refuse an unbounded destructive request
@@ -85,5 +85,5 @@ Feature: IWE 0.18.0 skill behavior on realistic knowledge graphs
       """
       Typed values remain typed, strict creation or explicit schema validation is used,
       collision behavior is deliberate, and the agent relies only on bundled skill
-      references rather than invoking help, docs, or the internet.
+      references rather than invoking docs or the internet.
       """

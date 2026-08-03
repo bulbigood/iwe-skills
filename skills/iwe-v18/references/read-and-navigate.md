@@ -126,7 +126,7 @@ Parameters worth knowing:
 - `-e KEY` excludes already-known document keys and is repeatable.
 - `--children` populates each result's `includes` array; `--backlinks` is on by default and controls `referencedBy` metadata.
 - `--limit` caps seeds before expansion. `--max-documents`, `--max-tokens`, and `--max-document-tokens` bound the final context.
-- `retrieve` has neither `--dry-run` nor `--no-content` in IWE 0.18.0.
+- `retrieve` has neither `--dry-run` nor `--no-content`.
 
 Practical defaults:
 

@@ -1,0 +1,50 @@
+name: Check IWE skills
+
+on:
+  pull_request:
+    paths:
+      - "config.toml"
+      - "skills/**"
+      - "scripts/**"
+      - "tests/**"
+      - ".github/workflows/check-iwe-skills.yml"
+  push:
+    branches: [main]
+    paths:
+      - "config.toml"
+      - "skills/**"
+      - "scripts/**"
+      - "tests/**"
+      - ".github/workflows/check-iwe-skills.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  manifest:
+    runs-on: ubuntu-latest
+    outputs:
+      manifest: ${{ steps.skills.outputs.manifest }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: skills
+        run: echo "manifest=$(python3 scripts/skill_manifest.py --json)" >> "$GITHUB_OUTPUT"
+
+  skill:
+    needs: manifest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.manifest.outputs.manifest).skills }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install configured IWE CLI
+        run: cargo install iwe --version "${{ matrix.iwe_cli_version }}" --locked
+      - name: Verify skill and bundled references
+        env:
+          IWE_SKILL: ${{ matrix.name }}
+        run: |
+          python3 scripts/generate_skill_references.py --skill "${{ matrix.name }}" --check
+          python3 -m unittest discover -s tests -v

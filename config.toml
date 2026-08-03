@@ -1,0 +1,5 @@
+default_skill = "iwe-v18"
+
+[skills.iwe-v18]
+path = "skills/iwe-v18"
+iwe_cli_version = "0.18.0"

@@ -1,12 +1,5 @@
-# IWE 0.18.0 CLI Reference
-This file is generated from the complete `--help` output of `iwe 0.18.0`. Use it when exact command syntax matters. The workflow-oriented references explain when to use the commands; this file preserves the CLI contract.
-
-Regenerate or verify it with:
-
-```bash
-python3 skills/iwe-memory-system/scripts/generate-cli-reference.py
-python3 skills/iwe-memory-system/scripts/generate-cli-reference.py --check
-```
+# IWE CLI Reference
+This bundled reference preserves the exact command syntax. Workflow-oriented references explain when to use each command.
 
 ## Contents
 
@@ -61,13 +54,9 @@ Commands:
   attach       Attach a document as a block reference via configured attach actions
   completions  Generate shell completion script
   docs         Print built-in reference documentation
-  help         Print this message or the help of the given subcommand(s)
 
 Options:
   -v, --verbose <VERBOSE>  [default: 0]
-  -h, --help               Print help
-  -V, --version            Print version
-
 Run 'iwe docs' for the built-in query language, configuration, and document schema references.
 ```
 
@@ -145,9 +134,6 @@ Options:
 
       --date-format <DATE_FORMAT>
           Date format used for keys of date-named documents
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 EXAMPLES:
 
@@ -234,9 +220,6 @@ Options:
 
   -e, --edit
           Open created file in $EDITOR
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 EXAMPLES:
 
@@ -369,9 +352,6 @@ Options:
 
   -e, --edit
           Open created file in $EDITOR
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 EXAMPLES:
 
@@ -522,9 +502,6 @@ Options:
 
       --max-distance <MAX_DISTANCE>
           Default maxDistance applied to reference anchor flags without a colon-suffix. Default 1; 0 = unbounded.
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 OUTPUT FORMATS:
 
@@ -728,9 +705,6 @@ Options:
       --max-distance <MAX_DISTANCE>
           Default maxDistance applied to reference anchor flags without a colon-suffix. Default 1; 0 = unbounded.
 
-  -h, --help
-          Print help (see a summary with '-h')
-
 QUERY FLAGS (rank the results; compose via AND with the filter flags):
 
   --fuzzy QUERY               Subsequence match on title and key (typo/partial tolerant).
@@ -837,9 +811,6 @@ Options:
       --max-distance <MAX_DISTANCE>
           Default maxDistance applied to reference anchor flags without a colon-suffix. Default 1; 0 = unbounded.
 
-  -h, --help
-          Print help (see a summary with '-h')
-
 EXAMPLES:
     iwe count
     iwe count --filter 'status: draft'
@@ -865,9 +836,6 @@ Usage: iwe normalize [OPTIONS]
 Options:
   -v, --verbose <VERBOSE>
           [default: 0]
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 OPERATIONS PERFORMED:
 
@@ -966,9 +934,6 @@ Options:
       --max-distance <MAX_DISTANCE>
           Default maxDistance applied to reference anchor flags without a colon-suffix. Default 1; 0 = unbounded.
 
-  -h, --help
-          Print help (see a summary with '-h')
-
 EXAMPLES:
 
   iwe tree                                # full tree with markdown links
@@ -1038,9 +1003,6 @@ Options:
 
   -v, --verbose <VERBOSE>
           [default: 0]
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 OUTPUT FORMAT:
 
@@ -1135,9 +1097,6 @@ Options:
 
       --max-distance <MAX_DISTANCE>
           Default maxDistance applied to reference anchor flags without a colon-suffix. Default 1; 0 = unbounded.
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 DOT OUTPUT FORMAT:
 
@@ -1238,7 +1197,6 @@ Usage: iwe schema [OPTIONS] [COMMAND]
 
 Commands:
   validate  Validate documents against their configured schemas
-  help      Print this message or the help of the given subcommand(s)
 
 Options:
   -v, --verbose <VERBOSE>
@@ -1279,9 +1237,6 @@ Options:
 
       --max-distance <MAX_DISTANCE>
           Default maxDistance applied to reference anchor flags without a colon-suffix. Default 1; 0 = unbounded.
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 OUTPUT FORMATS:
 
@@ -1337,7 +1292,6 @@ Options:
       --roots                          Only match root documents (those with no incoming inclusion edges).
       --max-depth <MAX_DEPTH>          Default maxDepth applied to inclusion anchor flags without a colon-suffix. Default 1; 0 = unbounded.
       --max-distance <MAX_DISTANCE>    Default maxDistance applied to reference anchor flags without a colon-suffix. Default 1; 0 = unbounded.
-  -h, --help                           Print help
 ```
 
 ## `iwe stats`
@@ -1361,7 +1315,6 @@ Usage: iwe stats [OPTIONS] [COMMAND]
 
 Commands:
   similarity  List pages with near-identical, mutually-similar counterparts across the store
-  help        Print this message or the help of the given subcommand(s)
 
 Options:
   -v, --verbose <VERBOSE>
@@ -1375,9 +1328,6 @@ Options:
 
   -k, --key <KEY>
           Document key for per-document stats. Omit for aggregate graph statistics.
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 OUTPUT FORMATS:
 
@@ -1446,7 +1396,6 @@ Usage: iwe stats similarity [OPTIONS]
 Options:
   -t, --threshold <THRESHOLD>  Match level a pair must clear in both directions. Lower reports looser matches, higher only closer ones. [default: 0.85]
   -v, --verbose <VERBOSE>      [default: 0]
-  -h, --help                   Print help
 ```
 
 ## `iwe rename`
@@ -1482,9 +1431,6 @@ Options:
           
           [default: markdown]
           [possible values: markdown, keys]
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 EXAMPLES:
 
@@ -1554,9 +1500,6 @@ Options:
           
           [default: markdown]
           [possible values: markdown, keys]
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 EXAMPLES:
 
@@ -1629,9 +1572,6 @@ Options:
           
           [default: markdown]
           [possible values: markdown, keys]
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 EXAMPLES:
     # List all sections with block numbers
@@ -1708,9 +1648,6 @@ Options:
           
           [default: markdown]
           [possible values: markdown, keys]
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 EXAMPLES:
     # List all inclusion links with numbers
@@ -1817,9 +1754,6 @@ Options:
       --quiet
           Suppress progress output
 
-  -h, --help
-          Print help (see a summary with '-h')
-
 EXAMPLES:
 
   # Content overwrite
@@ -1916,9 +1850,6 @@ Options:
       --quiet
           Suppress progress output
 
-  -h, --help
-          Print help (see a summary with '-h')
-
 CONFIGURATION:
 
   Define an attach action in `.iwe/config.toml`:
@@ -1966,9 +1897,6 @@ Options:
   -v, --verbose <VERBOSE>
           [default: 0]
 
-  -h, --help
-          Print help (see a summary with '-h')
-
 EXAMPLES:
 
   # bash (user)
@@ -2009,9 +1937,6 @@ Arguments:
 Options:
   -v, --verbose <VERBOSE>
           [default: 0]
-
-  -h, --help
-          Print help (see a summary with '-h')
 
 TOPICS:
 

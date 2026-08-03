@@ -192,7 +192,7 @@ Field names beginning with `_`, `$`, `.`, `#`, or `@` are reserved. They are inv
 
 ## Block reads and updates
 
-IWE 0.18.0 can locate structured markdown blocks instead of forcing whole-file
+IWE can locate structured markdown blocks instead of forcing whole-file
 rewrites. Preview targets with `find`:
 
 ```bash
