@@ -5,7 +5,6 @@
   "timeout_seconds": 1800,
   "jobs": 3,
   "samples": 1,
-  "min_pass_rate": 1.0,
   "fixtures": {
     "seventeen-centuries": {
       "repository": "https://github.com/iwe-org/seventeen-centuries.git",

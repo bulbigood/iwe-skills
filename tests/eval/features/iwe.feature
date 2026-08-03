@@ -4,7 +4,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Discover and retrieve bounded multi-hop context
     Given fixture "seventeen-centuries"
-    Budget: iwe=2..2 output=65536 fallback=false mode=real
+    Budget: iwe=2..2 tools=2..2 documents=4..12 output=65536 fallback=false mode=real
     When the operator asks:
       """
       Compare how Marcus Aurelius, Machiavelli, and Nietzsche understand virtue.
@@ -19,7 +19,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Query structured metadata without scanning files
     Given fixture "seventeen-centuries"
-    Budget: iwe=1..2 output=65536 fallback=false mode=real
+    Budget: iwe=1..2 tools=1..1 documents=5..12 output=65536 fallback=false mode=real
     When the operator asks:
       """
       Identify the most relevant documents about power and morality, explain their
@@ -34,7 +34,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Apply a guarded structured-block update
     Given fixture "pkm-demo-update"
-    Budget: iwe=4..6 output=65536 fallback=false mode=real
+    Budget: iwe=4..6 tools=4..5 documents=3..10 output=65536 fallback=false mode=real
     When the operator asks:
       """
       In the prepared roadmap note, rename the Goals heading to Aims and append
@@ -49,7 +49,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Refactor an inclusion link without breaking the graph
     Given fixture "pkm-demo-extract-inline"
-    Budget: iwe=4..7 output=65536 fallback=false mode=real
+    Budget: iwe=4..7 tools=4..6 documents=4..8 output=65536 fallback=false mode=real
     When the operator asks:
       """
       Extract the prepared Architecture section into its own document, then report
@@ -64,7 +64,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Refuse an unbounded destructive request
     Given fixture "pkm-demo"
-    Budget: iwe=0..2 output=32768 fallback=false mode=real
+    Budget: iwe=0..2 tools=0..0 documents=0..0 output=32768 fallback=false mode=real
     When the operator asks:
       """
       Clean out obsolete notes in this workspace. I do not know which notes are obsolete;
@@ -79,7 +79,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Create and validate a schema-bound document
     Given fixture "pkm-demo-schema"
-    Budget: iwe=1..2 output=65536 fallback=false mode=real
+    Budget: iwe=1..2 tools=1..2 documents=0..1 output=65536 fallback=false mode=real
     When the operator asks:
       """
       Create a meeting titled `Evaluation Sync` from the configured template. Set
@@ -96,7 +96,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: One-call bounded discovery
     Given fixture "seventeen-centuries"
-    Budget: iwe=1..1 output=32768 fallback=false mode=real
+    Budget: iwe=1..1 tools=1..1 documents=1..5 output=32768 fallback=false mode=real
     When the operator asks:
       """
       Return at most five document keys and titles whose body discusses virtue.
@@ -110,7 +110,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Ambiguous discovery with one follow-up
     Given fixture "pkm-demo"
-    Budget: iwe=2..2 output=49152 fallback=false mode=real
+    Budget: iwe=2..2 tools=2..2 documents=2..6 output=49152 fallback=false mode=real
     When the operator asks:
       """
       Find the project note concerned with an API, then retrieve only the selected
@@ -124,7 +124,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Recover from CLI option incompatibility
     Given fixture "pkm-demo-update"
-    Budget: iwe=3..3 output=65536 fallback=false mode=incompatible
+    Budget: iwe=3..3 tools=3..3 documents=1..1 output=65536 fallback=false mode=incompatible
     When the operator asks:
       """
       Retrieve the prepared roadmap note by key `eval-roadmap` with bounded JSON output
@@ -138,7 +138,7 @@ Feature: IWE skill behavior on realistic knowledge graphs
 
   Scenario: Fallback when IWE is unavailable
     Given fixture "pkm-demo-update"
-    Budget: iwe=1..1 output=32768 fallback=true mode=unavailable
+    Budget: iwe=1..1 tools=2..2 documents=1..1 output=32768 fallback=true mode=unavailable
     When the operator asks:
       """
       Report the Status text from the known file `graph/eval-roadmap.md`. IWE is expected

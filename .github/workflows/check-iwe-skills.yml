@@ -45,8 +45,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install configured IWE CLI
+        if: matrix.runtime.source == 'cargo'
+      - name: Install configured IWE CLI with Cargo
+        if: matrix.runtime.source == 'cargo'
         run: cargo install iwe --version "${{ matrix.runtime.tested }}" --locked
+      - name: Install configured IWE CLI with Homebrew
+        if: matrix.runtime.source == 'homebrew'
+        run: brew install iwe
+      - name: Require configured directory runtime
+        if: matrix.runtime.source == 'directory'
+        run: test -x "${{ matrix.runtime.directory }}/${{ matrix.runtime.cli }}"
       - name: Verify frozen contract
         run: python3 scripts/sync_iwe_contract.py --skill "${{ matrix.name }}" --check
       - name: Run deterministic tests

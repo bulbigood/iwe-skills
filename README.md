@@ -14,7 +14,7 @@ Install with:
 npx skills add iwe-org/skills --skill iwe-v18
 ```
 
-The root `config.toml` maps each skill id to its runtime compatibility, frozen contract, and execution budgets. Installed agents receive only the files under the selected `skills/<id>/` directory.
+The root `config.toml` maps each skill id to its runtime compatibility, binary source, frozen contract, and execution budgets. `runtime.source` is one of `homebrew`, `cargo`, or `directory`. A `directory` source requires `runtime.directory`, which may be absolute or relative to the repository root; the configured `runtime.cli` filename is appended. Contract checks, deterministic tests, and evals resolve the binary from this setting and verify `iwe --version` against `runtime.tested` from the same table. Installed agents receive only the files under the selected `skills/<id>/` directory.
 
 ## Maintainers
 
@@ -24,7 +24,7 @@ The root `config.toml` maps each skill id to its runtime compatibility, frozen c
 
 Quick deterministic verification:
 
-Ensure the tested `iwe 0.18.0` binary is on `PATH`, then run:
+Ensure the configured runtime source contains the exact tested binary, then run:
 
 ```bash
 python3 scripts/sync_iwe_contract.py --skill iwe-v18 --check

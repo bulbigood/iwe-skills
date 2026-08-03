@@ -8,16 +8,18 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import skill_manifest
 from skill_manifest import load_skill, load_skills
 
 
-IWE = Path(shutil.which("iwe") or "/home/linuxbrew/.linuxbrew/bin/iwe")
+IWE = skill_manifest.verify_runtime_binary(load_skill(root=ROOT))
 
 
 class IweSkillTests(unittest.TestCase):
@@ -27,6 +29,7 @@ class IweSkillTests(unittest.TestCase):
         for name, spec in skills.items():
             self.assertEqual(name, spec.path.name)
             self.assertEqual(spec.runtime_cli, "iwe")
+            self.assertEqual(spec.runtime_source, "homebrew")
             self.assertEqual(spec.supported, ">=0.18.0 <0.19.0")
             self.assertEqual(spec.tested_version, "0.18.0")
             self.assertLessEqual(spec.normal_tool_calls, 1)
@@ -43,6 +46,90 @@ class IweSkillTests(unittest.TestCase):
                 {"find", "retrieve", "update", "create", "extract", "delete", "schema.validate"},
             )
             self.assertNotIn("docs", contract["commands"])
+
+    def test_runtime_binary_sources_and_configured_version(self) -> None:
+        base = load_skill(root=ROOT)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def executable(parent: Path, version: str = "0.18.0") -> Path:
+                parent.mkdir(parents=True, exist_ok=True)
+                binary = parent / "iwe"
+                binary.write_text(f"#!/bin/sh\nprintf 'iwe {version}\\n'\n", encoding="utf-8")
+                binary.chmod(0o755)
+                return binary
+
+            brew_binary = executable(root / "brew/bin")
+            brew_spec = replace(base, runtime_source="homebrew", runtime_directory=None)
+            self.assertEqual(
+                skill_manifest.resolve_runtime_binary(
+                    brew_spec, env={"HOMEBREW_PREFIX": str(root / "brew")}
+                ),
+                brew_binary,
+            )
+
+            cargo_binary = executable(root / "cargo/bin")
+            cargo_spec = replace(base, runtime_source="cargo", runtime_directory=None)
+            self.assertEqual(
+                skill_manifest.resolve_runtime_binary(
+                    cargo_spec, env={"CARGO_HOME": str(root / "cargo")}
+                ),
+                cargo_binary,
+            )
+
+            relative_root = root / "relative-project"
+            shutil.copytree(ROOT / "skills", relative_root / "skills")
+            shutil.copytree(ROOT / "contracts", relative_root / "contracts")
+            relative_binary = executable(relative_root / "tools")
+            relative_config = (ROOT / "config.toml").read_text(encoding="utf-8").replace(
+                'source = "homebrew"', 'source = "directory"\ndirectory = "tools"'
+            )
+            (relative_root / "config.toml").write_text(relative_config, encoding="utf-8")
+            relative_spec = load_skill(root=relative_root)
+            self.assertEqual(relative_spec.runtime_directory, relative_root / "tools")
+            self.assertEqual(skill_manifest.verify_runtime_binary(relative_spec), relative_binary)
+
+            absolute_binary = executable(root / "absolute-tools")
+            absolute_spec = replace(
+                base,
+                runtime_source="directory",
+                runtime_directory=absolute_binary.parent,
+            )
+            self.assertEqual(skill_manifest.verify_runtime_binary(absolute_spec), absolute_binary)
+            wrong_binary = executable(root / "wrong", "0.18.1")
+            with self.assertRaisesRegex(RuntimeError, "expected 'iwe 0.18.0'"):
+                skill_manifest.verify_runtime_binary(
+                    replace(absolute_spec, runtime_directory=wrong_binary.parent)
+                )
+
+    def test_manifest_rejects_invalid_or_incomplete_runtime_source(self) -> None:
+        for replacement, message in (
+            ('source = "unknown"', "source must be homebrew"),
+            ('source = "directory"', "requires directory"),
+        ):
+            with self.subTest(replacement=replacement), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                shutil.copytree(ROOT / "skills", root / "skills")
+                shutil.copytree(ROOT / "contracts", root / "contracts")
+                config = (ROOT / "config.toml").read_text(encoding="utf-8").replace(
+                    'source = "homebrew"', replacement
+                )
+                (root / "config.toml").write_text(config, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, message):
+                    load_skills(root)
+
+        for cli in ("../iwe", "nested/iwe", "/tmp/iwe", "nested\\iwe"):
+            with self.subTest(cli=cli), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                shutil.copytree(ROOT / "skills", root / "skills")
+                shutil.copytree(ROOT / "contracts", root / "contracts")
+                escaped_cli = cli.replace("\\", "\\\\")
+                config = (ROOT / "config.toml").read_text(encoding="utf-8").replace(
+                    'cli = "iwe"', f'cli = "{escaped_cli}"'
+                )
+                (root / "config.toml").write_text(config, encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "runtime cli must be a filename"):
+                    load_skills(root)
 
     def test_manifest_rejects_escaping_contract_path(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -263,6 +350,252 @@ class IweSkillTests(unittest.TestCase):
             os.environ.pop(secret, None)
         self.assertNotIn(secret, environment)
 
+    def test_eval_uses_floors_for_every_dimension_and_tolerates_one_of_five(self) -> None:
+        runner_path = ROOT / "tests/eval/run.py"
+        spec = importlib.util.spec_from_file_location("iwe_skill_eval_floors", runner_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        self.assertEqual(set(module.FLOORS), set(module.DIMENSIONS))
+        self.assertGreaterEqual(module.FLOORS["tool_efficiency"], 95)
+        self.assertGreaterEqual(module.FLOORS["resource_efficiency"], 90)
+
+        def sample(number: int, tool_score: int) -> dict:
+            critique = {
+                "dimensions": {
+                    name: {"score": tool_score if name == "tool_efficiency" else 100}
+                    for name in module.DIMENSIONS
+                }
+            }
+            return {
+                "scenario": "speed",
+                "sample": number,
+                "verdict": module.verdict(critique, [], True),
+            }
+
+        tolerated = module.aggregate_results([sample(index, 80 if index == 1 else 100) for index in range(1, 6)])
+        self.assertTrue(tolerated[0]["pass"])
+        self.assertEqual(tolerated[0]["floor_failures"]["tool_efficiency"]["failed_samples"], 1)
+        rejected = module.aggregate_results([sample(index, 80 if index <= 2 else 100) for index in range(1, 6)])
+        self.assertFalse(rejected[0]["pass"])
+        self.assertEqual(rejected[0]["floor_failures"]["tool_efficiency"]["failure_rate"], 0.4)
+        one_of_four = module.aggregate_results([sample(index, 80 if index == 1 else 100) for index in range(1, 5)])
+        self.assertFalse(one_of_four[0]["pass"])
+        two_of_ten = module.aggregate_results([sample(index, 80 if index <= 2 else 100) for index in range(1, 11)])
+        self.assertTrue(two_of_ten[0]["pass"])
+        three_of_ten = module.aggregate_results([sample(index, 80 if index <= 3 else 100) for index in range(1, 11)])
+        self.assertFalse(three_of_ten[0]["pass"])
+        self.assertEqual(module.aggregate_results([]), [])
+
+        malformed: dict = {
+            "dimensions": {name: {"score": 100} for name in module.DIMENSIONS}
+        }
+        malformed["dimensions"]["tool_efficiency"]["score"] = "not-a-number"
+        malformed_verdict = module.verdict(malformed, [], True)
+        self.assertEqual(malformed_verdict["floor_failures"]["tool_efficiency"]["score"], 0)
+        missing_verdict = module.verdict({"dimensions": {}}, [], True)
+        self.assertEqual(set(missing_verdict["floor_failures"]), set(module.DIMENSIONS))
+        for malformed_critique in (
+            [],
+            {"dimensions": None},
+            {"dimensions": {"tool_efficiency": None}},
+        ):
+            malformed_shape = module.verdict(malformed_critique, [], True)
+            self.assertFalse(malformed_shape["hard_pass"])
+            self.assertEqual(set(malformed_shape["floor_failures"]), set(module.DIMENSIONS))
+
+    def test_scenarios_declare_manual_excellence_targets(self) -> None:
+        runner_path = ROOT / "tests/eval/run.py"
+        spec = importlib.util.spec_from_file_location("iwe_skill_eval_targets", runner_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        targets = {
+            scenario.name: (
+                scenario.min_tool_calls,
+                scenario.max_tool_calls,
+                scenario.min_document_reads,
+                scenario.max_document_reads,
+            )
+            for scenario in module.parse_feature()
+        }
+        self.assertEqual(targets, {
+            "Discover and retrieve bounded multi-hop context": (2, 2, 4, 12),
+            "Query structured metadata without scanning files": (1, 1, 5, 12),
+            "Apply a guarded structured-block update": (4, 5, 3, 10),
+            "Refactor an inclusion link without breaking the graph": (4, 6, 4, 8),
+            "Refuse an unbounded destructive request": (0, 0, 0, 0),
+            "Create and validate a schema-bound document": (1, 2, 0, 1),
+            "One-call bounded discovery": (1, 1, 1, 5),
+            "Ambiguous discovery with one follow-up": (2, 2, 2, 6),
+            "Recover from CLI option incompatibility": (3, 3, 1, 1),
+            "Fallback when IWE is unavailable": (2, 2, 1, 1),
+        })
+
+    def test_judge_workspace_excludes_tested_skill(self) -> None:
+        runner_path = ROOT / "tests/eval/run.py"
+        spec = importlib.util.spec_from_file_location("iwe_skill_eval_judge", runner_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            workspace = root / "agent-workspace"
+            skill_file = workspace / ".agents/skills/iwe-v18/SKILL.md"
+            skill_file.parent.mkdir(parents=True)
+            skill_file.write_text("secret tested policy", encoding="utf-8")
+            (workspace / "result.md").write_text("result", encoding="utf-8")
+            (workspace / "copied-policy.md").write_text("secret tested policy", encoding="utf-8")
+            module.remove_tested_skill_for_judge(workspace)
+            self.assertFalse((workspace / ".agents").exists())
+            self.assertFalse(any(workspace.rglob("SKILL.md")))
+            self.assertEqual((workspace / "result.md").read_text(encoding="utf-8"), "result")
+            judge_workspace = module.create_judge_workspace(root)
+            self.assertEqual(list(judge_workspace.iterdir()), [])
+
+        prompt = module.judge_prompt(
+            load_skill(root=ROOT),
+            module.parse_feature()[0],
+            {
+                "metrics": {},
+                "iwe_telemetry": [],
+                "commands": [{
+                    "command": "sed -n '1,200p' .agents/skills/iwe-v18/SKILL.md",
+                    "output": "secret tested policy",
+                }],
+                "final": "answer",
+            },
+            {},
+            {},
+            [],
+        )
+        self.assertNotIn("secret tested policy", prompt)
+        self.assertIn("[TESTED_SKILL_OUTPUT_REDACTED]", prompt)
+
+        skill = load_skill(root=ROOT)
+        sensitive_line = next(
+            line for line in (skill.path / "SKILL.md").read_text(encoding="utf-8").splitlines()
+            if len(line) >= 48
+        )
+        copied_prompt = module.judge_prompt(
+            skill,
+            module.parse_feature()[0],
+            {
+                "metrics": {},
+                "iwe_telemetry": [],
+                "commands": [{"command": "cat copied-policy.md", "output": sensitive_line}],
+                "final": sensitive_line,
+            },
+            {},
+            {},
+            [],
+        )
+        self.assertNotIn(sensitive_line, copied_prompt)
+        self.assertIn("[TESTED_SKILL_TEXT_REDACTED]", copied_prompt)
+        wrapped = "\n".join(
+            sensitive_line[index:index + 40]
+            for index in range(0, len(sensitive_line), 40)
+        )
+        wrapped_prompt = module.judge_prompt(
+            skill,
+            module.parse_feature()[0],
+            {
+                "metrics": {},
+                "iwe_telemetry": [{"stdout": wrapped}],
+                "commands": [{"command": "cat copied-policy.md", "output": wrapped}],
+                "final": wrapped,
+            },
+            {},
+            {},
+            [],
+        )
+        self.assertNotIn(wrapped, wrapped_prompt)
+        self.assertIn("[TESTED_SKILL_TEXT_REDACTED]", wrapped_prompt)
+
+    def test_task_tool_calls_exclude_only_exact_successful_standalone_activation(self) -> None:
+        runner_path = ROOT / "tests/eval/run.py"
+        spec = importlib.util.spec_from_file_location("iwe_skill_eval_activation", runner_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        commands = [
+            {
+                "command": "sed -n '1,200p' .agents/skills/iwe-v18/SKILL.md",
+                "exit_code": 0,
+                "output": "skill body",
+            },
+            {
+                "command": "sed -n '1,200p' .agents/skills/other/SKILL.md",
+                "exit_code": 0,
+                "output": "other skill",
+            },
+            {
+                "command": "sed -n '1,200p' .agents/skills/iwe-v18/SKILL.md",
+                "exit_code": 1,
+                "output": "",
+            },
+            {
+                "command": "printf '%s' .agents/skills/iwe-v18/SKILL.md",
+                "exit_code": 0,
+                "output": ".agents/skills/iwe-v18/SKILL.md",
+            },
+            {
+                "command": "sed -n '1,200p' .agents/skills/iwe-v18/SKILL.md && iwe find --lexical x --limit 1",
+                "exit_code": 0,
+                "output": "skill body\n[]",
+            },
+            {
+                "command": "cat .agents/skills/iwe-v18/SKILL.md graph/task.md",
+                "exit_code": 0,
+                "output": "skill body\ntask body",
+            },
+            {
+                "command": "cat .agents/skills/iwe-v18/SKILL.md",
+                "output": "skill body",
+            },
+        ]
+        metrics = module.command_metrics(commands, tested_skill="iwe-v18")
+        self.assertEqual(metrics["raw_tool_calls"], 7)
+        self.assertEqual(metrics["task_tool_calls"], 6)
+        combined_only = module.command_metrics([commands[-2]], tested_skill="iwe-v18")
+        self.assertEqual(combined_only["task_tool_calls"], 1)
+        non_range_sed = module.command_metrics(
+            [{
+                "command": "sed -n p .agents/skills/iwe-v18/SKILL.md",
+                "exit_code": 0,
+                "output": "skill body",
+            }],
+            tested_skill="iwe-v18",
+        )
+        self.assertEqual(non_range_sed["task_tool_calls"], 1)
+        single_address_sed = module.command_metrics(
+            [{
+                "command": "sed -n 1p .agents/skills/iwe-v18/SKILL.md",
+                "exit_code": 0,
+                "output": "skill body",
+            }],
+            tested_skill="iwe-v18",
+        )
+        self.assertEqual(single_address_sed["task_tool_calls"], 0)
+        for noncanonical_path in (
+            "/tmp/other/.agents/skills/iwe-v18/SKILL.md",
+            "../other/.agents/skills/iwe-v18/SKILL.md",
+            "./.agents/skills/iwe-v18/SKILL.md",
+        ):
+            noncanonical = module.command_metrics(
+                [{
+                    "command": f"cat {noncanonical_path}",
+                    "exit_code": 0,
+                    "output": "skill body",
+                }],
+                tested_skill="iwe-v18",
+            )
+            self.assertEqual(noncanonical["task_tool_calls"], 1)
+
     def test_eval_metrics_count_chained_iwe_and_forbidden_fallbacks(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
         spec = importlib.util.spec_from_file_location("iwe_skill_eval_metrics", runner_path)
@@ -330,16 +663,30 @@ class IweSkillTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        metrics = module.command_metrics([], [{
-            "args": ["find", "--lexical", "virtue", "--limit", "2", "--format", "json"],
-            "exit_code": 0,
-            "stdout_bytes": 123,
-            "stderr_bytes": 20,
-            "result_count": 2,
-        }])
+        metrics = module.command_metrics(
+            [
+                {
+                    "command": "sed -n '1,200p' .agents/skills/iwe-v18/SKILL.md",
+                    "exit_code": 0,
+                    "output": "skill",
+                },
+                {"command": "iwe find --lexical virtue --limit 2 --format json", "output": "[]"},
+            ],
+            [{
+                "args": ["find", "--lexical", "virtue", "--limit", "2", "--format", "json"],
+                "exit_code": 0,
+                "stdout_bytes": 123,
+                "stderr_bytes": 20,
+                "result_count": 2,
+            }],
+            tested_skill="iwe-v18",
+        )
         self.assertEqual(metrics["iwe_calls"], 1)
         self.assertEqual(metrics["iwe_output_bytes"], 123)
         self.assertEqual(metrics["max_result_count"], 2)
+        self.assertEqual(metrics["document_reads"], 2)
+        self.assertEqual(metrics["raw_tool_calls"], 2)
+        self.assertEqual(metrics["task_tool_calls"], 1)
         self.assertEqual(metrics["unbounded_read_calls"], 0)
         missing = module.command_metrics(
             [{"command": "iwe find --lexical virtue --limit 1 --format json", "output": "[]"}],

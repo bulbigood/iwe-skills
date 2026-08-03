@@ -24,8 +24,8 @@ A pass-through script does not qualify. Measured runtime budgets are one IWE cal
 ## Release update
 
 1. Add the next versioned skill directory instead of silently changing the IWE 0.18 contract to a later CLI line.
-2. Update the root `config.toml` with the skill path, skill version, supported range, exact tested CLI version, contract path, provenance, and execution budgets.
-3. Install the exact tested CLI version in an isolated environment.
+2. Update the root `config.toml` with the skill path, skill version, runtime source (`homebrew`, `cargo`, or `directory`), supported range, exact tested CLI version, contract path, provenance, and execution budgets. For `directory`, set an absolute directory or one relative to the repository root.
+3. Install the exact tested CLI version through the configured source. All deterministic tooling resolves that source and validates the binary against `runtime.tested`; it does not silently take another `iwe` from `PATH`.
 4. Update the curated command/flag set in `contracts/<skill>.json` only after reviewing the release behavior.
 5. Synchronize help hashes:
 

@@ -7,12 +7,11 @@ import argparse
 import difflib
 import hashlib
 import json
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-from skill_manifest import ROOT, load_skill
+from skill_manifest import ROOT, load_skill, verify_runtime_binary
 
 
 def run(iwe: str, *args: str) -> str:
@@ -67,9 +66,7 @@ def main() -> int:
     contracts_root = (ROOT / "contracts").resolve()
     if not spec.contract_file.resolve().is_relative_to(contracts_root):
         raise SystemExit(f"refusing contract outside {contracts_root}: {spec.contract_file}")
-    iwe = shutil.which(spec.runtime_cli)
-    if not iwe:
-        raise SystemExit(f"missing configured IWE executable: {spec.runtime_cli}")
+    iwe = str(verify_runtime_binary(spec))
 
     current_text = spec.contract_file.read_text(encoding="utf-8")
     current = json.loads(current_text)

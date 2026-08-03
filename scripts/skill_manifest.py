@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
+import subprocess
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +23,8 @@ class SkillSpec:
     path: Path
     skill_version: str
     runtime_cli: str
+    runtime_source: str
+    runtime_directory: Path | None
     supported: str
     tested_version: str
     contract_file: Path
@@ -42,6 +47,8 @@ class SkillSpec:
             "skill_version": self.skill_version,
             "runtime": {
                 "cli": self.runtime_cli,
+                "source": self.runtime_source,
+                "directory": str(self.runtime_directory) if self.runtime_directory else None,
                 "supported": self.supported,
                 "tested": self.tested_version,
             },
@@ -170,6 +177,35 @@ def load_skills(root: Path = ROOT) -> tuple[str, dict[str, SkillSpec]]:
 
         tested = _string(runtime, "tested", f"skill {name} runtime")
         supported = _string(runtime, "supported", f"skill {name} runtime")
+        runtime_cli = _string(runtime, "cli", f"skill {name} runtime")
+        if (
+            runtime_cli in {".", ".."}
+            or Path(runtime_cli).is_absolute()
+            or Path(runtime_cli).name != runtime_cli
+            or "/" in runtime_cli
+            or "\\" in runtime_cli
+        ):
+            raise ValueError(f"skill {name} runtime cli must be a filename")
+        runtime_source = _string(runtime, "source", f"skill {name} runtime")
+        if runtime_source not in {"homebrew", "cargo", "directory"}:
+            raise ValueError(
+                f"skill {name} runtime source must be homebrew, cargo, or directory"
+            )
+        configured_directory = runtime.get("directory")
+        if runtime_source == "directory":
+            if not isinstance(configured_directory, str) or not configured_directory:
+                raise ValueError(f"skill {name} directory runtime requires directory")
+            runtime_directory = Path(configured_directory).expanduser()
+            if not runtime_directory.is_absolute():
+                runtime_directory = (root / runtime_directory).resolve()
+            else:
+                runtime_directory = runtime_directory.resolve()
+        else:
+            if configured_directory is not None:
+                raise ValueError(
+                    f"skill {name} runtime directory is only valid for directory source"
+                )
+            runtime_directory = None
         line_match = re.match(r"^(\d+)\.(\d+)\.", tested)
         expected_range = (
             f">={line_match.group(1)}.{line_match.group(2)}.0 "
@@ -225,7 +261,9 @@ def load_skills(root: Path = ROOT) -> tuple[str, dict[str, SkillSpec]]:
             name=name,
             path=path,
             skill_version=skill_version,
-            runtime_cli=_string(runtime, "cli", f"skill {name} runtime"),
+            runtime_cli=runtime_cli,
+            runtime_source=runtime_source,
+            runtime_directory=runtime_directory,
             supported=supported,
             tested_version=tested,
             contract_file=contract_file,
@@ -250,12 +288,98 @@ def load_skill(name: str | None = None, root: Path = ROOT) -> SkillSpec:
     return specs[selected]
 
 
+def resolve_runtime_binary(
+    spec: SkillSpec,
+    env: dict[str, str] | None = None,
+) -> Path:
+    environment = dict(os.environ if env is None else env)
+    if spec.runtime_source == "directory":
+        assert spec.runtime_directory is not None
+        candidates = [spec.runtime_directory / spec.runtime_cli]
+    elif spec.runtime_source == "cargo":
+        home = Path(environment.get("HOME", str(Path.home()))).expanduser()
+        cargo_home = Path(environment.get("CARGO_HOME", str(home / ".cargo"))).expanduser()
+        candidates = [cargo_home / "bin" / spec.runtime_cli]
+    elif spec.runtime_source == "homebrew":
+        if environment.get("HOMEBREW_PREFIX"):
+            prefixes = [Path(environment["HOMEBREW_PREFIX"]).expanduser()]
+        else:
+            brew = shutil.which("brew", path=environment.get("PATH"))
+            if not brew:
+                brew = next(
+                    (
+                        str(candidate)
+                        for candidate in (
+                            Path("/home/linuxbrew/.linuxbrew/bin/brew"),
+                            Path("/opt/homebrew/bin/brew"),
+                            Path("/usr/local/bin/brew"),
+                        )
+                        if candidate.is_file() and os.access(candidate, os.X_OK)
+                    ),
+                    None,
+                )
+            if not brew:
+                raise RuntimeError("missing Homebrew executable for configured homebrew source")
+            brew_environment = environment.copy()
+            brew_environment.setdefault("HOME", str(Path.home()))
+            brew_environment.setdefault("PATH", os.defpath)
+            completed = subprocess.run(
+                [brew, "--prefix"],
+                text=True,
+                capture_output=True,
+                check=False,
+                env=brew_environment,
+            )
+            if completed.returncode != 0 or not completed.stdout.strip():
+                raise RuntimeError(
+                    f"failed to resolve configured Homebrew prefix: {completed.stderr.strip()}"
+                )
+            prefixes = [Path(completed.stdout.strip())]
+        candidates = [prefix / "bin" / spec.runtime_cli for prefix in prefixes]
+    else:
+        raise ValueError(f"unsupported runtime source: {spec.runtime_source}")
+
+    for candidate in candidates:
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return candidate.resolve()
+    rendered = ", ".join(str(candidate) for candidate in candidates)
+    raise RuntimeError(
+        f"missing {spec.runtime_cli} from configured {spec.runtime_source} source; checked: {rendered}"
+    )
+
+
+def verify_runtime_binary(
+    spec: SkillSpec,
+    env: dict[str, str] | None = None,
+) -> Path:
+    binary = resolve_runtime_binary(spec, env=env)
+    completed = subprocess.run(
+        [str(binary), "--version"],
+        text=True,
+        capture_output=True,
+        check=False,
+        env=dict(os.environ if env is None else env),
+    )
+    actual = completed.stdout.strip()
+    expected = f"iwe {spec.tested_version}"
+    if completed.returncode != 0 or actual != expected:
+        raise RuntimeError(f"expected {expected!r}, got {actual!r} from {binary}")
+    return binary
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--skill")
     parser.add_argument(
         "--field",
-        choices=("name", "path", "tested_version", "contract_file"),
+        choices=(
+            "name",
+            "path",
+            "runtime_source",
+            "runtime_directory",
+            "tested_version",
+            "contract_file",
+        ),
         help="print one field for the selected skill",
     )
     parser.add_argument("--json", action="store_true", help="print every skill as JSON")
@@ -273,7 +397,12 @@ def main() -> int:
     spec = load_skill(args.skill)
     if args.field:
         value = getattr(spec, args.field)
-        print(value.relative_to(ROOT) if isinstance(value, Path) else value)
+        if isinstance(value, Path):
+            try:
+                value = value.relative_to(ROOT)
+            except ValueError:
+                pass
+        print(value)
     else:
         print(spec.name)
     return 0
