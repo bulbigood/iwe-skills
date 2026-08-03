@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "cli_line": "0.18",
+  "default_limit": 20,
+  "output_format": "json",
+  "commands": {
+    "find": {
+      "required_any": [
+        "--fuzzy",
+        "--lexical",
+        "--filter",
+        "--key",
+        "--roots"
+      ],
+      "supported_flags": [
+        "--fuzzy",
+        "--lexical",
+        "--filter",
+        "--key",
+        "--included-by",
+        "--includes",
+        "--references",
+        "--referenced-by",
+        "--roots",
+        "--limit",
+        "--max-tokens",
+        "--max-document-tokens",
+        "--project",
+        "--add-fields",
+        "--blocks",
+        "--matches",
+        "--sort",
+        "--format"
+      ],
+      "default_limit": 20,
+      "output_format": "json",
+      "help_sha256": "a0e878748541ec4ec2ae0b06553fd073af40964b4e2adf807986ea7edc3415ff"
+    },
+    "retrieve": {
+      "required_any": [
+        "--key",
+        "--fuzzy",
+        "--lexical",
+        "--filter"
+      ],
+      "supported_flags": [
+        "--key",
+        "--fuzzy",
+        "--lexical",
+        "--filter",
+        "--limit",
+        "--max-documents",
+        "--max-tokens",
+        "--max-document-tokens",
+        "--expand-includes",
+        "--expand-included-by",
+        "--expand-references",
+        "--expand-referenced-by",
+        "--children",
+        "--backlinks",
+        "--exclude",
+        "--format"
+      ],
+      "default_limit": 20,
+      "output_format": "json",
+      "help_sha256": "4b5dbc1709a5b5d34d2b55346eb9bf32a28cbc5674c4d8d0d6b1e18095e4bf47"
+    },
+    "update": {
+      "required_any": [
+        "--key",
+        "--filter"
+      ],
+      "supported_flags": [
+        "--key",
+        "--filter",
+        "--set",
+        "--unset",
+        "--replace",
+        "--replace-text",
+        "--insert-before",
+        "--insert-after",
+        "--append",
+        "--delete",
+        "--expect",
+        "--strict",
+        "--dry-run",
+        "--quiet"
+      ],
+      "requires_preview": true,
+      "requires_strict_guards": true,
+      "help_sha256": "047cf20620aad5212d3928c8c141ff8f523508903425bd6cd78bd7e0912d417c"
+    },
+    "create": {
+      "supported_flags": [
+        "--template",
+        "--content",
+        "--vars-yaml",
+        "--vars-json",
+        "--var",
+        "--set",
+        "--if-exists",
+        "--strict"
+      ],
+      "requires_explicit_collision_policy": true,
+      "help_sha256": "5770c83371d0f1e2fa1b8ef1773b75da2881136a4fd3fb977a83ab01e71058c8"
+    },
+    "extract": {
+      "supported_flags": [
+        "--section",
+        "--block",
+        "--list",
+        "--action",
+        "--dry-run",
+        "--format"
+      ],
+      "help_sha256": "a08b2956951386dcb0e2525614d5532d2cc60bbbd9cc7a5e4dd2968130a3ec51"
+    },
+    "delete": {
+      "supported_flags": [
+        "--filter",
+        "--expect",
+        "--strict",
+        "--dry-run",
+        "--format"
+      ],
+      "requires_confirmation": true,
+      "help_sha256": "7865a46994b605bcf6447faca21fd0cb3a00e0189d2bb5eeda205e378db6dcf1"
+    },
+    "schema.validate": {
+      "supported_flags": [
+        "--key",
+        "--filter",
+        "--schema-file",
+        "--explain",
+        "--format"
+      ],
+      "output_format": "json",
+      "help_sha256": "b8a9eabba9a53f2ae1bfc141a0bf7688677caa69908cd8a658b07760795144eb"
+    }
+  },
+  "errors": {
+    "missing_executable": "iwe_unavailable",
+    "unsupported_version": "unsupported_cli_version",
+    "unknown_command_or_option": "cli_contract_mismatch",
+    "unsupported_operation": "unsupported_operation"
+  }
+}

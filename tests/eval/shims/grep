@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+printf '%s\n' "blocked eval tool: $(basename "$0")" >&2
+if [ -n "${IWE_EVAL_BLOCK_LOG:-}" ]; then
+  printf '%s\n' "$(basename "$0") $*" >> "$IWE_EVAL_BLOCK_LOG"
+fi
+exit 97

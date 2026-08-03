@@ -1,12 +1,12 @@
-## IWE Agentic AI Skills
+## IWE Agent Skills
 
-Main repository is here https://github.com/iwe-org/iwe
+Versioned skills in this repository give agents a frozen execution contract for a specific IWE CLI line.
 
 ## Available skills
 
 ### `iwe-v18`
 
-Use the `iwe` skill when an agent is working inside an IWE knowledge graph and should prefer the `iwe` CLI for graph-aware reads and refactors instead of ad-hoc markdown edits.
+Use this skill in an IWE knowledge graph when the agent should prefer bounded, graph-aware IWE 0.18 commands over ad-hoc Markdown or filesystem discovery.
 
 Install with:
 
@@ -14,6 +14,23 @@ Install with:
 npx skills add iwe-org/skills --skill iwe-v18
 ```
 
-Each published IWE release has its own skill directory. The root `config.toml`
-maps skill ids to their directories and CLI versions; publishing and test tools
-read that manifest instead of inferring versions from directory names.
+The root `config.toml` maps each skill id to its runtime compatibility, frozen contract, and execution budgets. Installed agents receive only the files under the selected `skills/<id>/` directory.
+
+## Maintainers
+
+- Runtime/contract update procedure: [docs/maintainers.md](docs/maintainers.md)
+- Upstream provenance and external links: [docs/upstream-sources.md](docs/upstream-sources.md)
+- Behavioral eval guide: [tests/eval/README.md](tests/eval/README.md)
+
+Quick deterministic verification:
+
+Ensure the tested `iwe 0.18.0` binary is on `PATH`, then run:
+
+```bash
+python3 scripts/sync_iwe_contract.py --skill iwe-v18 --check
+python3 -m unittest discover -s tests -v
+python3 scripts/skill_metrics.py
+python3 tests/eval/run.py --list
+```
+
+Agent evals are paid and nondeterministic. Run them only with explicit operator authorization.

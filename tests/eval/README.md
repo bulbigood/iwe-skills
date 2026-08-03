@@ -1,82 +1,75 @@
 # IWE skill behavioral evaluations
 
-This suite follows the semantic agent-eval architecture from
-`~/projects/specspine/tests/eval/run.py`: isolated workspaces, natural-language
-Gherkin scenarios, full command telemetry, deterministic postconditions, and an
-independent read-only judge. AI runs are paid and nondeterministic; they require
-explicit operator authorization. Listing and fixture preparation are mechanical.
-
-The executable runner is `tests/eval/run.py`. The `codex` configuration lives at
-`tests/eval/configs/codex.json` and runs Codex as both the workspace-writing agent
-and the independent read-only judge.
+The eval runner uses isolated workspaces, natural-language scenarios, complete command telemetry, deterministic postconditions, and an independent read-only judge. Agent and judge runs are paid and nondeterministic; they require explicit operator authorization. Scenario listing, contract checks, shim tests, command classification, and budget validation are mechanical.
 
 ```bash
-python3 tests/eval/run.py --config codex --list
+python3 tests/eval/run.py --list
 python3 tests/eval/run.py --skill iwe-v18 --config codex
-python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario "bounded multi-hop"
+python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario "One-call bounded discovery" --jobs 1 --samples 1
 ```
 
-When `--skill` is omitted, the runner uses `default_skill` from the repository
-root `config.toml`. The manifest maps the selected id to both its directory and
-required CLI version. The runner verifies that mapping against `SKILL.md`
-metadata and the installed binary before starting paid evaluation work.
+When `--skill` is omitted, the runner uses `default_skill` from root `config.toml`. Before starting agents it verifies the configured local IWE binary against the exact tested version.
 
-## Corpus choice
+## Fixtures
 
-Use two fixtures, pinned by commit rather than copied into this repository:
+The runner pins and caches two upstream repositories by commit:
 
-- **Primary stress corpus:** `iwe-org/seventeen-centuries` at
-  `acc00aeabee4fd510c54e9e9033d6b9869aedc3d` (1,226 Markdown files). It is the
-  largest public, ready-to-run IWE example in the organization and has real
-  inclusion/reference topology plus cross-document synthesis tasks.
-- **Focused mutation corpus:** `iwe-org/pkm-demo` at
-  `76007db0c64c3ee170e2a8869a88e7c61909d489` (210 Markdown files). It is small
-  enough to prepare deterministic update/extract/schema defects while remaining
-  realistic.
+- `iwe-org/seventeen-centuries` at `acc00aeabee4fd510c54e9e9033d6b9869aedc3d` for large retrieval and synthesis.
+- `iwe-org/pkm-demo` at `76007db0c64c3ee170e2a8869a88e7c61909d489` for focused query, mutation, schema, and failure-path scenarios.
 
-Do not use `memory-bench` itself as the checked-in fixture. Its HotPotQA corpus is
-generated and gitignored. Its protocol does, however, explain the strongest
-retrieval corpus: HotPotQA distractor passages, one article per page, with a
-mechanically linked tier. Add that as a separate retrieval-quality benchmark
-later; it measures retrieval quality more than skill-following behavior.
+Each scenario receives a fresh non-git copy and only the selected repository-local skill under `.agents/skills/`.
 
-## Harness behavior
+## Mechanical efficiency contract
 
-1. Fetch each archive once per run, verify its pinned commit, and copy it into a
-   fresh temporary workspace per scenario.
-2. Resolve the selected skill through the root manifest and install only that
-   checkout under the agent's isolated skill directory. Do not fetch the skill
-   from `main`.
-3. Resolve the local `iwe` binary and assert the configured CLI version in
-   harness setup before starting an agent or judge.
-4. Capture JSONL command events, before/after files, resource metrics, stdout,
-   stderr, and the final response exactly as the Specspine runner does.
-5. Fail mechanically if the agent command log contains `iwe docs` or a network
-   tool. The bundled references are the evaluation source of truth.
-6. Keep semantic judging for task choice, bounded retrieval, preservation, and
-   explanation quality. Use deterministic checks for graph/schema validity,
-   expected changed keys, unchanged unrelated files, and forbidden commands.
-7. Run 3–5 samples per scenario and accept by pass rate. Keep scenario-level
-   scores for correctness, skill compliance, safety, evidence, tool efficiency,
-   and resource efficiency.
+Every Gherkin scenario declares:
+
+```text
+Budget: iwe=MIN..MAX output=BYTES fallback=true|false mode=real|incompatible|unavailable
+```
+
+The runner counts actual IWE invocations, including chained commands, rather than command-execution events. A proxy shim records exact IWE data before agent telemetry can truncate it. The runner records:
+
+- command-specific help calls;
+- web/network and built-in documentation calls;
+- forbidden `grep`, `rg`, and `find` fallbacks;
+- direct broad workspace reads;
+- optional reference reads;
+- exact IWE stdout bytes and JSON result counts;
+- total captured command-output bytes and a stable byte-to-token context estimate;
+- failed and unbounded IWE calls.
+
+The proxy caps emitted IWE stdout at the scenario output budget while preserving the original byte count for the mechanical verdict. These values are hard gates. The AI judge scores semantic correctness, safety, evidence, and explanation quality; it does not decide whether a countable budget was met.
+
+## Isolation and shims
+
+`tests/eval/shims/` blocks and logs `grep`, `rg`, `find`, `curl`, and `wget` by placing shims first on the tested agent's `PATH`. Command telemetry separately rejects `gh`, `git clone`, `iwe docs`, and known network commands. The agent receives an explicit environment allowlist rather than a copy of the host environment. The independent read-only judge receives evidence and exact IWE telemetry without inheriting failure shims.
+
+The Codex configuration also enforces `workspace-write`, disables sandbox network access, and sets the generated shell environment to inherit nothing. Shims are defense in depth, not the network boundary. Any additional agent configuration must provide equivalent filesystem, environment, and network isolation.
+
+Two scenario-specific IWE shims exercise failure policy:
+
+- `incompatible`: the first productive command returns an unknown-option error, command-specific help remains available, and one corrected retry can delegate to the real pinned binary;
+- `unavailable`: IWE returns command-not-found and a single explicitly permitted narrow fallback may be used.
+
+## Scenario classes
+
+- **One-call happy path:** exactly one bounded IWE discovery and no fallback/reference read.
+- **Ambiguous result:** discovery followed by one targeted retrieval.
+- **CLI incompatibility:** productive command, command-specific help, corrected retry.
+- **IWE unavailable:** one failed IWE attempt, no installation/reconfiguration, narrow fallback only when declared.
+- **Safety/correctness:** bounded synthesis, structured metadata, guarded block update, graph extraction, destructive refusal, and schema-bound creation.
+
+Write scenarios receive larger IWE budgets because preview, strict mutation, and post-write verification are mandatory. Efficiency never overrides destructive confirmation or mutation safety.
 
 ## Deterministic postconditions
 
-- All fixtures: `iwe schema validate` exits 0 when schemas are configured.
-- Read-only scenarios: byte-for-byte workspace equality.
-- Update scenario: only the prepared roadmap document changes; heading and
-  appended sentence occur exactly once.
-- Extract scenario: expected new key exists, source has one standalone inclusion
-  link, and `iwe find --included-by SOURCE -f keys` contains the new key.
-- Destructive scenario: no file changes and no mutating IWE command.
-- Every scenario: zero deprecated positional searches, zero failed IWE commands,
-  zero docs/network commands, bounded output bytes, and no direct Markdown edit
-  when a graph-aware IWE operation exists.
+- Read-only scenarios preserve fixture bytes.
+- Update changes only the prepared roadmap and preserves unrelated content.
+- Extract creates a target document and replaces the source section with an inclusion edge.
+- Schema-bound creation preserves typed frontmatter and produces a meeting document.
+- Destructive refusal performs no mutation.
+- Every scenario obeys its IWE/output/fallback budget, avoids deprecated positional `find`, and makes no web or documentation call.
 
-## Coverage rationale
+## Running strategy
 
-The feature file separates discovery/retrieval, metadata/query use, precise block
-mutation, structural refactoring, destructive safety, and schema-aware creation.
-That makes failures attributable. One giant end-to-end prompt would mostly test
-whether a judge is feeling charitable that afternoon, an established but poor
-measurement technique.
+Run `python3 -m unittest discover -s tests -v` before any paid eval. Then run one sample of each focused efficiency scenario with `--jobs 1`. Run the full suite only after those pass. Reports are written under `tests/eval/reports/` and include raw commands, mechanical metrics/errors, judge output, and final verdicts.

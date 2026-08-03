@@ -1,124 +1,108 @@
 ---
 name: iwe-v18
-description: "Use this skill when working in an IWE knowledge-graph workspace, especially to help an agent read, navigate, retrieve context from, query frontmatter, and safely refactor Markdown notes with the `iwe` CLI instead of ad-hoc file edits. Covers project discovery, inclusion links, context-building, analysis, the frontmatter query language, and the command surface: `init`, `create`, `new`, `retrieve`, `find`, `count`, `normalize`, `tree`, `squash`, `export`, `schema`, `stats`, `rename`, `delete`, `extract`, `inline`, `update`, `attach`, `completions`, and `docs`."
+description: Use for IWE 0.18 knowledge-graph retrieval and safe Markdown refactors. Prefer bounded IWE commands over filesystem discovery.
+compatibility: Requires IWE CLI >=0.18.0 and <0.19.0.
 metadata:
-  version: 0.1.0
+  version: "0.2.0"
 ---
 
-# IWE
+# IWE 0.18 execution policy
 
-IWE is local-first and markdown-based. Prefer `iwe` commands for graph-aware reads and refactors, and only fall back to direct file edits when the CLI does not cover the task.
+Use IWE for graph-aware discovery, retrieval, querying, and structural changes in an IWE Markdown workspace. IWE is authoritative for operations supported by this contract.
 
-IWE does not impose a single graph structure or file naming convention. Do not assume a particular hierarchy, naming scheme, or note layout unless the workspace itself shows one.
+## Mandatory rules
 
-Bundled references (use these first):
+- Start with the known IWE 0.18 command that directly answers the request.
+- Do not run routine preflight such as version, status, schema, or command-help checks.
+- Do not use web search, `grep`, `rg`, `find`, recursive directory listing, or broad multi-file reads to duplicate supported IWE discovery.
+- Do not install, update, configure, or repair IWE.
+- Do not consult external IWE documentation or invoke the built-in documentation command.
+- Default result limit: 20. Use a smaller limit when it is sufficient.
+- Request JSON and only the fields or content needed for the task.
+- Never use `0` for a result, depth, distance, document, or token limit; in IWE 0.18 it means unlimited.
+- Prefer one precise command over several broad commands.
+- Stop as soon as the returned evidence is sufficient.
 
-- Docs index: https://iwe.md/docs/
-- Agentic tools: https://iwe.md/docs/agentic/
-- Inclusion links: https://iwe.md/docs/concepts/inclusion-links/
-- Query language: https://iwe.md/docs/concepts/query-language/
-- CLI reference: https://iwe.md/docs/cli/
+## Default read workflow
 
-The linked files below contain the bundled CLI contract and built-in reference
-topics needed for normal work.
+1. Translate the request into one bounded `find` or `retrieve` command.
+2. Use `find --fuzzy` for partial title/key discovery and `find --lexical` for body text.
+3. Use filters or relationship flags when the request already supplies structured criteria or an anchor key.
+4. Project metadata without full content when titles, keys, fields, or relationships are enough.
+5. Use `retrieve` when full content or bounded graph expansion is required.
+6. Reuse returned document keys. Do not search again by filename when a key is known.
+7. Stop after the first command when its result is unambiguous.
 
-## Quick start
+Do not run a second query merely to confirm evidence that is already clear. A second IWE command is allowed only to retrieve selected keys, resolve genuinely ambiguous results, or refine one well-formed query that returned no result.
 
-1. Confirm the workspace is an IWE project by checking for the `.iwe/` marker directory.
-2. If `.iwe/config.toml` exists, read it before assuming where notes live;
-   `library.path` may point to a subdirectory. If it is absent, use IWE's defaults.
-3. Use `iwe find --fuzzy`, `iwe find --lexical`, `iwe tree`, and `iwe retrieve`
-   to explore before editing. Bare positional queries to `find` are deprecated.
-4. Use `iwe schema` to learn the frontmatter shape, then `iwe find --filter` / `iwe count --filter` to query by frontmatter.
-5. Use `iwe stats` for analysis and `iwe squash` when one linear markdown artifact is more useful than graph-shaped retrieval.
-6. For structural note changes, prefer `iwe new`, `iwe extract`, `iwe inline`, `iwe rename`, and `iwe delete`. For frontmatter mutations, prefer `iwe update --set` / `--unset`.
-7. Use preview modes such as `--dry-run` only when the specific command supports
-   them. Consult `references/cli-reference.md` when exact flags matter; do not
-   infer shared options across commands.
+### Bounded discovery
 
-## Precise markdown edits
-
-When changing a heading, paragraph, list, or content inside a known section, do
-not use body-overwrite mode (`iwe update -c`) and do not reconstruct the whole
-document. Use structured block mutation:
-
-1. Locate the exact target with `iwe find -k KEY --blocks PREDICATE` (or
-   `--matches` for regex discovery). `--blocks` accepts one inline mapping and
-   may appear only once per command. Run separate `find` commands when you need
-   to inspect two unrelated selectors; do not repeat the flag or invent an
-   expression syntax such as `type == "reference"`.
-2. Preview the intended `iwe update` block operator with `--dry-run`.
-3. Put an inline `expect` guard in every block operator and a document-level
-   `--expect`; use `--strict` for the real mutation.
-4. Apply `--replace-text`, `--replace`, `--append`, `--insert-before`,
-   `--insert-after`, or `--delete` as appropriate.
-5. Retrieve the document by explicit key with `iwe retrieve -k KEY` and verify
-   unrelated blocks were preserved.
-
-Body-overwrite mode is only for a user-requested complete body replacement. It
-is not a shortcut for a localized edit.
-
-## Inclusion links
-
-IWE treats a markdown link on its own line as structure, not just a normal inline reference. That standalone link creates a parent-child relationship in the knowledge graph.
-
-In practice, an inclusion link should be surrounded by blank lines. If adjacent inclusion links are written back-to-back with no empty line between them, IWE can treat them as inline content instead of structural links.
-
-This distinction matters:
-
-- A standalone link is an inclusion link and affects hierarchy and graph
-  expansion such as `retrieve --expand-includes` and
-  `retrieve --expand-included-by`.
-- A link inside a sentence is an inline link and only expresses a reference relationship.
-
-Preserve that distinction. Keep inclusion links on their own lines with an empty line before and after each one. Do not append prose to an inclusion link line or rewrite it into inline text unless the user explicitly wants the hierarchy changed.
-
-Example:
-
-```md
-# Photography
-
-[Composition](composition)
-
-[Lighting](lighting)
-
+```bash
+iwe find --lexical "<terms>" --limit 20 --project 'key=$key,title=$title' --format json
 ```
 
-The two child links above are structural because each link is isolated by blank lines. They are not equivalent to writing a sentence like `See [Composition](composition) for more.`, and they should not be written back-to-back with no empty line between them.
+Combine fuzzy and lexical matching in this same command when both title/key tolerance and body relevance matter. Add a filter or relationship anchor to narrow results rather than increasing the limit.
 
-## Reference map
+### Bounded graph retrieval
 
-- For project discovery and config assumptions, read [./references/project-setup.md](./references/project-setup.md).
-- For read and navigation flows, read [./references/read-and-navigate.md](./references/read-and-navigate.md).
-- For write and refactor flows, read [./references/write-and-refactor.md](./references/write-and-refactor.md).
-- For the frontmatter query language used by `--filter` (operators, projection, sort, `$set` / `$unset`), read [./references/query-language.md](./references/query-language.md).
-- For command-specific syntax for every command and nested
-  subcommand, read [./references/cli-reference.md](./references/cli-reference.md).
-- For the complete query-language, configuration, and document-schema manuals,
-  read
-  [./references/builtin-reference.md](./references/builtin-reference.md).
+```bash
+iwe retrieve --lexical "<terms>" --limit 5 --expand-included-by 1 --max-documents 12 --max-tokens 6000 --max-document-tokens 1200 --format json
+```
 
-## Guardrails
+Seed limits apply before expansion. Pair expansion with all three maxima above and use positive depths. For a known key use `iwe retrieve --key "<key>" --limit 1 --max-documents 1 --max-tokens <positive> --max-document-tokens <positive> --format json`; the key is not positional.
 
-- Do not assume markdown files live at repository root; check `library.path`.
-- Do not assume a particular graph structure or file naming convention.
-- Do not hand-edit references if `iwe` already has a safe operation for that change.
-- Do not place consecutive inclusion links with no blank line between them.
-- Do not retrieve large context blindly. `retrieve` has no `--dry-run`; bound it
-  with seed `--limit`, post-expansion `--max-documents`, `--max-tokens`, and
-  `--max-document-tokens`, then expand deliberately.
-- Preview `iwe delete`, establish the exact matched keys, and obtain fresh,
-  focused confirmation immediately before the real deletion.
-- Run `iwe inline` with `--keep-target` unless deleting the target document is
-  explicitly intended. Preview and obtain fresh, focused confirmation before
-  inlining without `--keep-target`.
-- If the task is a structural change and the CLI supports it, use the CLI instead of editing markdown references by hand.
-- For frontmatter changes on more than one document, prefer `iwe update --filter ... --set/--unset` over manual edits, and run with `--dry-run` first.
-- Treat `iwe update --filter '{}'` and `iwe delete --filter '{}'` as workspace-wide operations; never run them without explicit user intent.
-- If exact command arguments matter, consult the bundled CLI reference instead
-  of guessing flags.
-- Treat `iwe normalize` as an in-place bulk rewrite of the whole library, not a
-  harmless read command. Establish a rollback point or backup when practical,
-  then obtain fresh, focused confirmation immediately before running it.
-- Treat `iwe export` and `iwe squash` as artifact-generation commands that do not mutate notes unless you redirect their output into files yourself.
-- After a write operation, inspect affected files or rerun `find` or `retrieve` if you need to confirm the graph state.
+## Query selection
+
+Use fuzzy search for incomplete titles, keys, or spelling fragments. Use lexical search for concepts or words expected in document bodies. Use `--filter` for frontmatter values and graph predicates. Use relationship flags for included, including, referenced, or referencing documents.
+
+Simple filters belong directly in the command. Read `references/query-language.md` only when the required nested boolean, comparison, projection, sort, or graph predicate cannot be expressed by the patterns in this file.
+
+An empty result is not proof that IWE is unusable. Refine the IWE query once after checking the intended search mode and quoting; use a narrower or alternate well-formed query.
+
+## Precise mutation workflow
+
+Use IWE structural operations instead of hand-editing graph links or reconstructing whole documents. For localized body changes:
+
+1. Locate the exact document and blocks with one bounded `find --key ... --blocks ...`, `--matches`, or targeted retrieval.
+2. Combine independent block operators for the same document in one guarded `update` when practical.
+3. Preview with `--dry-run`; require document-level `--expect` plus inline `expect` on every block operator.
+4. Apply the identical command with `--strict` after the preview is exact.
+5. Retrieve the affected key once and verify the intended changes and unrelated content.
+
+```bash
+iwe update --key "<key>" --replace-text '{ $header: "<old>", to: "<new>", expect: 1 }' --append '{ $header: "<section>", content: "<text>", expect: 1 }' --expect 1 --strict --dry-run
+```
+
+After the preview, remove only `--dry-run` for the real mutation. Do not use body-overwrite mode for a section, paragraph, list, heading, or isolated text change.
+
+For section extraction, the source key is positional and the heading uses `--section`:
+
+```bash
+iwe extract "<source-key>" --section "<heading>" --dry-run --format keys
+```
+
+After an exact preview, remove only `--dry-run`, capture the generated key from the real operation, then retrieve the source and generated keys for verification. Do not guess unsupported `--header`, `--target-key`, or update operators; use command-specific help only after the CLI rejects known syntax.
+
+Keep typed template variables separate from frontmatter. Example: `iwe create --template <name> --vars-json '{"title":"<title>","attendees":["<name>"],"body":"<text>"}' --set type=<type> --set draft=false --strict --if-exists fail`. `title` and `body` are conventional; do not rename `body` after its rendered heading. JSON preserves types and `--set` parses YAML, so `draft=false` is boolean. Create has no `--format` flag and prints a path; the key omits `graph/` and `.md`. Strict creation already validates the schema, so do not add validation or update calls after success.
+
+## Destructive operations
+
+Deletion, inlining that removes its target, normalization, and broad mutations can discard data. Preview the exact affected keys, establish a rollback point when practical, and obtain fresh, focused confirmation immediately before the destructive command.
+
+Default to preserving the target when resolving inclusion links. Never use an empty filter for update or delete unless the user explicitly requests a workspace-wide operation and the required confirmation has just been obtained. Efficiency budgets never override mutation safety, preview, confirmation, or verification.
+
+## Failure handling
+
+If a command fails, read stderr. Correct an obvious input or shell-quoting error once. If stderr reports an unknown command or option, run only `iwe <command> --help`, correct the syntax, and retry once. Do not run global help, version checks, documentation commands, web searches, or repeated speculative retries.
+
+Read `references/errors.md` only when stderr does not explain the failure or when deciding whether the narrow fallback conditions below are satisfied.
+
+## Fallback
+
+Fallback repository tools are allowed only when IWE cannot execute, explicitly reports the operation unsupported, the requested source is outside the indexed IWE workspace, or one well-formed refinement still returns no result. They are also allowed when the user explicitly requests another mechanism.
+
+Before fallback, state briefly why IWE cannot perform the operation, and include that reason in the final response. Use one narrow targeted read or search when the exact source is known. For Markdown, read a bounded span of the exact file and interpret its headings; do not search for frontmatter-style `Heading:` text when the target is a `## Heading` section. If that fallback fails, report the failure instead of broadening or repeating it. Do not perform a recursive scan or duplicate successful IWE output.
+
+## Completion
+
+Report the keys used and any truncation warning relevant to confidence. For writes, report preview scope and post-write verification. Finish when every claim needed for the request is backed by bounded IWE output and no redundant discovery was performed.
