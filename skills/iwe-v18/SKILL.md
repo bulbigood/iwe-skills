@@ -1,8 +1,8 @@
 ---
-name: iwe-memory-system
+name: iwe-v18
 description: "Use this skill when working in an IWE knowledge-graph workspace, especially to help an agent read, navigate, retrieve context from, query frontmatter, and safely refactor Markdown notes with the `iwe` CLI instead of ad-hoc file edits. Covers project discovery, inclusion links, context-building, analysis, the frontmatter query language, and the IWE 0.18.0 command surface: `init`, `create`, `new`, `retrieve`, `find`, `count`, `normalize`, `tree`, `squash`, `export`, `schema`, `stats`, `rename`, `delete`, `extract`, `inline`, `update`, `attach`, `completions`, and `docs`."
 metadata:
-  version: 0.0.69
+  version: 0.1.0
   iwe_cli_version: 0.18.0
 ---
 
