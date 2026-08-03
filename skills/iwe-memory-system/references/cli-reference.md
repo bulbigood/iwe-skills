@@ -8,6 +8,32 @@ python3 skills/iwe-memory-system/scripts/generate-cli-reference.py
 python3 skills/iwe-memory-system/scripts/generate-cli-reference.py --check
 ```
 
+## Contents
+
+- [`iwe`](#iwe)
+- [`iwe init`](#iwe-init)
+- [`iwe create`](#iwe-create)
+- [`iwe new`](#iwe-new)
+- [`iwe retrieve`](#iwe-retrieve)
+- [`iwe find`](#iwe-find)
+- [`iwe count`](#iwe-count)
+- [`iwe normalize`](#iwe-normalize)
+- [`iwe tree`](#iwe-tree)
+- [`iwe squash`](#iwe-squash)
+- [`iwe export`](#iwe-export)
+- [`iwe schema`](#iwe-schema)
+- [`iwe schema validate`](#iwe-schema-validate)
+- [`iwe stats`](#iwe-stats)
+- [`iwe stats similarity`](#iwe-stats-similarity)
+- [`iwe rename`](#iwe-rename)
+- [`iwe delete`](#iwe-delete)
+- [`iwe extract`](#iwe-extract)
+- [`iwe inline`](#iwe-inline)
+- [`iwe update`](#iwe-update)
+- [`iwe attach`](#iwe-attach)
+- [`iwe completions`](#iwe-completions)
+- [`iwe docs`](#iwe-docs)
+
 ## `iwe`
 
 ```text

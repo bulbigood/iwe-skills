@@ -77,7 +77,12 @@ def render(version: str) -> str:
         "python3 skills/iwe-memory-system/scripts/generate-cli-reference.py\n",
         "python3 skills/iwe-memory-system/scripts/generate-cli-reference.py --check\n",
         "```\n",
+        "\n## Contents\n\n",
     ]
+    for command in COMMANDS:
+        display = "iwe" if not command else "iwe " + " ".join(command)
+        anchor = display.replace(" ", "-")
+        sections.append(f"- [`{display}`](#{anchor})\n")
     for command in COMMANDS:
         display = "iwe" if not command else "iwe " + " ".join(command)
         help_args = ("--help",) if not command else (*command, "--help")
@@ -98,7 +103,10 @@ def render_builtin_docs(version: str) -> str:
         f"This file is generated from every topic exposed by `iwe {version} docs`. ",
         "It is bundled so an agent can use the complete query, configuration, and ",
         "document-schema contracts without internet access or exploratory CLI help.\n",
+        "\n## Contents\n\n",
     ]
+    for topic in DOC_TOPICS:
+        sections.append(f"- [`{topic}`](#{topic})\n")
     for topic in DOC_TOPICS:
         sections.extend(
             [

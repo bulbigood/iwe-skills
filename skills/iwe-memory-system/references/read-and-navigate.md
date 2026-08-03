@@ -2,6 +2,17 @@
 
 Use this reference for read workflows: discovery, hierarchy inspection, targeted retrieval, and context building.
 
+## Contents
+
+- [`iwe find`](#iwe-find)
+- [`iwe tree`](#iwe-tree)
+- [`iwe retrieve`](#iwe-retrieve)
+- [`iwe count`](#iwe-count)
+- [`iwe schema`](#iwe-schema)
+- [`iwe stats`](#iwe-stats)
+- [`iwe squash`](#iwe-squash)
+- [`iwe export`](#iwe-export)
+
 Official docs:
 
 - Agentic tools: https://iwe.md/docs/agentic/
@@ -58,7 +69,9 @@ Inline-YAML filters compose with `--fuzzy` / `--lexical` and the graph anchor fl
 Workflow:
 
 1. Start with `iwe find --fuzzy "topic"` for title/key discovery, `iwe find --lexical "topic"` for BM25 title/body search, or `iwe find --filter '...'` when you know the frontmatter shape. Do not use the deprecated bare positional query.
-2. If results are broad, add `--limit` or a tighter `--filter`. To select roots, use `--filter '$nor: [{ $includedBy: { match: {} } }]'`; the `--roots` alias is deprecated.
+2. If results are broad, add `--limit` or a tighter `--filter`. To select roots,
+   use the supported `--roots` flag or the equivalent explicit filter
+   `--filter '$nor: [{ $includedBy: { match: {} } }]'`.
 3. Use `--references` / `--referenced-by` / `--includes` / `--included-by` when you already know one anchor key and want relationship-based discovery.
 4. Use `--project` or `--add-fields` to shape JSON output before passing it on.
 5. Pass the chosen key into `retrieve`.

@@ -2,6 +2,12 @@
 
 This file is generated from every topic exposed by `iwe 0.18.0 docs`. It is bundled so an agent can use the complete query, configuration, and document-schema contracts without internet access or exploratory CLI help.
 
+## Contents
+
+- [`query`](#query)
+- [`config`](#config)
+- [`schema`](#schema)
+
 ## `query`
 
 # Query Language

@@ -2,6 +2,13 @@
 
 Use this reference when you need to confirm whether the current workspace is an IWE project and how the project is configured.
 
+## Contents
+
+- [Project marker](#project-marker)
+- [Example config](#example-config)
+- [What to look at first](#what-to-look-at-first)
+- [Working notes](#working-notes)
+
 Official docs:
 
 - `iwe init`: https://iwe.md/docs/cli/init/
@@ -10,13 +17,15 @@ Official docs:
 
 ## Project marker
 
-An IWE project is identified by:
+An IWE project is identified by its marker directory:
 
 ```text
-.iwe/config.toml
+.iwe/
 ```
 
-Running `iwe init` creates that directory and file.
+Running `iwe init` creates that directory and a starter `.iwe/config.toml`.
+The marker directory alone is sufficient for IWE to discover the project;
+`config.toml` may be absent, in which case IWE uses its built-in defaults.
 
 For IWE 0.18.0, prefer discovery before hand-authoring configuration:
 
@@ -30,7 +39,9 @@ iwe init --auto             # write detected settings without prompting
 
 ## Example config
 
-Read `.iwe/config.toml` before assuming file locations or defaults. A generated config looks like this:
+If `.iwe/config.toml` exists, read it before assuming file locations or
+defaults. The following representative excerpt is based on generated config but
+intentionally omits unrelated defaults and shows a few optional customizations:
 
 ```toml
 # Generated config also contains a top-level `version` field.
@@ -119,7 +130,8 @@ match = "notes/**"
 
 ## Working notes
 
-- Check `.iwe/config.toml` before searching for note files manually.
+- Check `.iwe/config.toml` before searching for note files manually. If it is
+  absent, use the built-in defaults documented in `builtin-reference.md`.
 - If `iwe` behavior seems surprising, inspect config before assuming a bug.
 - Re-running `iwe init` in an existing project does not overwrite the config.
 - Read the bundled `builtin-reference.md` schema section before authoring a document schema, then run `iwe schema validate` after changes.

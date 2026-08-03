@@ -2,6 +2,19 @@
 
 Use this reference for graph-aware write operations. Prefer these commands over manual markdown edits when the task changes note structure or references.
 
+## Contents
+
+- [`iwe create`](#iwe-create)
+- [`iwe new`](#iwe-new)
+- [`iwe extract`](#iwe-extract)
+- [`iwe inline`](#iwe-inline)
+- [`iwe attach`](#iwe-attach)
+- [`iwe rename`](#iwe-rename)
+- [`iwe update`](#iwe-update)
+- [`iwe delete`](#iwe-delete)
+- [`iwe normalize`](#iwe-normalize)
+- [Command selection guide](#command-selection-guide)
+
 Official docs:
 
 - `iwe new`: https://iwe.md/docs/cli/new/
@@ -117,7 +130,12 @@ iwe inline my-document --block 2 --keep-target
 iwe inline my-document --reference "design" --dry-run
 ```
 
-Use `--list` when the target is unclear, `--reference` when the note is known, `--block` when references repeat, `--keep-target` when this should stay an embed instead of a merge, `--as-quote` when markdown structure matters, and `--dry-run` before structural edits.
+Use `--list` when the target is unclear, `--reference` when the note is known,
+`--block` when references repeat, `--as-quote` when markdown structure matters,
+and `--dry-run` before structural edits. Default to `--keep-target`. Without it,
+IWE deletes the target document; only omit it when deletion is explicitly
+intended, and obtain fresh, focused confirmation immediately before the real
+operation.
 
 Current behavior worth knowing:
 
@@ -230,7 +248,11 @@ iwe delete --filter '$and: [{ type: scratch }, { reviewed: false }]' --dry-run
 iwe delete --filter 'status: archived' -f keys
 ```
 
-Treat `delete` as high-impact. Use `--dry-run` before deletion unless the user explicitly wants immediate execution. Use `--expect` to assert the matched document count and `--strict` to require that guard on non-dry runs.
+Treat `delete` as high-impact. Always use `--dry-run` to identify the exact
+matched keys, then obtain fresh, focused confirmation immediately before the
+real deletion. A preview never substitutes for confirmation. Use `--expect` to
+assert the matched document count and `--strict` to require that guard on
+non-dry runs.
 
 Current behavior worth knowing:
 
@@ -253,6 +275,8 @@ Current behavior worth knowing:
 - It updates formatting and link titles to match the current graph
 - If standalone links are not separated by blank lines, normalization can merge them onto one line and turn them into inline links
 - Treat it as a bulk write operation, not as a read-only check
+- Establish a rollback point or backup when practical, inspect the intended
+  scope, and obtain fresh, focused confirmation immediately before running it
 
 ## Command selection guide
 
@@ -266,4 +290,8 @@ Current behavior worth knowing:
 - Rewrite the body of a single note: `iwe update -k KEY -c CONTENT`
 - Mutate frontmatter on one or many notes: `iwe update [--filter ...|-k KEY] --set / --unset`
 
-If the user asks for a structural change and the CLI supports it, use the CLI instead of editing markdown references by hand. If exact arguments still matter, run `iwe <command> --help`. After a write operation, inspect affected files or rerun `find` or `retrieve` to confirm the graph state.
+If the user asks for a structural change and the CLI supports it, use the CLI
+instead of editing markdown references by hand. If exact arguments matter,
+consult `cli-reference.md`; use installed help only as the compatibility
+fallback described in `SKILL.md`. After a write operation, inspect affected
+files or rerun `find` or `retrieve` to confirm the graph state.

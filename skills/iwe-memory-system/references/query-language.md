@@ -2,6 +2,21 @@
 
 Use this reference when filtering documents by frontmatter, narrowing graph traversals, or mutating frontmatter in bulk. The query language is shared by `iwe find`, `iwe count`, `iwe tree`, `iwe schema`, `iwe update`, and `iwe delete`.
 
+## Contents
+
+- [Operations](#operations)
+- [Search stage](#search-stage-find-and-retrieve-seeds)
+- [Filter syntax](#filter-syntax)
+- [Graph operators](#graph-operators)
+- [Projection](#projection-find--tree)
+- [Sort and limit](#sort-and-limit)
+- [Update operations](#update-operations)
+- [Reserved prefixes](#reserved-prefixes)
+- [Block reads and updates](#block-reads-and-updates)
+- [Schema discovery](#schema-discovery)
+- [Practical workflow](#practical-workflow)
+- [Examples](#examples)
+
 Official docs:
 
 - Query language: https://iwe.md/docs/concepts/query-language/

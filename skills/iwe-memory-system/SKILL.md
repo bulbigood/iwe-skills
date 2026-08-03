@@ -1,14 +1,12 @@
 ---
 name: iwe-memory-system
-description: Use this skill when working in an IWE knowledge-graph workspace, especially to help an agent read, navigate, retrieve context from, query frontmatter, and safely refactor Markdown notes with the `iwe` CLI instead of ad-hoc file edits. Covers project discovery, inclusion links, context-building, analysis, the frontmatter query language, and the IWE 0.18.0 command surface: `init`, `create`, `new`, `retrieve`, `find`, `count`, `normalize`, `tree`, `squash`, `export`, `schema`, `stats`, `rename`, `delete`, `extract`, `inline`, `update`, `attach`, `completions`, and `docs`.
+description: "Use this skill when working in an IWE knowledge-graph workspace, especially to help an agent read, navigate, retrieve context from, query frontmatter, and safely refactor Markdown notes with the `iwe` CLI instead of ad-hoc file edits. Covers project discovery, inclusion links, context-building, analysis, the frontmatter query language, and the IWE 0.18.0 command surface: `init`, `create`, `new`, `retrieve`, `find`, `count`, `normalize`, `tree`, `squash`, `export`, `schema`, `stats`, `rename`, `delete`, `extract`, `inline`, `update`, `attach`, `completions`, and `docs`."
 metadata:
-  version: 0.0.68
+  version: 0.0.69
   iwe_cli_version: 0.18.0
 ---
 
 # IWE
-
-Use this skill when the repository or workspace is an IWE project, or when the user wants work on an IWE knowledge base through the `iwe` CLI.
 
 IWE is local-first and markdown-based. Prefer `iwe` commands for graph-aware reads and refactors, and only fall back to direct file edits when the CLI does not cover the task.
 
@@ -40,8 +38,9 @@ report the incompatible instruction, and only then consult installed help.
 
 ## Quick start
 
-1. Confirm the workspace is an IWE project by checking for `.iwe/config.toml`.
-2. Read `.iwe/config.toml` before assuming where notes live. `library.path` may point to a subdirectory.
+1. Confirm the workspace is an IWE project by checking for the `.iwe/` marker directory.
+2. If `.iwe/config.toml` exists, read it before assuming where notes live;
+   `library.path` may point to a subdirectory. If it is absent, use IWE's defaults.
 3. Use `iwe find --fuzzy`, `iwe find --lexical`, `iwe tree`, and `iwe retrieve`
    to explore before editing. Bare positional queries to `find` are deprecated.
 4. Use `iwe schema` to learn the frontmatter shape, then `iwe find --filter` / `iwe count --filter` to query by frontmatter.
@@ -122,7 +121,11 @@ The two child links above are structural because each link is isolated by blank 
 - Do not retrieve large context blindly. `retrieve` has no `--dry-run`; bound it
   with seed `--limit`, post-expansion `--max-documents`, `--max-tokens`, and
   `--max-document-tokens`, then expand deliberately.
-- Do not use `iwe delete` without explicit user intent.
+- Preview `iwe delete`, establish the exact matched keys, and obtain fresh,
+  focused confirmation immediately before the real deletion.
+- Run `iwe inline` with `--keep-target` unless deleting the target document is
+  explicitly intended. Preview and obtain fresh, focused confirmation before
+  inlining without `--keep-target`.
 - If the task is a structural change and the CLI supports it, use the CLI instead of editing markdown references by hand.
 - For frontmatter changes on more than one document, prefer `iwe update --filter ... --set/--unset` over manual edits, and run with `--dry-run` first.
 - Treat `iwe update --filter '{}'` and `iwe delete --filter '{}'` as workspace-wide operations; never run them without explicit user intent.
@@ -130,6 +133,8 @@ The two child links above are structural because each link is isolated by blank 
 - Do not proactively compare IWE versions. Only diagnose version compatibility
   after a real command problem reveals that this skill disagrees with runtime
   behavior; consult installed help only as the final compatibility fallback.
-- Treat `iwe normalize` as an in-place bulk rewrite of the whole library, not a harmless read command.
+- Treat `iwe normalize` as an in-place bulk rewrite of the whole library, not a
+  harmless read command. Establish a rollback point or backup when practical,
+  then obtain fresh, focused confirmation immediately before running it.
 - Treat `iwe export` and `iwe squash` as artifact-generation commands that do not mutate notes unless you redirect their output into files yourself.
 - After a write operation, inspect affected files or rerun `find` or `retrieve` if you need to confirm the graph state.
