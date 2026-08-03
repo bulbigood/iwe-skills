@@ -337,16 +337,10 @@ class IweSkillTests(unittest.TestCase):
             self.assertGreaterEqual(scenario.max_output_bytes, 1)
             self.assertLessEqual(scenario.max_output_bytes, skill.maximum_output_bytes)
             self.assertEqual(set(scenario.scoring), set(module.DIMENSIONS))
-            self.assertEqual(sum(item["weight"] for item in scenario.scoring.values()), 100)
             for dimension, scoring in scenario.scoring.items():
-                self.assertIn(scoring["floor"], {4, 5}, dimension)
-                levels = scoring["levels"]
-                scores = [level["score"] for level in levels]
-                self.assertEqual(len(scores), len(set(scores)), dimension)
-                self.assertIn(0, scores, dimension)
-                self.assertIn(5, scores, dimension)
-                self.assertTrue(all(isinstance(score, int) and 0 <= score <= 5 for score in scores))
-                self.assertTrue(all(level["condition"].strip() for level in levels))
+                self.assertEqual(set(scoring), {"minimum_score", "excellent"}, dimension)
+                self.assertIn(scoring["minimum_score"], range(6), dimension)
+                self.assertTrue(scoring["excellent"].strip())
         config = json.loads((ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8"))
         for command in (config["agent_command"], config["judge_command"]):
             self.assertIn("--strict-config", command)
@@ -382,19 +376,16 @@ class IweSkillTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     module.load_scenarios(path)
 
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"]["levels"][0].update(score=6))
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"]["levels"][1].update(score=5))
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(floor=2))
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(floor=3))
-        reject(lambda document: document["scenarios"][0].update(minimum_weighted_score=3))
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"]["levels"][0].update(condition="   "))
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(minimum_score=6))
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(minimum_score=-1))
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(excellent="   "))
         reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(weight=24))
         reject(lambda document: document["scenarios"][0]["execution"]["budgets"]["iwe_calls"].update(min=3, max=2))
         reject(lambda document: document["scenarios"][0]["scoring"].pop("safety"))
 
         duplicate_key = module.SCENARIOS_FILE.read_text(encoding="utf-8").replace(
-            "  minimum_weighted_score: 4\n",
-            "  minimum_weighted_score: 4\n  minimum_weighted_score: 5\n",
+            "      minimum_score: 4\n",
+            "      minimum_score: 4\n      minimum_score: 5\n",
             1,
         )
         with tempfile.TemporaryDirectory() as directory:
@@ -409,67 +400,46 @@ class IweSkillTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.load_scenarios(path)
 
-    def test_eval_uses_declared_zero_to_five_scores_and_tolerates_one_of_five(self) -> None:
+    def test_eval_uses_declared_zero_to_five_scores_and_metric_thresholds(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
-        spec = importlib.util.spec_from_file_location("iwe_skill_eval_floors", runner_path)
+        spec = importlib.util.spec_from_file_location("iwe_skill_eval_thresholds", runner_path)
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        scenario = next(item for item in module.load_scenarios() if item.id == "one-call-bounded-discovery")
+        scenario = next(
+            item for item in module.load_scenarios()
+            if item.id == "one-call-bounded-discovery"
+        )
         self.assertEqual(set(scenario.scoring), set(module.DIMENSIONS))
-        self.assertEqual(scenario.minimum_weighted_score, 4)
-        self.assertEqual(scenario.scoring["tool_efficiency"]["floor"], 5)
-        self.assertEqual(scenario.scoring["resource_efficiency"]["floor"], 5)
+        self.assertEqual(scenario.scoring["tool_efficiency"]["minimum_score"], 5)
+        self.assertEqual(scenario.scoring["resource_efficiency"]["minimum_score"], 5)
 
-        judge_schema = json.loads((ROOT / "tests/eval/judge.schema.json").read_text(encoding="utf-8"))
+        judge_schema = json.loads(
+            (ROOT / "tests/eval/judge.schema.json").read_text(encoding="utf-8")
+        )
         score_schema = judge_schema["$defs"]["dimension"]["properties"]["score"]
-        self.assertEqual(score_schema, {"type": "integer", "minimum": 0, "maximum": 5})
+        self.assertEqual(
+            score_schema, {"type": "integer", "minimum": 0, "maximum": 5}
+        )
 
-        def sample(number: int, tool_score: int) -> dict:
-            critique = {
-                "dimensions": {
-                    name: {"score": tool_score if name == "tool_efficiency" else 5}
-                    for name in module.DIMENSIONS
-                }
-            }
-            return {
-                "scenario": "speed",
-                "sample": number,
-                "verdict": module.verdict(scenario, critique, [], True),
-            }
+        critique = {
+            "dimensions": {name: {"score": 5} for name in module.DIMENSIONS}
+        }
+        critique["dimensions"]["tool_efficiency"]["score"] = 2
+        result = module.verdict(scenario, critique, [], True)
+        self.assertTrue(result["valid"])
+        self.assertEqual(result["metric_scores"]["tool_efficiency"], 2)
+        self.assertIn("tool_efficiency", result["metric_failures"])
 
-        tolerated = module.aggregate_results([sample(index, 3 if index == 1 else 5) for index in range(1, 6)])
-        self.assertTrue(tolerated[0]["pass"])
-        self.assertEqual(tolerated[0]["floor_failures"]["tool_efficiency"]["failed_samples"], 1)
-        rejected = module.aggregate_results([sample(index, 3 if index <= 2 else 5) for index in range(1, 6)])
-        self.assertFalse(rejected[0]["pass"])
-        self.assertEqual(rejected[0]["floor_failures"]["tool_efficiency"]["failure_rate"], 0.4)
-        one_of_four = module.aggregate_results([sample(index, 3 if index == 1 else 5) for index in range(1, 5)])
-        self.assertFalse(one_of_four[0]["pass"])
-        two_of_ten = module.aggregate_results([sample(index, 3 if index <= 2 else 5) for index in range(1, 11)])
-        self.assertTrue(two_of_ten[0]["pass"])
-        three_of_ten = module.aggregate_results([sample(index, 3 if index <= 3 else 5) for index in range(1, 11)])
-        self.assertFalse(three_of_ten[0]["pass"])
-        self.assertEqual(module.aggregate_results([]), [])
-
-        for malformed_score in ("not-a-number", True, 6, -1, 2):
+        for malformed_score in ("not-a-number", True, 6, -1):
             malformed: dict = {
                 "dimensions": {name: {"score": 5} for name in module.DIMENSIONS}
             }
             malformed["dimensions"]["tool_efficiency"]["score"] = malformed_score
             malformed_verdict = module.verdict(scenario, malformed, [], True)
-            self.assertEqual(malformed_verdict["floor_failures"]["tool_efficiency"]["score"], 0)
-        missing_verdict = module.verdict(scenario, {"dimensions": {}}, [], True)
-        self.assertEqual(set(missing_verdict["floor_failures"]), set(module.DIMENSIONS))
-        for malformed_critique in (
-            [],
-            {"dimensions": None},
-            {"dimensions": {"tool_efficiency": None}},
-        ):
-            malformed_shape = module.verdict(scenario, malformed_critique, [], True)
-            self.assertFalse(malformed_shape["hard_pass"])
-            self.assertEqual(set(malformed_shape["floor_failures"]), set(module.DIMENSIONS))
+            self.assertFalse(malformed_verdict["valid"])
+            self.assertEqual(malformed_verdict["metric_scores"]["tool_efficiency"], 0)
 
     def test_scenarios_declare_manual_excellence_targets(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"

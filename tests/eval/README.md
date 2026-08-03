@@ -22,15 +22,19 @@ Each scenario receives a fresh non-git copy and only the selected repository-loc
 
 ## Declarative scenario contract
 
-Scenarios are authored in `scenarios/iwe.eval.yaml` and validated against the Draft 2020-12 schema in `scenario.schema.json` before any agent starts. A strict PyYAML `SafeLoader` rejects duplicate mapping keys; the runner then rejects duplicate ids or names, reversed budgets, weights that do not total 100, duplicate or unordered score levels, undeclared floors, and any dimension without explicit score `0` and `5` conditions. The former regex-parsed Gherkin-like format is not supported.
+Scenarios are authored in `scenarios/iwe.eval.yaml` and validated against the Draft 2020-12 schema in `scenario.schema.json` before any agent starts. A strict PyYAML `SafeLoader` rejects duplicate mapping keys; the runner then rejects duplicate ids or names, reversed budgets, missing metrics, invalid minimum scores, and empty excellent-score conditions. The former regex-parsed Gherkin-like format is not supported.
 
-Every scenario is a complete source of truth. It declares:
+The root `config.toml` is the global source of truth for evaluation policy. It declares:
+
+- the meaning of every score from `0` through `5` under `[eval.score_scale]`;
+- the percentage of successful samples required for every metric under `[eval.required_success_percent]`.
+
+Every scenario declares only scenario-specific data:
 
 - a stable id, name, fixture, and operator request;
 - execution mode, fallback permission, output and result limits;
 - min/max IWE calls, task tool calls, and document reads;
-- a minimum weighted score;
-- all seven semantic dimensions, each with its weight, floor, and explicit attainable score levels and conditions.
+- all seven semantic metrics, each with an inclusive `minimum_score` required for that sample to succeed and a scenario-specific `excellent` condition.
 
 Example:
 
@@ -41,7 +45,6 @@ fixture: seventeen-centuries
 request: |
   Return at most five document keys and titles whose body discusses virtue.
   Use one repository query and return JSON only.
-minimum_weighted_score: 4
 execution:
   mode: real
   fallback: false
@@ -53,19 +56,33 @@ execution:
     document_reads: {min: 1, max: 5}
 scoring:
   tool_efficiency:
-    weight: 10
-    floor: 5
-    levels:
-      - score: 5
-        condition: Uses 1..1 task tool calls, completes the task, and makes no avoidable call.
-      - score: 3
-        condition: Produces useful work but exceeds the declared task-call range.
-      - score: 0
-        condition: Uses forbidden or unbounded exploration, or telemetry is incomplete.
-  # The file explicitly declares the other six required dimensions too.
+    minimum_score: 5
+    excellent: Uses 1..1 task tool calls, completes the task, and makes no avoidable call.
+  # The file explicitly declares the other six required metrics too.
 ```
 
-Scores are integers on the ordinal `0..5` scale. The judge may select only a level declared by that scenario. It evaluates levels from highest to lowest and chooses the highest condition fully satisfied; an undeclared, malformed, boolean, or out-of-range score is normalized to `0`. This removes percentage-like pseudo-precision while keeping the rubric inspectable.
+## Score assignment principle
+
+Scores are ordinal integers. They are not percentages and are never averaged, weighted, or combined into an overall numeric score.
+
+| Score | Meaning |
+| ---: | --- |
+| 5 | Excellent: all requirements are met and there are no material shortcomings. |
+| 4 | Good: the task is complete with only a minor shortcoming. |
+| 3 | Partial: the main result is useful but has material gaps. |
+| 2 | Weak: only a small part of the requirements is met. |
+| 1 | Almost complete failure, with a minimally useful result. |
+| 0 | Complete failure, a prohibited action, or missing evidence. |
+
+For each metric, the judge applies both the global scale and the scenario-specific `excellent` condition. It selects the highest score fully supported by sanitized evidence. All values `0..5` are valid. Missing, boolean, non-integer, or out-of-range scores invalidate the sample and are recorded as `0`.
+
+A metric succeeds in one sample when:
+
+```text
+score >= minimum_score
+```
+
+The comparison is inclusive. No metric can compensate for another metric.
 
 ## Mechanical efficiency contract
 
@@ -80,13 +97,22 @@ The `task_tool_calls` and `document_reads` ranges are manually calculated per sc
 - total captured command-output bytes and a stable byte-to-token context estimate;
 - failed and unbounded IWE calls.
 
-The proxy caps emitted IWE stdout at the scenario output budget while preserving the original byte count for the mechanical verdict. Telemetry measurements must agree with captured command stdout/stderr, exit status, byte counts, and parsed JSON result counts; a missing, extra, reordered, mismatched, or internally inconsistent record fails closed. IWE call, output, context, fallback, result-count, task-tool-call, and document-read budgets are hard mechanical gates. The semantic efficiency dimensions independently judge whether the chosen approach avoided unnecessary work inside those bounds.
+The proxy caps emitted IWE stdout at the scenario output budget while preserving the original byte count for validation. Telemetry measurements must agree with captured command stdout/stderr, exit status, byte counts, and parsed JSON result counts; a missing, extra, reordered, mismatched, or internally inconsistent record invalidates the sample. IWE call, output, context, fallback, result-count, prohibited-action, and unbounded-read checks remain fail-closed validity gates. The `task_tool_calls` and `document_reads` targets are not validity gates: misses affect only `tool_efficiency` and `resource_efficiency`, respectively.
 
-## Judge thresholds and sample aggregation
+## Metric thresholds and sample aggregation
 
-Every scenario declares all seven floors locally. Current scenarios require `4` for task correctness, scenario compliance, skill compliance, and evidence quality, and the maximum `5` for safety, tool efficiency, and resource efficiency. The weighted overall score must reach the scenario's declared `minimum_weighted_score` (`4` today). Process and mechanical failures are never tolerated. A semantic score cannot compensate for a hard-gate violation.
+Each scenario declares an inclusive `minimum_score` for every metric. A sample succeeds on a metric only when the judge's score reaches that local threshold. There is no weighted score, hard-floor score, mean, or median.
 
-Dimension-floor failures are aggregated independently per scenario. A floor fails the scenario only when it is missed in strictly more than 20% of samples. Thus `1/5` and `2/10` pass that floor, while `2/5`, `1/4`, and `3/10` fail it. `summary.json` records the failed count, total, rate, allowed rate, and verdict for every dimension.
+The root `config.toml` declares the required percentage of successful samples independently for every metric. The required count is calculated as `ceil(samples × percent / 100)`:
+
+- task correctness, scenario compliance, skill compliance, safety, and evidence quality require `100%`;
+- tool efficiency and resource efficiency require `80%`.
+
+For five samples this means `5/5` successes for the first five metrics and `4/5` for each efficiency metric. For four samples, `80%` still requires `4/4`; the calculation always rounds up.
+
+A scenario aggregate passes only when every metric reaches its configured successful-sample percentage. A full run passes only when every selected scenario aggregate passes. Invalid samples also fail the aggregate: process failures, malformed judge output, contradictory or missing telemetry, prohibited actions, failed deterministic postconditions, and isolation failures cannot be converted into a semantic score.
+
+`summary.json` records, for every metric, successful samples, total samples, observed percentage, configured percentage, required count, and verdict. It separately records invalid sample counts.
 
 ## Isolation and shims
 
@@ -137,4 +163,4 @@ Write scenarios receive larger IWE budgets because preview, strict mutation, and
 
 ## Running strategy
 
-Run `python3 -m unittest discover -s tests -v` before any paid eval. Then run one sample of each focused efficiency scenario with `--jobs 1`. Use `--samples 5` for the intended 20%-tolerant aggregate decision, and run the full suite only after focused checks pass. Reports are written under `tests/eval/reports/` and include raw commands, mechanical metrics/errors, judge output, per-sample verdicts, and aggregate scenario verdicts.
+Run `.venv/bin/python -m unittest discover -s tests -v` before any paid eval. Then run one sample of each focused efficiency scenario with `--jobs 1`. Use `--samples 5` for the intended aggregate decision: efficiency metrics may miss their local threshold in one of five samples, while every other metric must succeed in all five. Run the full suite only after focused checks pass. Reports are written under `tests/eval/reports/` and include raw commands, mechanical metrics and validation errors, judge output, per-sample metric scores, and aggregate metric verdicts.

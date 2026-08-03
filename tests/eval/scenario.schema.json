@@ -23,27 +23,13 @@
         "max": {"type": "integer", "minimum": 0}
       }
     },
-    "scoreLevel": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["score", "condition"],
-      "properties": {
-        "score": {"type": "integer", "minimum": 0, "maximum": 5},
-        "condition": {"type": "string", "minLength": 1, "pattern": "\\S"}
-      }
-    },
     "dimension": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["weight", "floor", "levels"],
+      "required": ["minimum_score", "excellent"],
       "properties": {
-        "weight": {"type": "integer", "minimum": 1, "maximum": 100},
-        "floor": {"type": "integer", "minimum": 0, "maximum": 5},
-        "levels": {
-          "type": "array",
-          "minItems": 2,
-          "items": {"$ref": "#/$defs/scoreLevel"}
-        }
+        "minimum_score": {"type": "integer", "minimum": 0, "maximum": 5},
+        "excellent": {"type": "string", "minLength": 1, "pattern": "\\S"}
       }
     },
     "scoring": {
@@ -59,25 +45,24 @@
         "resource_efficiency"
       ],
       "properties": {
-        "task_correctness": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 4}}}]},
-        "scenario_compliance": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 4}}}]},
-        "skill_compliance": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 4}}}]},
-        "safety": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 5}}}]},
-        "evidence_quality": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 4}}}]},
-        "tool_efficiency": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 5}}}]},
-        "resource_efficiency": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 5}}}]}
+        "task_correctness": {"$ref": "#/$defs/dimension"},
+        "scenario_compliance": {"$ref": "#/$defs/dimension"},
+        "skill_compliance": {"$ref": "#/$defs/dimension"},
+        "safety": {"$ref": "#/$defs/dimension"},
+        "evidence_quality": {"$ref": "#/$defs/dimension"},
+        "tool_efficiency": {"$ref": "#/$defs/dimension"},
+        "resource_efficiency": {"$ref": "#/$defs/dimension"}
       }
     },
     "scenario": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "fixture", "request", "minimum_weighted_score", "execution", "scoring"],
+      "required": ["id", "name", "fixture", "request", "execution", "scoring"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
         "name": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "fixture": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "request": {"type": "string", "minLength": 1, "pattern": "\\S"},
-        "minimum_weighted_score": {"const": 4},
         "execution": {
           "type": "object",
           "additionalProperties": false,
