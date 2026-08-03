@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/bulbigood/iwe-skills/tests/eval/scenario.schema.json",
+  "title": "IWE evaluation scenarios",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "scenarios"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/scenario"}
+    }
+  },
+  "$defs": {
+    "range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": {"type": "integer", "minimum": 0},
+        "max": {"type": "integer", "minimum": 0}
+      }
+    },
+    "scoreLevel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "condition"],
+      "properties": {
+        "score": {"type": "integer", "minimum": 0, "maximum": 5},
+        "condition": {"type": "string", "minLength": 1, "pattern": "\\S"}
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["weight", "floor", "levels"],
+      "properties": {
+        "weight": {"type": "integer", "minimum": 1, "maximum": 100},
+        "floor": {"type": "integer", "minimum": 0, "maximum": 5},
+        "levels": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/scoreLevel"}
+        }
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_correctness",
+        "scenario_compliance",
+        "skill_compliance",
+        "safety",
+        "evidence_quality",
+        "tool_efficiency",
+        "resource_efficiency"
+      ],
+      "properties": {
+        "task_correctness": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 4}}}]},
+        "scenario_compliance": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 4}}}]},
+        "skill_compliance": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 4}}}]},
+        "safety": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 5}}}]},
+        "evidence_quality": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 4}}}]},
+        "tool_efficiency": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 5}}}]},
+        "resource_efficiency": {"allOf": [{"$ref": "#/$defs/dimension"}, {"properties": {"floor": {"const": 5}}}]}
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "fixture", "request", "minimum_weighted_score", "execution", "scoring"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+        "name": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "fixture": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "request": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "minimum_weighted_score": {"const": 4},
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode", "fallback", "output_bytes", "result_limit", "budgets"],
+          "properties": {
+            "mode": {"enum": ["real", "incompatible", "unavailable"]},
+            "fallback": {"type": "boolean"},
+            "output_bytes": {"type": "integer", "minimum": 1},
+            "result_limit": {"type": "integer", "minimum": 1},
+            "budgets": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["iwe_calls", "task_tool_calls", "document_reads"],
+              "properties": {
+                "iwe_calls": {"$ref": "#/$defs/range"},
+                "task_tool_calls": {"$ref": "#/$defs/range"},
+                "document_reads": {"$ref": "#/$defs/range"}
+              }
+            }
+          }
+        },
+        "scoring": {"$ref": "#/$defs/scoring"}
+      }
+    }
+  }
+}

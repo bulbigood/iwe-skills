@@ -318,7 +318,10 @@ class IweSkillTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        scenarios = module.parse_feature()
+        self.assertEqual(module.SCENARIOS_FILE.name, "iwe.eval.yaml")
+        self.assertTrue(module.SCENARIO_SCHEMA.is_file())
+        self.assertFalse((ROOT / "tests/eval/features/iwe.feature").exists())
+        scenarios = module.load_scenarios()
         names = {scenario.name for scenario in scenarios}
         self.assertEqual(len(scenarios), 10)
         for expected in (
@@ -333,6 +336,17 @@ class IweSkillTests(unittest.TestCase):
             self.assertGreaterEqual(scenario.max_iwe_calls, 0)
             self.assertGreaterEqual(scenario.max_output_bytes, 1)
             self.assertLessEqual(scenario.max_output_bytes, skill.maximum_output_bytes)
+            self.assertEqual(set(scenario.scoring), set(module.DIMENSIONS))
+            self.assertEqual(sum(item["weight"] for item in scenario.scoring.values()), 100)
+            for dimension, scoring in scenario.scoring.items():
+                self.assertIn(scoring["floor"], {4, 5}, dimension)
+                levels = scoring["levels"]
+                scores = [level["score"] for level in levels]
+                self.assertEqual(len(scores), len(set(scores)), dimension)
+                self.assertIn(0, scores, dimension)
+                self.assertIn(5, scores, dimension)
+                self.assertTrue(all(isinstance(score, int) and 0 <= score <= 5 for score in scores))
+                self.assertTrue(all(level["condition"].strip() for level in levels))
         config = json.loads((ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8"))
         for command in (config["agent_command"], config["judge_command"]):
             self.assertIn("--strict-config", command)
@@ -350,58 +364,110 @@ class IweSkillTests(unittest.TestCase):
             os.environ.pop(secret, None)
         self.assertNotIn(secret, environment)
 
-    def test_eval_uses_floors_for_every_dimension_and_tolerates_one_of_five(self) -> None:
+    def test_eval_scenario_loader_rejects_malformed_scoring_fail_closed(self) -> None:
+        runner_path = ROOT / "tests/eval/run.py"
+        spec = importlib.util.spec_from_file_location("iwe_skill_eval_invalid_yaml", runner_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        source = module.yaml.safe_load(module.SCENARIOS_FILE.read_text(encoding="utf-8"))
+
+        def reject(mutator) -> None:
+            document = json.loads(json.dumps(source))
+            mutator(document)
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "invalid.yaml"
+                path.write_text(module.yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+                with self.assertRaises(ValueError):
+                    module.load_scenarios(path)
+
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"]["levels"][0].update(score=6))
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"]["levels"][1].update(score=5))
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(floor=2))
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(floor=3))
+        reject(lambda document: document["scenarios"][0].update(minimum_weighted_score=3))
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"]["levels"][0].update(condition="   "))
+        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(weight=24))
+        reject(lambda document: document["scenarios"][0]["execution"]["budgets"]["iwe_calls"].update(min=3, max=2))
+        reject(lambda document: document["scenarios"][0]["scoring"].pop("safety"))
+
+        duplicate_key = module.SCENARIOS_FILE.read_text(encoding="utf-8").replace(
+            "  minimum_weighted_score: 4\n",
+            "  minimum_weighted_score: 4\n  minimum_weighted_score: 5\n",
+            1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "duplicate-key.yaml"
+            path.write_text(duplicate_key, encoding="utf-8")
+            with self.assertRaises(ValueError):
+                module.load_scenarios(path)
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid-syntax.yaml"
+            path.write_text("schema_version: [\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                module.load_scenarios(path)
+
+    def test_eval_uses_declared_zero_to_five_scores_and_tolerates_one_of_five(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
         spec = importlib.util.spec_from_file_location("iwe_skill_eval_floors", runner_path)
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
-        self.assertEqual(set(module.FLOORS), set(module.DIMENSIONS))
-        self.assertGreaterEqual(module.FLOORS["tool_efficiency"], 95)
-        self.assertGreaterEqual(module.FLOORS["resource_efficiency"], 90)
+        scenario = next(item for item in module.load_scenarios() if item.id == "one-call-bounded-discovery")
+        self.assertEqual(set(scenario.scoring), set(module.DIMENSIONS))
+        self.assertEqual(scenario.minimum_weighted_score, 4)
+        self.assertEqual(scenario.scoring["tool_efficiency"]["floor"], 5)
+        self.assertEqual(scenario.scoring["resource_efficiency"]["floor"], 5)
+
+        judge_schema = json.loads((ROOT / "tests/eval/judge.schema.json").read_text(encoding="utf-8"))
+        score_schema = judge_schema["$defs"]["dimension"]["properties"]["score"]
+        self.assertEqual(score_schema, {"type": "integer", "minimum": 0, "maximum": 5})
 
         def sample(number: int, tool_score: int) -> dict:
             critique = {
                 "dimensions": {
-                    name: {"score": tool_score if name == "tool_efficiency" else 100}
+                    name: {"score": tool_score if name == "tool_efficiency" else 5}
                     for name in module.DIMENSIONS
                 }
             }
             return {
                 "scenario": "speed",
                 "sample": number,
-                "verdict": module.verdict(critique, [], True),
+                "verdict": module.verdict(scenario, critique, [], True),
             }
 
-        tolerated = module.aggregate_results([sample(index, 80 if index == 1 else 100) for index in range(1, 6)])
+        tolerated = module.aggregate_results([sample(index, 3 if index == 1 else 5) for index in range(1, 6)])
         self.assertTrue(tolerated[0]["pass"])
         self.assertEqual(tolerated[0]["floor_failures"]["tool_efficiency"]["failed_samples"], 1)
-        rejected = module.aggregate_results([sample(index, 80 if index <= 2 else 100) for index in range(1, 6)])
+        rejected = module.aggregate_results([sample(index, 3 if index <= 2 else 5) for index in range(1, 6)])
         self.assertFalse(rejected[0]["pass"])
         self.assertEqual(rejected[0]["floor_failures"]["tool_efficiency"]["failure_rate"], 0.4)
-        one_of_four = module.aggregate_results([sample(index, 80 if index == 1 else 100) for index in range(1, 5)])
+        one_of_four = module.aggregate_results([sample(index, 3 if index == 1 else 5) for index in range(1, 5)])
         self.assertFalse(one_of_four[0]["pass"])
-        two_of_ten = module.aggregate_results([sample(index, 80 if index <= 2 else 100) for index in range(1, 11)])
+        two_of_ten = module.aggregate_results([sample(index, 3 if index <= 2 else 5) for index in range(1, 11)])
         self.assertTrue(two_of_ten[0]["pass"])
-        three_of_ten = module.aggregate_results([sample(index, 80 if index <= 3 else 100) for index in range(1, 11)])
+        three_of_ten = module.aggregate_results([sample(index, 3 if index <= 3 else 5) for index in range(1, 11)])
         self.assertFalse(three_of_ten[0]["pass"])
         self.assertEqual(module.aggregate_results([]), [])
 
-        malformed: dict = {
-            "dimensions": {name: {"score": 100} for name in module.DIMENSIONS}
-        }
-        malformed["dimensions"]["tool_efficiency"]["score"] = "not-a-number"
-        malformed_verdict = module.verdict(malformed, [], True)
-        self.assertEqual(malformed_verdict["floor_failures"]["tool_efficiency"]["score"], 0)
-        missing_verdict = module.verdict({"dimensions": {}}, [], True)
+        for malformed_score in ("not-a-number", True, 6, -1, 2):
+            malformed: dict = {
+                "dimensions": {name: {"score": 5} for name in module.DIMENSIONS}
+            }
+            malformed["dimensions"]["tool_efficiency"]["score"] = malformed_score
+            malformed_verdict = module.verdict(scenario, malformed, [], True)
+            self.assertEqual(malformed_verdict["floor_failures"]["tool_efficiency"]["score"], 0)
+        missing_verdict = module.verdict(scenario, {"dimensions": {}}, [], True)
         self.assertEqual(set(missing_verdict["floor_failures"]), set(module.DIMENSIONS))
         for malformed_critique in (
             [],
             {"dimensions": None},
             {"dimensions": {"tool_efficiency": None}},
         ):
-            malformed_shape = module.verdict(malformed_critique, [], True)
+            malformed_shape = module.verdict(scenario, malformed_critique, [], True)
             self.assertFalse(malformed_shape["hard_pass"])
             self.assertEqual(set(malformed_shape["floor_failures"]), set(module.DIMENSIONS))
 
@@ -419,7 +485,7 @@ class IweSkillTests(unittest.TestCase):
                 scenario.min_document_reads,
                 scenario.max_document_reads,
             )
-            for scenario in module.parse_feature()
+            for scenario in module.load_scenarios()
         }
         self.assertEqual(targets, {
             "Discover and retrieve bounded multi-hop context": (2, 2, 4, 12),
@@ -433,6 +499,23 @@ class IweSkillTests(unittest.TestCase):
             "Recover from CLI option incompatibility": (3, 3, 1, 1),
             "Fallback when IWE is unavailable": (2, 2, 1, 1),
         })
+
+        update = next(
+            scenario
+            for scenario in module.load_scenarios()
+            if scenario.id == "apply-a-guarded-structured-block-update"
+        )
+        renamed = replace(update, name="Renamed display label")
+        self.assertEqual(renamed.slug, update.id)
+        errors = module.mechanical_errors(
+            renamed,
+            {},
+            {},
+            [],
+            Path("/tmp/unused-workspace"),
+            module.command_metrics([]),
+        )
+        self.assertIn("roadmap postcondition failed", errors)
 
     def test_judge_workspace_excludes_tested_skill(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
@@ -458,7 +541,7 @@ class IweSkillTests(unittest.TestCase):
 
         prompt = module.judge_prompt(
             load_skill(root=ROOT),
-            module.parse_feature()[0],
+            module.load_scenarios()[0],
             {
                 "metrics": {},
                 "iwe_telemetry": [],
@@ -482,7 +565,7 @@ class IweSkillTests(unittest.TestCase):
         )
         copied_prompt = module.judge_prompt(
             skill,
-            module.parse_feature()[0],
+            module.load_scenarios()[0],
             {
                 "metrics": {},
                 "iwe_telemetry": [],
@@ -501,7 +584,7 @@ class IweSkillTests(unittest.TestCase):
         )
         wrapped_prompt = module.judge_prompt(
             skill,
-            module.parse_feature()[0],
+            module.load_scenarios()[0],
             {
                 "metrics": {},
                 "iwe_telemetry": [{"stdout": wrapped}],
@@ -581,6 +664,24 @@ class IweSkillTests(unittest.TestCase):
             tested_skill="iwe-v18",
         )
         self.assertEqual(single_address_sed["task_tool_calls"], 0)
+        wrapped_activation = module.command_metrics(
+            [{
+                "command": "/bin/bash -lc \"sed -n '1,240p' .agents/skills/iwe-v18/SKILL.md\"",
+                "exit_code": 0,
+                "output": "skill body",
+            }],
+            tested_skill="iwe-v18",
+        )
+        self.assertEqual(wrapped_activation["task_tool_calls"], 0)
+        wrapped_chain = module.command_metrics(
+            [{
+                "command": "/bin/bash -lc \"sed -n '1,240p' .agents/skills/iwe-v18/SKILL.md && iwe find --lexical x --limit 1\"",
+                "exit_code": 0,
+                "output": "skill body\n[]",
+            }],
+            tested_skill="iwe-v18",
+        )
+        self.assertEqual(wrapped_chain["task_tool_calls"], 1)
         for noncanonical_path in (
             "/tmp/other/.agents/skills/iwe-v18/SKILL.md",
             "../other/.agents/skills/iwe-v18/SKILL.md",
@@ -675,24 +776,76 @@ class IweSkillTests(unittest.TestCase):
             [{
                 "args": ["find", "--lexical", "virtue", "--limit", "2", "--format", "json"],
                 "exit_code": 0,
-                "stdout_bytes": 123,
-                "stderr_bytes": 20,
-                "result_count": 2,
+                "stdout_bytes": 2,
+                "emitted_stdout_bytes": 2,
+                "stderr_bytes": 0,
+                "result_count": 0,
+                "stdout": "[]",
+                "stderr": "",
             }],
             tested_skill="iwe-v18",
         )
         self.assertEqual(metrics["iwe_calls"], 1)
-        self.assertEqual(metrics["iwe_output_bytes"], 123)
-        self.assertEqual(metrics["max_result_count"], 2)
-        self.assertEqual(metrics["document_reads"], 2)
+        self.assertEqual(metrics["iwe_output_bytes"], 2)
+        self.assertEqual(metrics["max_result_count"], 0)
+        self.assertEqual(metrics["document_reads"], 0)
         self.assertEqual(metrics["raw_tool_calls"], 2)
         self.assertEqual(metrics["task_tool_calls"], 1)
         self.assertEqual(metrics["unbounded_read_calls"], 0)
+        self.assertEqual(metrics["iwe_telemetry_extra"], 0)
+        self.assertEqual(metrics["iwe_telemetry_mismatch"], 0)
         missing = module.command_metrics(
             [{"command": "iwe find --lexical virtue --limit 1 --format json", "output": "[]"}],
             [],
         )
         self.assertEqual(missing["iwe_telemetry_missing"], 1)
+        forged_record = {
+            "args": ["find", "--lexical", "virtue", "--limit", "1", "--format", "json"],
+            "exit_code": 0,
+            "stdout_bytes": 2,
+            "emitted_stdout_bytes": 2,
+            "stderr_bytes": 0,
+            "result_count": 0,
+            "stdout": "[]",
+            "stderr": "",
+        }
+        forged = module.command_metrics(
+            [{"command": "printf 'no iwe invocation'", "exit_code": 0, "output": ""}],
+            [forged_record],
+        )
+        self.assertEqual(forged["iwe_calls"], 0)
+        self.assertEqual(forged["iwe_telemetry_extra"], 1)
+        self.assertEqual(forged["iwe_telemetry_mismatch"], 1)
+        self.assertEqual(forged["iwe_telemetry_invalid"], 1)
+        forged_errors = module.efficiency_errors(module.load_scenarios()[0], forged)
+        self.assertIn("IWE telemetry contains records without observed command invocations", forged_errors)
+        self.assertIn("IWE telemetry arguments do not match observed command invocations", forged_errors)
+        mismatched = module.command_metrics(
+            [{"command": "iwe find --lexical virtue --limit 1 --format json", "exit_code": 0, "output": "[]"}],
+            [{**forged_record, "args": ["find", "--lexical", "other", "--limit", "1", "--format", "json"]}],
+        )
+        self.assertEqual(mismatched["iwe_telemetry_mismatch"], 1)
+        same_argv_forgery = module.command_metrics(
+            [{"command": "iwe find --lexical virtue --limit 1 --format json", "exit_code": 0, "output": "[]"}],
+            [{**forged_record, "result_count": 1}],
+        )
+        self.assertEqual(same_argv_forgery["iwe_telemetry_mismatch"], 0)
+        self.assertEqual(same_argv_forgery["iwe_telemetry_invalid"], 1)
+        empty_measurement_forgery = module.command_metrics(
+            [{"command": "iwe find --lexical virtue --limit 1 --format json", "exit_code": 0, "output": "[]"}],
+            [{
+                **forged_record,
+                "stdout_bytes": 0,
+                "emitted_stdout_bytes": 0,
+                "result_count": None,
+                "stdout": "",
+            }],
+        )
+        self.assertEqual(empty_measurement_forgery["iwe_telemetry_invalid"], 1)
+        self.assertIn(
+            "IWE telemetry measurements do not match observed command evidence",
+            module.efficiency_errors(module.load_scenarios()[0], same_argv_forgery),
+        )
 
     def test_eval_budget_errors_are_mechanical(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"

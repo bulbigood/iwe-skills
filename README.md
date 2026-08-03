@@ -27,10 +27,13 @@ Quick deterministic verification:
 Ensure the configured runtime source contains the exact tested binary, then run:
 
 ```bash
+python3 -m pip install -r tests/eval/requirements.txt
 python3 scripts/sync_iwe_contract.py --skill iwe-v18 --check
 python3 -m unittest discover -s tests -v
 python3 scripts/skill_metrics.py
 python3 tests/eval/run.py --list
 ```
+
+Evaluation scenarios are schema-validated YAML in `tests/eval/scenarios/iwe.eval.yaml`. The pinned dependencies required to load and validate them are declared in `tests/eval/requirements.txt`.
 
 Agent evals are paid and nondeterministic. Run them only with explicit operator authorization.

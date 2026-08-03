@@ -37,16 +37,18 @@ python3 scripts/sync_iwe_contract.py --skill iwe-v18 --check
 6. Keep `SKILL.md` within 60–150 lines and approximately 800–2,000 tokens. Keep normal commands, limits, failure policy, fallback policy, and mutation safety in that file.
 7. Keep no more than two narrow references unless a measured eval regression proves another is necessary. Every reference requires a precise read trigger.
 8. Update `docs/upstream-sources.md` with the synchronization date, release/source revision, and divergence notes.
-9. Run deterministic verification:
+9. Keep `tests/eval/scenarios/iwe.eval.yaml` schema-valid. Every scenario must explicitly declare all seven `0..5` scoring rubrics, attainable score conditions, dimension floors and weights, minimum weighted score, and mechanical budgets. Do not reintroduce a regex-parsed feature DSL.
+10. Install the pinned eval dependencies and run deterministic verification:
 
 ```bash
+python3 -m pip install -r tests/eval/requirements.txt
 python3 -m unittest discover -s tests -v
 python3 scripts/skill_metrics.py
 python3 tests/eval/run.py --list
 ```
 
-10. Inspect the package boundary and ensure model-facing files contain no external URLs or maintainer procedures.
-11. After explicit authorization for paid execution, run focused efficiency scenarios before the full suite:
+11. Inspect the package boundary and ensure model-facing files contain no external URLs or maintainer procedures.
+12. After explicit authorization for paid execution, run focused efficiency scenarios before the full suite:
 
 ```bash
 python3 tests/eval/run.py --skill iwe-v18 --scenario "One-call bounded discovery" --jobs 1 --samples 1

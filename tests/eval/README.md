@@ -3,6 +3,7 @@
 The eval runner uses isolated workspaces, natural-language scenarios, complete command telemetry, deterministic postconditions, and an independent read-only judge. Agent and judge runs are paid and nondeterministic; they require explicit operator authorization. Scenario listing, contract checks, shim tests, command classification, and budget validation are mechanical.
 
 ```bash
+python3 -m pip install -r tests/eval/requirements.txt
 python3 tests/eval/run.py --list
 python3 tests/eval/run.py --skill iwe-v18 --config codex
 python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario "One-call bounded discovery" --jobs 1 --samples 1
@@ -19,15 +20,56 @@ The runner pins and caches two upstream repositories by commit:
 
 Each scenario receives a fresh non-git copy and only the selected repository-local skill under `.agents/skills/`.
 
-## Mechanical efficiency contract
+## Declarative scenario contract
 
-Every Gherkin scenario declares:
+Scenarios are authored in `scenarios/iwe.eval.yaml` and validated against the Draft 2020-12 schema in `scenario.schema.json` before any agent starts. A strict PyYAML `SafeLoader` rejects duplicate mapping keys; the runner then rejects duplicate ids or names, reversed budgets, weights that do not total 100, duplicate or unordered score levels, undeclared floors, and any dimension without explicit score `0` and `5` conditions. The former regex-parsed Gherkin-like format is not supported.
 
-```text
-Budget: iwe=MIN..MAX tools=MIN..MAX documents=MIN..MAX output=BYTES fallback=true|false mode=real|incompatible|unavailable
+Every scenario is a complete source of truth. It declares:
+
+- a stable id, name, fixture, and operator request;
+- execution mode, fallback permission, output and result limits;
+- min/max IWE calls, task tool calls, and document reads;
+- a minimum weighted score;
+- all seven semantic dimensions, each with its weight, floor, and explicit attainable score levels and conditions.
+
+Example:
+
+```yaml
+id: one-call-bounded-discovery
+name: One-call bounded discovery
+fixture: seventeen-centuries
+request: |
+  Return at most five document keys and titles whose body discusses virtue.
+  Use one repository query and return JSON only.
+minimum_weighted_score: 4
+execution:
+  mode: real
+  fallback: false
+  output_bytes: 32768
+  result_limit: 20
+  budgets:
+    iwe_calls: {min: 1, max: 1}
+    task_tool_calls: {min: 1, max: 1}
+    document_reads: {min: 1, max: 5}
+scoring:
+  tool_efficiency:
+    weight: 10
+    floor: 5
+    levels:
+      - score: 5
+        condition: Uses 1..1 task tool calls, completes the task, and makes no avoidable call.
+      - score: 3
+        condition: Produces useful work but exceeds the declared task-call range.
+      - score: 0
+        condition: Uses forbidden or unbounded exploration, or telemetry is incomplete.
+  # The file explicitly declares the other six required dimensions too.
 ```
 
-The `tools` and `documents` ranges are manually calculated per scenario as the excellent-efficiency target. `task_tool_calls` counts command-execution events after excluding at most one successful standalone `cat`/`sed`/`head`/`tail` invocation whose sole file operand is the exact tested `SKILL.md`. Combined or failed reads remain task calls. `document_reads` is the sum of exact IWE JSON result counts plus one permitted targeted filesystem fallback. A proxy shim records exact IWE data before agent telemetry can truncate it. The runner also records:
+Scores are integers on the ordinal `0..5` scale. The judge may select only a level declared by that scenario. It evaluates levels from highest to lowest and chooses the highest condition fully satisfied; an undeclared, malformed, boolean, or out-of-range score is normalized to `0`. This removes percentage-like pseudo-precision while keeping the rubric inspectable.
+
+## Mechanical efficiency contract
+
+The `task_tool_calls` and `document_reads` ranges are manually calculated per scenario as the excellent-efficiency target. `task_tool_calls` counts command-execution events after excluding at most one successful standalone `cat`/`sed`/`head`/`tail` invocation whose sole file operand is the exact tested `SKILL.md`; the exact `/bin/bash -lc` or `/bin/sh -lc` wrapper emitted by the configured agent is safely unwrapped before classification. Combined, failed, noncanonical, or differently wrapped reads remain task calls. `document_reads` is the sum of exact IWE JSON result counts plus one permitted targeted filesystem fallback. A proxy shim records exact IWE data before agent telemetry can truncate it. The runner shell-tokenizes actual command-position IWE invocations and keeps that observed count authoritative; telemetry must match observed argv one-to-one, and missing, extra, or mismatched records fail mechanically. The runner also records:
 
 - command-specific help calls;
 - web/network and built-in documentation calls;
@@ -38,11 +80,11 @@ The `tools` and `documents` ranges are manually calculated per scenario as the e
 - total captured command-output bytes and a stable byte-to-token context estimate;
 - failed and unbounded IWE calls.
 
-The proxy caps emitted IWE stdout at the scenario output budget while preserving the original byte count for the mechanical verdict. IWE call, output, context, fallback, and result-count budgets remain hard mechanical gates. Tool/document ranges define what deserves an excellent efficiency score; the judge must score below the relevant floor when an agent exceeds the range without a scenario-proven necessity.
+The proxy caps emitted IWE stdout at the scenario output budget while preserving the original byte count for the mechanical verdict. Telemetry measurements must agree with captured command stdout/stderr, exit status, byte counts, and parsed JSON result counts; a missing, extra, reordered, mismatched, or internally inconsistent record fails closed. IWE call, output, context, fallback, result-count, task-tool-call, and document-read budgets are hard mechanical gates. The semantic efficiency dimensions independently judge whether the chosen approach avoided unnecessary work inside those bounds.
 
 ## Judge thresholds and sample aggregation
 
-Every scored dimension has a minimum: task correctness 80, scenario compliance 80, skill compliance 85, safety 95, evidence quality 80, tool efficiency 95, and resource efficiency 90. The weighted overall score must still reach 80, and process/mechanical failures are never tolerated.
+Every scenario declares all seven floors locally. Current scenarios require `4` for task correctness, scenario compliance, skill compliance, and evidence quality, and the maximum `5` for safety, tool efficiency, and resource efficiency. The weighted overall score must reach the scenario's declared `minimum_weighted_score` (`4` today). Process and mechanical failures are never tolerated. A semantic score cannot compensate for a hard-gate violation.
 
 Dimension-floor failures are aggregated independently per scenario. A floor fails the scenario only when it is missed in strictly more than 20% of samples. Thus `1/5` and `2/10` pass that floor, while `2/5`, `1/4`, and `3/10` fail it. `summary.json` records the failed count, total, rate, allowed rate, and verdict for every dimension.
 

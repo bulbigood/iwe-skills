@@ -27,7 +27,7 @@
       "additionalProperties": false,
       "required": ["score", "rationale", "evidence"],
       "properties": {
-        "score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "score": {"type": "integer", "minimum": 0, "maximum": 5},
         "rationale": {"type": "string"},
         "evidence": {"type": "array", "items": {"type": "string"}}
       }

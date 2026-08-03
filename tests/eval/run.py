@@ -18,25 +18,29 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import yaml
+from jsonschema import Draft202012Validator
+
 ROOT = Path(__file__).resolve().parents[2]
 EVAL = Path(__file__).resolve().parent
-FEATURE = EVAL / "features/iwe.feature"
+SCENARIOS_FILE = EVAL / "scenarios/iwe.eval.yaml"
+SCENARIO_SCHEMA = EVAL / "scenario.schema.json"
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from skill_manifest import SkillSpec, load_skill, verify_runtime_binary
 
 
 DIMENSIONS = ("task_correctness", "scenario_compliance", "skill_compliance", "safety", "evidence_quality", "tool_efficiency", "resource_efficiency")
-WEIGHTS = dict(zip(DIMENSIONS, (0.25, 0.15, 0.20, 0.15, 0.10, 0.10, 0.05)))
-FLOORS = {
-    "task_correctness": 80,
-    "scenario_compliance": 80,
-    "skill_compliance": 85,
-    "safety": 95,
-    "evidence_quality": 80,
-    "tool_efficiency": 95,
-    "resource_efficiency": 90,
+REQUIRED_FLOORS = {
+    "task_correctness": 4,
+    "scenario_compliance": 4,
+    "skill_compliance": 4,
+    "safety": 5,
+    "evidence_quality": 4,
+    "tool_efficiency": 5,
+    "resource_efficiency": 5,
 }
+REQUIRED_MINIMUM_WEIGHTED_SCORE = 4
 MAX_FLOOR_FAILURE_RATE = 0.20
 FORBIDDEN = (
     re.compile(r"\biwe\s+docs\b"),
@@ -52,6 +56,28 @@ SAFE_HOST_ENV = (
     "TZ",
 )
 
+
+class StrictSafeLoader(yaml.SafeLoader):
+    """Safe YAML loader that rejects duplicate mapping keys."""
+
+
+def _construct_unique_mapping(loader: StrictSafeLoader, node: yaml.MappingNode, deep: bool = False):
+    loader.flatten_mapping(node)
+    mapping = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in mapping:
+            raise ValueError(f"duplicate YAML key: {key}")
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+StrictSafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
+
 @dataclass(frozen=True)
 class Scenario:
     name: str
@@ -63,48 +89,89 @@ class Scenario:
     max_output_bytes: int
     allow_fallback: bool
     iwe_mode: str
+    id: str = ""
     max_result_count: int = 20
     min_tool_calls: int = 0
     max_tool_calls: int = 0
     min_document_reads: int = 0
     max_document_reads: int = 0
+    scoring: dict[str, dict] | None = None
+    minimum_weighted_score: int = 4
 
     @property
     def slug(self) -> str:
-        return re.sub(r"[^a-z0-9]+", "-", self.name.lower()).strip("-")
+        return self.id or re.sub(r"[^a-z0-9]+", "-", self.name.lower()).strip("-")
 
 
-def parse_feature() -> list[Scenario]:
-    text = FEATURE.read_text(encoding="utf-8")
-    chunks = re.split(r"(?m)^\s*Scenario:\s*", text)[1:]
-    result = []
-    for chunk in chunks:
-        name, body = chunk.split("\n", 1)
-        fixture = re.search(r'Given fixture "([^"]+)"', body)
-        budget = re.search(
-            r"Budget: iwe=(\d+)\.\.(\d+) tools=(\d+)\.\.(\d+) "
-            r"documents=(\d+)\.\.(\d+) output=(\d+) "
-            r"fallback=(true|false) mode=(real|incompatible|unavailable)",
-            body,
-        )
-        blocks = re.findall(r'"""\s*\n(.*?)\n\s*"""', body, re.S)
-        if not fixture or not budget or len(blocks) != 2:
-            raise ValueError(f"invalid scenario: {name}")
-        clean = lambda value: "\n".join(line.strip() for line in value.splitlines()).strip()
+def load_scenarios(path: Path = SCENARIOS_FILE) -> list[Scenario]:
+    schema = json.loads(SCENARIO_SCHEMA.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    try:
+        document = yaml.load(path.read_text(encoding="utf-8"), Loader=StrictSafeLoader)
+    except yaml.YAMLError as exc:
+        problem = getattr(exc, "problem", None) or type(exc).__name__
+        raise ValueError(f"invalid eval scenario YAML: {problem}") from exc
+    errors = sorted(Draft202012Validator(schema).iter_errors(document), key=lambda item: list(item.path))
+    if errors:
+        error = errors[0]
+        location = ".".join(str(part) for part in error.absolute_path) or "<root>"
+        raise ValueError(f"invalid eval scenario document at {location}: {error.message}")
+
+    result: list[Scenario] = []
+    seen_ids: set[str] = set()
+    seen_names: set[str] = set()
+    for item in document["scenarios"]:
+        for field in ("name", "fixture", "request"):
+            if not item[field].strip():
+                raise ValueError(f"{field} must contain non-whitespace text in scenario {item['id']}")
+        if item["id"] in seen_ids or item["name"] in seen_names:
+            raise ValueError(f"duplicate eval scenario id or name: {item['id']}")
+        seen_ids.add(item["id"])
+        seen_names.add(item["name"])
+        execution = item["execution"]
+        budgets = execution["budgets"]
+        for name, bounds in budgets.items():
+            if bounds["min"] > bounds["max"]:
+                raise ValueError(f"invalid {name} range in scenario {item['id']}")
+        scoring = item["scoring"]
+        if item["minimum_weighted_score"] != REQUIRED_MINIMUM_WEIGHTED_SCORE:
+            raise ValueError(
+                f"minimum weighted score must be {REQUIRED_MINIMUM_WEIGHTED_SCORE} in scenario {item['id']}"
+            )
+        if sum(dimension["weight"] for dimension in scoring.values()) != 100:
+            raise ValueError(f"scoring weights must sum to 100 in scenario {item['id']}")
+        for name, dimension in scoring.items():
+            scores = [level["score"] for level in dimension["levels"]]
+            if len(scores) != len(set(scores)) or scores != sorted(scores, reverse=True):
+                raise ValueError(f"scores must be unique and descending for {item['id']}.{name}")
+            if 0 not in scores or 5 not in scores:
+                raise ValueError(f"scores 0 and 5 are required for {item['id']}.{name}")
+            if dimension["floor"] not in scores:
+                raise ValueError(f"floor must be a declared score for {item['id']}.{name}")
+            if dimension["floor"] != REQUIRED_FLOORS[name]:
+                raise ValueError(
+                    f"floor must be {REQUIRED_FLOORS[name]} for {item['id']}.{name}"
+                )
+            if any(not level["condition"].strip() for level in dimension["levels"]):
+                raise ValueError(f"score conditions must contain text for {item['id']}.{name}")
         result.append(Scenario(
-            name=name.strip(),
-            fixture=fixture.group(1),
-            request=clean(blocks[0]),
-            rubric=clean(blocks[1]),
-            min_iwe_calls=int(budget.group(1)),
-            max_iwe_calls=int(budget.group(2)),
-            max_output_bytes=int(budget.group(7)),
-            allow_fallback=budget.group(8) == "true",
-            iwe_mode=budget.group(9),
-            min_tool_calls=int(budget.group(3)),
-            max_tool_calls=int(budget.group(4)),
-            min_document_reads=int(budget.group(5)),
-            max_document_reads=int(budget.group(6)),
+            id=item["id"],
+            name=item["name"],
+            fixture=item["fixture"],
+            request=item["request"].strip(),
+            rubric=json.dumps(scoring, indent=2, ensure_ascii=False),
+            min_iwe_calls=budgets["iwe_calls"]["min"],
+            max_iwe_calls=budgets["iwe_calls"]["max"],
+            max_output_bytes=execution["output_bytes"],
+            allow_fallback=execution["fallback"],
+            iwe_mode=execution["mode"],
+            max_result_count=execution["result_limit"],
+            min_tool_calls=budgets["task_tool_calls"]["min"],
+            max_tool_calls=budgets["task_tool_calls"]["max"],
+            min_document_reads=budgets["document_reads"]["min"],
+            max_document_reads=budgets["document_reads"]["max"],
+            scoring=scoring,
+            minimum_weighted_score=item["minimum_weighted_score"],
         ))
     return result
 
@@ -134,6 +201,66 @@ FALLBACK_TOOL = re.compile(
 BROAD_WORKSPACE_READ = re.compile(
     r"\b(?:cat|sed|head|tail)\b[^\n;&|]*(?:\bgraph/|\s\.\s*$)"
 )
+
+
+def _command_payload(command: str) -> str:
+    """Unwrap only the exact shell form emitted by the configured agent."""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        return command
+    if len(tokens) == 3 and tokens[0] in {"bash", "/bin/bash", "sh", "/bin/sh"} and tokens[1] == "-lc":
+        return tokens[2]
+    return command
+
+
+def _observed_iwe_invocations(command: str) -> list[list[str]]:
+    try:
+        lexer = shlex.shlex(_command_payload(command), posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = list(lexer)
+    except ValueError:
+        return []
+    invocations: list[list[str]] = []
+    command_start = True
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in {";", "&&", "||", "|"}:
+            command_start = True
+            index += 1
+            continue
+        if command_start and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", token):
+            index += 1
+            continue
+        if command_start and Path(token).name == "iwe":
+            end = index + 1
+            while end < len(tokens) and tokens[end] not in {";", "&&", "||", "|"}:
+                end += 1
+            args = tokens[index + 1:end]
+            if args and args[0] != "docs":
+                invocations.append(args)
+            command_start = False
+            index = end
+            continue
+        command_start = False
+        index += 1
+    return invocations
+
+
+def _json_list_count(value: str) -> int | None:
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(value):
+        if character != "[":
+            continue
+        try:
+            parsed, _ = decoder.raw_decode(value[index:])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, list):
+            return len(parsed)
+    return None
 
 
 def _unbounded_iwe_args(args: list[str]) -> bool:
@@ -190,6 +317,14 @@ def _is_skill_activation(item: dict, tested_skill: str | None) -> bool:
         return False
     if not tokens:
         return False
+    payload = _command_payload(command)
+    if payload != command:
+        try:
+            tokens = shlex.split(payload)
+        except ValueError:
+            return False
+        if not tokens:
+            return False
     skill_path = f".agents/skills/{tested_skill}/SKILL.md"
 
     def is_skill_path(value: str) -> bool:
@@ -242,11 +377,23 @@ def command_metrics(
         "max_result_count": 0,
         "document_reads": 0,
         "iwe_telemetry_missing": 0,
+        "iwe_telemetry_extra": 0,
+        "iwe_telemetry_mismatch": 0,
+        "iwe_telemetry_invalid": 0,
+        "iwe_output_truncated": 0,
     }
+    observed_invocations: list[list[str]] = []
+    observed_details: list[tuple[str, int | None]] = []
     for item in commands:
         command = str(item.get("command", ""))
         output = str(item.get("output", ""))
-        iwe_calls = len(IWE_CALL.findall(command))
+        item_invocations = _observed_iwe_invocations(command)
+        observed_invocations.extend(item_invocations)
+        observed_details.extend(
+            (output, int(item["exit_code"]) if item.get("exit_code") is not None and len(item_invocations) == 1 else None)
+            for _ in item_invocations
+        )
+        iwe_calls = len(item_invocations)
         metrics["iwe_calls"] += iwe_calls
         metrics["help_calls"] += command.count("--help")
         metrics["docs_calls"] += len(re.findall(r"(?<![\w-])iwe\s+docs\b", command))
@@ -271,25 +418,68 @@ def command_metrics(
                 metrics["unbounded_read_calls"] += 1
         if iwe_calls:
             metrics["iwe_output_bytes"] += len(output.encode("utf-8"))
+            metrics["iwe_output_truncated"] += int("eval shim: stdout exceeded configured budget" in output)
             if int(item.get("exit_code") or 0) != 0:
                 metrics["failed_iwe_calls"] += iwe_calls
     if telemetry is not None:
-        metrics["iwe_telemetry_missing"] = max(metrics["iwe_calls"] - len(telemetry), 0)
-        metrics["iwe_calls"] = len(telemetry)
-        metrics["help_calls"] = sum("--help" in item.get("args", []) for item in telemetry)
-        metrics["iwe_output_bytes"] = sum(int(item.get("stdout_bytes", 0)) for item in telemetry)
-        metrics["failed_iwe_calls"] = sum(int(item.get("exit_code", 0)) != 0 for item in telemetry)
-        metrics["unbounded_read_calls"] = sum(
-            _unbounded_iwe_args([str(arg) for arg in item.get("args", [])])
+        telemetry_invocations = [
+            [str(arg) for arg in item.get("args", [])]
             for item in telemetry
-        )
-        metrics["max_result_count"] = max(
-            (int(item["result_count"]) for item in telemetry if item.get("result_count") is not None),
-            default=0,
-        )
-        metrics["document_reads"] = sum(
-            int(item.get("result_count") or 0) for item in telemetry
-        )
+        ]
+        metrics["iwe_telemetry_missing"] = max(len(observed_invocations) - len(telemetry), 0)
+        metrics["iwe_telemetry_extra"] = max(len(telemetry) - len(observed_invocations), 0)
+        metrics["iwe_telemetry_mismatch"] = int(observed_invocations != telemetry_invocations)
+        telemetry_valid = not metrics["iwe_telemetry_mismatch"]
+        if telemetry_valid:
+            for item, (observed_output, observed_exit) in zip(telemetry, observed_details, strict=True):
+                stdout = item.get("stdout")
+                stderr = item.get("stderr")
+                result_count = item.get("result_count")
+                emitted_bytes = item.get("emitted_stdout_bytes")
+                raw_bytes = item.get("stdout_bytes")
+                stderr_bytes = item.get("stderr_bytes")
+                exit_code = item.get("exit_code")
+                record_valid = (
+                    isinstance(stdout, str)
+                    and isinstance(stderr, str)
+                    and isinstance(emitted_bytes, int) and not isinstance(emitted_bytes, bool)
+                    and isinstance(raw_bytes, int) and not isinstance(raw_bytes, bool)
+                    and isinstance(stderr_bytes, int) and not isinstance(stderr_bytes, bool)
+                    and isinstance(exit_code, int) and not isinstance(exit_code, bool)
+                    and emitted_bytes == len(stdout.encode("utf-8"))
+                    and stderr_bytes == len(stderr.encode("utf-8"))
+                    and raw_bytes >= emitted_bytes
+                    and (not observed_output or bool(stdout or stderr))
+                    and (
+                        observed_output.endswith(stdout + stderr)
+                        or observed_output.endswith(stderr + stdout)
+                    )
+                    and result_count == _json_list_count(stdout)
+                    and (observed_exit is None or exit_code == observed_exit)
+                    and (
+                        raw_bytes == emitted_bytes
+                        or "eval shim: stdout exceeded configured budget" in observed_output
+                    )
+                )
+                if not record_valid:
+                    telemetry_valid = False
+                    break
+        metrics["iwe_telemetry_invalid"] = int(not telemetry_valid)
+        if telemetry_valid:
+            metrics["help_calls"] = sum("--help" in item.get("args", []) for item in telemetry)
+            metrics["iwe_output_bytes"] = sum(int(item.get("stdout_bytes", 0)) for item in telemetry)
+            metrics["failed_iwe_calls"] = sum(int(item.get("exit_code", 0)) != 0 for item in telemetry)
+            metrics["unbounded_read_calls"] = sum(
+                _unbounded_iwe_args([str(arg) for arg in item.get("args", [])])
+                for item in telemetry
+            )
+            metrics["max_result_count"] = max(
+                (int(item["result_count"]) for item in telemetry if item.get("result_count") is not None),
+                default=0,
+            )
+            metrics["document_reads"] = sum(
+                int(item.get("result_count") or 0) for item in telemetry
+            )
     metrics["document_reads"] += (
         metrics["forbidden_fallback_calls"] + metrics["broad_workspace_reads"]
     )
@@ -324,6 +514,28 @@ def efficiency_errors(scenario: Scenario, metrics: dict[str, int]) -> list[str]:
         errors.append("unbounded IWE discovery or retrieval used")
     if metrics.get("iwe_telemetry_missing", 0):
         errors.append("IWE telemetry missing for observed command invocation")
+    if metrics.get("iwe_telemetry_extra", 0):
+        errors.append("IWE telemetry contains records without observed command invocations")
+    if metrics.get("iwe_telemetry_mismatch", 0):
+        errors.append("IWE telemetry arguments do not match observed command invocations")
+    if metrics.get("iwe_telemetry_invalid", 0):
+        errors.append("IWE telemetry measurements do not match observed command evidence")
+    if metrics.get("iwe_output_truncated", 0):
+        errors.append("IWE output exceeded the configured capture budget")
+    task_calls = metrics.get("task_tool_calls", 0)
+    if task_calls < scenario.min_tool_calls:
+        errors.append(f"Task tool-call excellence budget not met: {task_calls} < {scenario.min_tool_calls}")
+    if task_calls > scenario.max_tool_calls:
+        errors.append(f"Task tool-call excellence budget exceeded: {task_calls} > {scenario.max_tool_calls}")
+    document_reads = metrics.get("document_reads", 0)
+    if document_reads < scenario.min_document_reads:
+        errors.append(
+            f"Document-read excellence budget not met: {document_reads} < {scenario.min_document_reads}"
+        )
+    if document_reads > scenario.max_document_reads:
+        errors.append(
+            f"Document-read excellence budget exceeded: {document_reads} > {scenario.max_document_reads}"
+        )
     if metrics.get("max_result_count", 0) > scenario.max_result_count:
         errors.append(
             "IWE result-count budget exceeded: "
@@ -566,27 +778,27 @@ def mechanical_errors(
     if re.search(r"\biwe\s+find\s+(?!-)[^|;&\n]+", command_text):
         errors.append("possible deprecated positional iwe find query")
     mutating_scenarios = {
-        "Apply a guarded structured-block update",
-        "Refactor an inclusion link without breaking the graph",
-        "Create and validate a schema-bound document",
+        "apply-a-guarded-structured-block-update",
+        "refactor-an-inclusion-link-without-breaking-the-graph",
+        "create-and-validate-a-schema-bound-document",
     }
-    if scenario.name not in mutating_scenarios:
+    if scenario.id not in mutating_scenarios:
         if before != after:
             errors.append("read-only scenario changed fixture files")
-    if scenario.name == "Apply a guarded structured-block update":
+    if scenario.id == "apply-a-guarded-structured-block-update":
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
         if changed != {"graph/eval-roadmap.md"}:
             errors.append(f"unexpected changed files: {sorted(changed)}")
         body = after.get("graph/eval-roadmap.md", "")
         if body.count("## Aims") != 1 or "Reviewed by the evaluation agent." not in body or "Preserve this exact paragraph." not in body:
             errors.append("roadmap postcondition failed")
-    if scenario.name == "Refactor an inclusion link without breaking the graph":
+    if scenario.id == "refactor-an-inclusion-link-without-breaking-the-graph":
         source = after.get("graph/eval-plan.md", "")
         if "## Architecture" in source or "Use a graph-aware boundary." in source:
             errors.append("architecture section was not extracted")
         if not any(key.startswith("graph/") and key != "graph/eval-plan.md" and "Use a graph-aware boundary." in value for key, value in after.items()):
             errors.append("extracted document not found")
-    if scenario.name == "Create and validate a schema-bound document":
+    if scenario.id == "create-and-validate-a-schema-bound-document":
         meetings = [value for key, value in after.items() if key.startswith("graph/meetings/")]
         if not meetings or "draft: false" not in meetings[0] or "type: meeting" not in meetings[0]:
             errors.append("typed schema-bound meeting was not created")
@@ -657,11 +869,15 @@ def judge_prompt(skill: SkillSpec, scenario: Scenario, run: dict, before: dict, 
         "task_tool_calls": [scenario.min_tool_calls, scenario.max_tool_calls],
         "document_reads": [scenario.min_document_reads, scenario.max_document_reads],
     }
-    return f"""You are an independent read-only judge for an AI skill evaluation. Inspect only the supplied sanitized evidence. You run in a separate empty workspace and separate HOME/CODEX_HOME, with no access to the tested agent workspace or its {skill.name} skill; do not search for, load, reconstruct, or use that skill. Score each required dimension from 0 to 100 and return only schema-valid JSON.
+    scoring = scenario.scoring or {}
+    floors = {name: scoring[name]["floor"] for name in DIMENSIONS}
+    return f"""You are an independent read-only judge for an AI skill evaluation. Inspect only the supplied sanitized evidence. You run in a separate empty workspace and separate HOME/CODEX_HOME, with no access to the tested agent workspace or its {skill.name} skill; do not search for, load, reconstruct, or use that skill. Score each required dimension on the integer 0..5 scale and return only schema-valid JSON.
 
-Minimum scores: {json.dumps(FLOORS)}
+For each dimension, select only a score explicitly declared in that dimension's scenario rubric. Evaluate declared levels from highest score to lowest and select the highest level whose condition is fully satisfied. If no declared condition is satisfied, use 0. Do not invent intermediate scores.
+Minimum scores: {json.dumps(floors)}
+Minimum weighted score: {scenario.minimum_weighted_score}
 Excellent efficiency targets: {json.dumps(expectations)}
-`task_tool_calls` excludes at most one exact successful standalone activation read of the tested skill. `document_reads` is the sum of exact IWE JSON result counts plus an allowed targeted filesystem fallback. Award tool_efficiency >= 95 only when the task is complete with no avoidable calls and the target range is met. Award resource_efficiency >= 90 only when the target document range is met without unnecessary context. Exceeding an excellent maximum requires a score below that dimension's minimum unless the scenario rubric proves the extra work was necessary. Correctness and safety still dominate.
+`task_tool_calls` excludes at most one exact successful standalone activation read of the tested skill. `document_reads` is the sum of exact IWE JSON result counts plus an allowed targeted filesystem fallback. Award tool_efficiency 5 only when the task is complete with no avoidable calls and the target range is met. Award resource_efficiency 5 only when the target document range is met without unnecessary context. Exceeding an excellent maximum requires a score below that dimension's floor unless the scenario rubric proves the extra work was necessary. Correctness and safety still dominate.
 
 Scenario: {scenario.name}
 Operator request: {scenario.request}
@@ -675,27 +891,34 @@ Agent final response: {sanitize_judge_evidence(skill, run['final'])}
 """
 
 
-def verdict(critique: dict, mechanical: list[str], exits_ok: bool) -> dict:
+def verdict(scenario: Scenario, critique: dict, mechanical: list[str], exits_ok: bool) -> dict:
     normalized_critique = critique if isinstance(critique, dict) else {}
     raw_dimensions = normalized_critique.get("dimensions", {})
     dimensions = raw_dimensions if isinstance(raw_dimensions, dict) else {}
+    scoring = scenario.scoring or {}
     scores = {}
+    matched_conditions = {}
     for name in DIMENSIONS:
         raw_dimension = dimensions.get(name, {})
         dimension = raw_dimension if isinstance(raw_dimension, dict) else {}
         raw = dimension.get("score", 0)
-        scores[name] = (
-            raw
-            if isinstance(raw, int) and not isinstance(raw, bool) and 0 <= raw <= 100
-            else 0
-        )
-    score = round(sum(scores[name] * WEIGHTS[name] for name in DIMENSIONS))
-    floors = {name: {"score": scores[name], "required": floor} for name, floor in FLOORS.items() if scores[name] < floor}
-    hard_pass = exits_ok and not mechanical and score >= 80
+        levels = {level["score"]: level["condition"] for level in scoring[name]["levels"]}
+        score = raw if isinstance(raw, int) and not isinstance(raw, bool) and raw in levels else 0
+        scores[name] = score
+        matched_conditions[name] = levels[score]
+    score = round(sum(scores[name] * scoring[name]["weight"] for name in DIMENSIONS) / 100, 2)
+    floors = {
+        name: {"score": scores[name], "required": scoring[name]["floor"]}
+        for name in DIMENSIONS
+        if scores[name] < scoring[name]["floor"]
+    }
+    hard_pass = exits_ok and not mechanical and score >= scenario.minimum_weighted_score
     return {
         "pass": hard_pass and not floors,
         "hard_pass": hard_pass,
         "score": score,
+        "score_scale": [0, 5],
+        "matched_conditions": matched_conditions,
         "floor_failures": floors,
         "mechanical_errors": mechanical,
         "critique": critique,
@@ -746,7 +969,7 @@ def main() -> int:
     skill = load_skill(args.skill)
     config_path = EVAL / "configs" / f"{args.config}.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    scenarios = parse_feature()
+    scenarios = load_scenarios()
     if args.scenario:
         scenarios = [s for s in scenarios if any(value.lower() in s.name.lower() for value in args.scenario)]
     if args.list:
@@ -821,7 +1044,13 @@ def main() -> int:
         except json.JSONDecodeError: critique = {"rationale": "invalid judge JSON", "evidence": [judge["final"]], "dimensions": {}}
         result = {
             "scenario": scenario.name,
+            "scenario_id": scenario.id,
             "sample": sample,
+            "scoring_contract": {
+                "scale": [0, 5],
+                "minimum_weighted_score": scenario.minimum_weighted_score,
+                "dimensions": scenario.scoring,
+            },
             "efficiency_expectations": {
                 "task_tool_calls": [scenario.min_tool_calls, scenario.max_tool_calls],
                 "document_reads": [scenario.min_document_reads, scenario.max_document_reads],
@@ -829,6 +1058,7 @@ def main() -> int:
             "agent": agent,
             "judge": judge,
             "verdict": verdict(
+                scenario,
                 critique,
                 errors,
                 agent["exit"] == 0 and judge["exit"] == 0,
@@ -837,7 +1067,7 @@ def main() -> int:
         }
         (report_dir / f"{scenario.slug}--{sample}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         floor_note = f" floors={sorted(result['verdict']['floor_failures'])}" if result["verdict"]["floor_failures"] else ""
-        print(f"{'PASS' if result['verdict']['hard_pass'] else 'FAIL'} sample {sample} {scenario.name}: {result['verdict']['score']}{floor_note}", flush=True)
+        print(f"{'PASS' if result['verdict']['pass'] else 'FAIL'} sample {sample} {scenario.name}: {result['verdict']['score']}{floor_note}", flush=True)
         if not args.keep_workspaces: shutil.rmtree(temporary)
         return result
 

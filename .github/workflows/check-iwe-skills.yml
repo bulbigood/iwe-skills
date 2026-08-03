@@ -44,6 +44,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install eval validation dependencies
+        run: python3 -m pip install --requirement tests/eval/requirements.txt
       - uses: dtolnay/rust-toolchain@stable
         if: matrix.runtime.source == 'cargo'
       - name: Install configured IWE CLI with Cargo
