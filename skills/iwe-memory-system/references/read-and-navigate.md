@@ -31,11 +31,11 @@ Current formats:
 Useful examples:
 
 ```bash
-iwe find "authentication" --roots -f keys
-iwe find --roots -f json
+iwe find --fuzzy "authentication" --filter '$nor: [{ $includedBy: { match: {} } }]' -f keys
+iwe find --filter '$nor: [{ $includedBy: { match: {} } }]' -f json
 iwe find --references authentication              # docs that reference authentication
 iwe find --referenced-by index                    # docs that index references
-iwe find "$QUERY" --limit 5 -f keys
+iwe find --lexical "$QUERY" --limit 5 -f keys
 ```
 
 Frontmatter filter, projection, sort, and limit:
@@ -47,14 +47,18 @@ iwe find --filter '$or: [{ status: draft }, { status: review }]' -f keys
 iwe find --included-by projects/alpha:5 --filter 'type: note'
 iwe find --project title,status -f json
 iwe find --add-fields 'body=$content' -f json
+iwe find --matches '(?i)todo|fixme'
+iwe find --blocks '{ $within: Goals, $text: "Q3" }'
+iwe find --lexical "release notes" --max-tokens 4000 --max-document-tokens 1200 \
+  --add-fields '$content'
 ```
 
-Inline-YAML filters compose with the positional fuzzy query and the graph anchor flags via AND. See [./query-language.md](./query-language.md) for the full operator set.
+Inline-YAML filters compose with `--fuzzy` / `--lexical` and the graph anchor flags via AND. See [./query-language.md](./query-language.md) for the full operator set.
 
 Workflow:
 
-1. Start with `iwe find "topic"` for fuzzy discovery, or `iwe find --filter '...'` when you know the frontmatter shape.
-2. If results are broad, add `--roots`, `--limit`, or a tighter `--filter`.
+1. Start with `iwe find --fuzzy "topic"` for title/key discovery, `iwe find --lexical "topic"` for BM25 title/body search, or `iwe find --filter '...'` when you know the frontmatter shape. Do not use the deprecated bare positional query.
+2. If results are broad, add `--limit` or a tighter `--filter`. To select roots, use `--filter '$nor: [{ $includedBy: { match: {} } }]'`; the `--roots` alias is deprecated.
 3. Use `--references` / `--referenced-by` / `--includes` / `--included-by` when you already know one anchor key and want relationship-based discovery.
 4. Use `--project` or `--add-fields` to shape JSON output before passing it on.
 5. Pass the chosen key into `retrieve`.
@@ -93,35 +97,39 @@ Use `tree` for orientation, not full content retrieval. Increase depth only when
 Use `retrieve` for context building.
 
 ```bash
-iwe retrieve -k <KEY> -d <DEPTH> -c <CONTEXT>
+iwe retrieve -k <KEY> \
+  --expand-includes 1 \
+  --expand-included-by 1
 ```
 
 Parameters worth knowing:
 
 - `-k` can be repeated to retrieve multiple anchor documents in one call.
-- `-d` controls child expansion.
-- `-c` controls parent context.
-- `-e` avoids reloading known content.
-- `-l` and `-b` are worth adding only when inline refs or incoming refs matter.
-- `--dry-run` is useful before broad retrievals.
-- `--no-content` keeps metadata while skipping document bodies.
-- `--dry-run` currently prints document and line counts, not a per-document preview.
+- `--expand-includes [N]` follows child inclusion edges.
+- `--expand-included-by [N]` follows parent inclusion edges.
+- `--expand-references [N]` follows outbound inline-reference edges.
+- `--expand-referenced-by [N]` follows inbound inline-reference edges.
+- A bare expansion flag means depth 1; `0` means unbounded; omission means that edge is not followed.
+- `-e KEY` excludes already-known document keys and is repeatable.
+- `--children` populates each result's `includes` array; `--backlinks` is on by default and controls `referencedBy` metadata.
+- `--limit` caps seeds before expansion. `--max-documents`, `--max-tokens`, and `--max-document-tokens` bound the final context.
+- `retrieve` has neither `--dry-run` nor `--no-content` in IWE 0.18.0.
 
 Practical defaults:
 
-- Focused read: `iwe retrieve -k topic -d 1 -c 1`
-- Minimal read: `iwe retrieve -k topic -d 0 -c 0`
-- Broader context: `iwe retrieve -k topic -d 2 -c 2`
+- Focused read: `iwe retrieve -k topic --expand-includes 1 --expand-included-by 1`
+- Minimal read: `iwe retrieve -k topic`
+- Broader bounded context: `iwe retrieve -k topic --expand-includes 2 --expand-included-by 2 --max-documents 25`
 - Programmatic chaining: `iwe retrieve -k topic -f keys`
-- Metadata-only pass: `iwe retrieve -k topic --no-content -f json`
+- Search and retrieve: `iwe retrieve --lexical "authentication flow" --limit 3 --expand-references 1`
 
-Use `--dry-run` before deeper retrievals and increase depth gradually.
+Start without expansion, add only the graph directions the task needs, and use the output limits before requesting unbounded expansion.
 
 Typical workflow from the official docs:
 
 ```bash
-iwe find "authentication" --roots -f keys
-iwe retrieve -k authentication -d 2 -c 1
+iwe find --fuzzy "authentication" --filter '$nor: [{ $includedBy: { match: {} } }]' -f keys
+iwe retrieve -k authentication --expand-includes 2 --expand-included-by 1
 iwe retrieve -k login-flow -e authentication
 ```
 
@@ -161,6 +169,18 @@ Current behavior worth knowing:
 - `--project` and `--add-fields` do not apply here; `schema` always reads raw frontmatter.
 - Formats: `markdown` (aligned table), `json`, `yaml`.
 
+Use `iwe schema validate` for the distinct task of validating documents against
+schemas bound in `.iwe/config.toml`:
+
+```bash
+iwe schema validate
+iwe schema validate -k notes/intro
+iwe schema validate -k notes/intro --schema-file draft.yaml -f json
+```
+
+Clean validation prints nothing and exits 0. Violations exit 1; schema or
+configuration errors exit 2.
+
 ## `iwe stats`
 
 Use `stats` when the task is analytical rather than navigational.
@@ -175,6 +195,9 @@ Useful examples:
 iwe stats
 iwe stats -f csv > stats.csv
 iwe stats -f csv | tail -n +2 | sort -t, -k12 -nr | head -5
+iwe stats -k project-overview -f json
+iwe stats similarity
+iwe stats similarity --threshold 0.9
 ```
 
 Use `stats` before proposing large reorganizations. Prefer `csv` only when another script should consume the output.
@@ -213,15 +236,15 @@ Use `squash` when you want one linear artifact for review, export, or LLM contex
 Use `export` when you need a graph artifact for visualization or downstream tooling.
 
 ```bash
-iwe export dot
+iwe export -f dot
 ```
 
 Useful examples:
 
 ```bash
-iwe export dot
-iwe export dot --key project-overview --depth 1
-iwe export dot --key project-overview --depth 1 --include-headers
+iwe export -f dot
+iwe export -f dot --key project-overview --depth 1
+iwe export -f dot --key project-overview --depth 1 --include-headers
 ```
 
 Current behavior worth knowing:

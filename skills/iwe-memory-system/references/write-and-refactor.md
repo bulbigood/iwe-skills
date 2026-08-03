@@ -13,6 +13,37 @@ Official docs:
 
 For `--filter` syntax used by `iwe update` and `iwe delete`, see [./query-language.md](./query-language.md).
 
+## `iwe create`
+
+Use `create` when the caller already has a document key and complete content, or
+needs typed template variables and schema validation.
+
+```bash
+# Content mode: complete document, including frontmatter and H1
+cat document.md | iwe create projects/overview
+
+# Template mode: derive the key from the named template
+iwe create --template meeting --var title="Sync" --set type=note --strict
+
+# Preserve typed values with YAML or JSON bulk variables
+iwe create --template meeting \
+  --vars-yaml 'title: Sync\nattendees: [ada, alan]\ndraft: false'
+```
+
+The two modes are explicit and mutually exclusive:
+
+- Content mode requires a key and writes `--content` or piped stdin verbatim.
+- Template mode requires `--template`; `--var` values are strings,
+  `--vars-yaml` / `--vars-json` preserve types, and repeatable `--set` values are
+  parsed as YAML frontmatter.
+- `--strict` validates against the configured document schema before writing.
+- `--if-exists` supports `fail`, `skip`, and, in template mode, `suffix` or
+  `override`.
+
+Prefer `create` to `new` for agent-authored documents because the inputs are
+explicit and `--strict` can enforce the workspace schema. Keep `new` for the
+simpler title-first workflow and existing user habits.
+
 ## `iwe new`
 
 Create a document through project templates.
@@ -62,8 +93,12 @@ Current behavior worth knowing:
 - `--block` is 1-indexed
 - `--list` shows block numbers for the current document structure, including the root block and extractable sections
 - `--action <NAME>` uses an extract action from `.iwe/config.toml`
-- `--keys` prints affected document keys
+- `-f keys` prints affected document keys
 - `--quiet` suppresses progress output
+- If an action derives keys from `{{id}}`, a dry run's proposed key is not
+  reserved and the real run may generate a different key. Never verify using a
+  generated key copied from dry-run output. Capture the real operation's
+  `-f keys` output and use the emitted new key.
 
 ## `iwe inline`
 
@@ -90,8 +125,25 @@ Current behavior worth knowing:
 - `--reference` can match by key or by the displayed reference title
 - `--action <NAME>` uses an inline action from `.iwe/config.toml`
 - Without `--keep-target`, the target document is deleted and other references are cleaned up
-- `--keys` prints affected document keys
+- `-f keys` prints affected document keys
 - `--quiet` suppresses progress output
+
+## `iwe attach`
+
+Use `attach` to add one source document as an inclusion link under targets
+computed by configured attach actions.
+
+```bash
+iwe attach --list
+iwe attach --to today -k meetings/standup --dry-run
+iwe attach --to today --to weekly -k meetings/standup
+```
+
+Each `--to` value names an `[actions.<name>]` entry with `type = "attach"`.
+The action's `key_template` computes the target. IWE creates a missing target or
+appends to an existing target, and silently skips an already-present attachment.
+Use `--list` before guessing action names and `--dry-run` before multi-target
+writes.
 
 ## `iwe rename`
 
@@ -105,19 +157,21 @@ Official CLI examples:
 iwe rename old-topic new-topic
 iwe rename old-topic new-topic --dry-run
 iwe rename old-topic new-topic --quiet
-iwe rename old-topic new-topic --keys
+iwe rename old-topic new-topic -f keys
 ```
 
-Use `--dry-run` before a rename that may touch many references. Use `--keys` when another step should inspect affected documents. `--quiet` suppresses progress output.
+Use `--dry-run` before a rename that may touch many references. Use `-f keys` when another step should inspect affected documents. `--quiet` suppresses progress output.
 
 Current behavior worth knowing:
 
 - `NEW_KEY` can include path segments such as `reference/api-contract`
-- `--keys` prints the affected set, which can include the new key, updated referring documents, and the old key
+- `-f keys` prints the affected set, which can include the new key, updated referring documents, and the old key
 
 ## `iwe update`
 
-Use `update` for two distinct write modes: rewriting the markdown body of one document, or mutating frontmatter on a set of documents selected by a filter.
+Use `update` for two distinct write modes: rewriting the markdown body of one
+document, or atomically applying frontmatter and structured-block mutations to
+documents selected by a filter.
 
 ### Body-overwrite mode
 
@@ -152,6 +206,13 @@ Behavior worth knowing:
 - Reserved-prefix fields (`_`, `$`, `.`, `#`, `@`) cannot be `$set` or `$unset`.
 - Frontmatter is re-serialized as YAML 1.2 after mutation, so quote styles on untouched fields may change.
 - Always run `--dry-run` before bulk mutations.
+- Block operators are `--replace`, `--replace-text`, `--insert-before`,
+  `--insert-after`, `--append`, and `--delete`. Preview their predicates with
+  `iwe find --blocks` or `iwe find --matches`.
+- Guard document counts with `--expect`; guard each block operator with its
+  inline `expect`. `--strict` requires all applicable guards on a real mutation.
+- Frontmatter and block operators in one invocation validate before any file is
+  written and apply atomically per document.
 
 ## `iwe delete`
 
@@ -163,19 +224,17 @@ Useful examples:
 
 ```bash
 iwe delete document-key
-iwe delete document-key --force
 iwe delete document-key --dry-run
 iwe delete --filter 'status: archived'
 iwe delete --filter '$and: [{ type: scratch }, { reviewed: false }]' --dry-run
 iwe delete --filter 'status: archived' -f keys
 ```
 
-Treat `delete` as high-impact. Use `--dry-run` before deletion unless the user explicitly wants immediate execution. `--force` removes the confirmation boundary on key-based deletes.
+Treat `delete` as high-impact. Use `--dry-run` before deletion unless the user explicitly wants immediate execution. Use `--expect` to assert the matched document count and `--strict` to require that guard on non-dry runs.
 
 Current behavior worth knowing:
 
-- Without `--force`, key-based `delete` prompts for confirmation
-- Filter-based deletes can match many documents at once; preview with `--dry-run` and confirm the count with `iwe count --filter '...'` first
+- Filter-based deletes can match many documents at once; preview with `--dry-run`, confirm the count with `iwe count --filter '...'`, and apply with a matching `--expect` guard
 - `-f keys` prints affected document keys (target plus every document whose references were rewritten), suitable for piping
 - `--quiet` suppresses progress output
 - `--filter '{}'` targets the entire corpus; do not run that without explicit user intent
@@ -198,8 +257,10 @@ Current behavior worth knowing:
 ## Command selection guide
 
 - Create a note: `iwe new`
+- Create explicit content or a schema-checked template document: `iwe create`
 - Split a section out structurally: `iwe extract`
 - Merge linked content back into context: `iwe inline`
+- Attach a document through configured targets: `iwe attach`
 - Change a document key, including path-like keys: `iwe rename`
 - Remove a note safely: `iwe delete` (positional key) or `iwe delete --filter ...`
 - Rewrite the body of a single note: `iwe update -k KEY -c CONTENT`

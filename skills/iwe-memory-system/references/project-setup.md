@@ -18,6 +18,16 @@ An IWE project is identified by:
 
 Running `iwe init` creates that directory and file.
 
+For IWE 0.18.0, prefer discovery before hand-authoring configuration:
+
+```bash
+iwe init --dry-run --json   # inspect detected settings and evidence
+iwe init --auto             # write detected settings without prompting
+# Read references/builtin-reference.md, section `config`, for the exact reference.
+```
+
+`iwe init --defaults` deliberately skips detection. Per-setting overrides such as `--library`, `--link-format`, `--refs-extension`, `--format`, and `--date-format` apply on top of detection. `init` writes only `.iwe/` unless agent artifacts are explicitly opted into.
+
 ## Example config
 
 Read `.iwe/config.toml` before assuming file locations or defaults. A generated config looks like this:
@@ -77,6 +87,11 @@ title = "Inline quote"
 inline_type = "quote"
 keep_target = false
 
+[actions.today]
+type = "attach"
+title = "Today"
+key_template = "daily/{{today}}"
+
 [templates.default]
 # File key/path for `iwe new`.
 key_template = "{{slug}}"
@@ -86,6 +101,10 @@ document_template = """
 # {{title}}
 
 {{content}}"""
+
+[schemas.note]
+# Resolves to .iwe/schemas/note.yaml and matches document keys.
+match = "notes/**"
 ```
 
 ## What to look at first
@@ -94,10 +113,13 @@ document_template = """
 - `library.default_template`: changes what plain `iwe new` uses.
 - `markdown.refs_extension`: affects whether links include `.md`.
 - `actions.*`: `iwe extract --action ...` and `iwe inline --action ...` resolve here.
-- `templates.*`: controls how `iwe new` names files and renders content.
+- `templates.*`: controls how `iwe new` and template-mode `iwe create` name files and render content.
+- `schemas.*`: binds `.iwe/schemas/<name>.yaml` to document-key globs for `iwe schema validate`.
+- The bundled `builtin-reference.md` configuration section is the exact 0.18.0 reference; use it before adding fields not already present in the workspace.
 
 ## Working notes
 
 - Check `.iwe/config.toml` before searching for note files manually.
 - If `iwe` behavior seems surprising, inspect config before assuming a bug.
 - Re-running `iwe init` in an existing project does not overwrite the config.
+- Read the bundled `builtin-reference.md` schema section before authoring a document schema, then run `iwe schema validate` after changes.

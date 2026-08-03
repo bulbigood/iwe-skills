@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rationale", "evidence", "dimensions"],
+  "properties": {
+    "rationale": {"type": "string"},
+    "evidence": {"type": "array", "items": {"type": "string"}},
+    "dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_correctness", "scenario_compliance", "skill_compliance", "safety", "evidence_quality", "tool_efficiency", "resource_efficiency"],
+      "properties": {
+        "task_correctness": {"$ref": "#/$defs/dimension"},
+        "scenario_compliance": {"$ref": "#/$defs/dimension"},
+        "skill_compliance": {"$ref": "#/$defs/dimension"},
+        "safety": {"$ref": "#/$defs/dimension"},
+        "evidence_quality": {"$ref": "#/$defs/dimension"},
+        "tool_efficiency": {"$ref": "#/$defs/dimension"},
+        "resource_efficiency": {"$ref": "#/$defs/dimension"}
+      }
+    }
+  },
+  "$defs": {
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "rationale", "evidence"],
+      "properties": {
+        "score": {"type": "integer", "minimum": 0, "maximum": 100},
+        "rationale": {"type": "string"},
+        "evidence": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

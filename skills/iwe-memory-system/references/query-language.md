@@ -19,6 +19,18 @@ The four operations exposed through the CLI are:
 
 `update` and `delete` require an explicit filter. Passing an empty filter `{}` intentionally targets the entire corpus; do not do that without confirmation from the user.
 
+## Search stage (`find` and `retrieve` seeds)
+
+Use `--fuzzy QUERY` for title/key matching and `--lexical QUERY` for BM25
+title/body search. They may be combined and are AND-composed with filters and
+graph anchors. The bare positional `find QUERY` form is deprecated.
+
+```bash
+iwe find --fuzzy auth --filter 'status: draft'
+iwe find --lexical "session expiry" --limit 10
+iwe retrieve --lexical "token rotation" --limit 5 --expand-references 1
+```
+
 ## Filter syntax
 
 ### Equality
@@ -162,6 +174,36 @@ Body and frontmatter modes cannot be combined in one call. Run two passes if bot
 ## Reserved prefixes
 
 Field names beginning with `_`, `$`, `.`, `#`, or `@` are reserved. They are invisible to filters, projections, and sorts, and are stripped on writeback. Using them as update paths errors at parse time.
+
+## Block reads and updates
+
+IWE 0.18.0 can locate structured markdown blocks instead of forcing whole-file
+rewrites. Preview targets with `find`:
+
+```bash
+iwe find -k projects/roadmap --blocks '{ $within: Goals, $text: "Q3" }'
+iwe find --matches '(?i)todo|fixme'
+iwe find -k projects/roadmap \
+  --project 'notes: { $content: { $section: Goals } }'
+```
+
+Mutation mode supports `--replace`, `--replace-text`, `--insert-before`,
+`--insert-after`, `--append`, and `--delete`. Each argument combines a
+dollar-prefixed block predicate with its payload and an optional block-level
+`expect` guard:
+
+```bash
+iwe update -k projects/roadmap \
+  --replace-text '{ $header: Goals, to: Aims, expect: 1 }'
+iwe update -k projects/roadmap \
+  --append '{ $header: Status, content: "Reviewed.", expect: 1 }'
+```
+
+`--expect` guards the number of matched documents. A block operator's `expect`
+guards its selected blocks. `--strict` requires both applicable guard levels on
+a real mutation; `--dry-run` is exempt and should be used to learn counts.
+Selections from multiple block operators must be disjoint, and each operator
+flag may appear at most once per invocation.
 
 ## Schema discovery
 
