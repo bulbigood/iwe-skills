@@ -55,8 +55,6 @@ Seed limits apply before expansion. Pair expansion with all three maxima above a
 
 Use fuzzy search for incomplete titles, keys, or spelling fragments. Use lexical search for concepts or words expected in document bodies. Use `--filter` for frontmatter values and graph predicates. Use relationship flags for included, including, referenced, or referencing documents.
 
-Simple filters belong directly in the command. Read `references/query-language.md` only when the required nested boolean, comparison, projection, sort, or graph predicate cannot be expressed by the patterns in this file.
-
 An empty result is not proof that IWE is unusable. Refine the IWE query once after checking the intended search mode and quoting; use a narrower or alternate well-formed query.
 
 ## Precise mutation workflow
@@ -84,6 +82,64 @@ iwe extract "<source-key>" --section "<heading>" --dry-run --format keys
 After an exact preview, remove only `--dry-run`, capture the generated key from the real operation, then retrieve the source and generated keys for verification. Do not guess unsupported `--header`, `--target-key`, or update operators; use command-specific help only after the CLI rejects known syntax.
 
 Keep typed template variables separate from frontmatter. Example: `iwe create --template <name> --vars-json '{"title":"<title>","attendees":["<name>"],"body":"<text>"}' --set type=<type> --set draft=false --strict --if-exists fail`. `title` and `body` are conventional; do not rename `body` after its rendered heading. JSON preserves types and `--set` parses YAML, so `draft=false` is boolean. Create has no `--format` flag and prints a path; the key omits `graph/` and `.md`. Strict creation already validates the schema, so do not add validation or update calls after success.
+
+## Complex IWE queries
+
+### Filter form
+
+`--filter` accepts one inline YAML mapping. Plain fields mean equality.
+
+```bash
+--filter 'status: draft'
+--filter 'priority: { $gt: 3 }'
+--filter '{ $and: [status: published, priority: { $gte: 2 }] }'
+```
+
+Use `$and`, `$or`, and `$not` only when a single mapping cannot express the condition. Keep the complete filter in one shell argument.
+
+### Value predicates
+
+- Equality and inequality: `$eq`, `$ne`
+- Ordering: `$gt`, `$gte`, `$lt`, `$lte`
+- Membership: `$in`, `$nin`
+- Existence: `$exists`
+- Pattern matching: `$regex`
+
+Preserve YAML scalar types. Quote values that must remain strings, especially numeric-looking strings and booleans.
+
+### Graph predicates
+
+Use command shorthand flags for one anchor. Use the equivalent filter predicate only when it must be nested inside boolean logic:
+
+- `$includes`: document includes the anchor.
+- `$includedBy`: document is included by the anchor.
+- `$references`: document references the anchor.
+- `$referencedBy`: document is referenced by the anchor.
+
+Always set a finite `maxDepth` or `maxDistance`. A value of `0` is unbounded and is forbidden in normal execution.
+
+### Projection and sorting
+
+Use `--project` to replace default fields and `--add-fields` to retain defaults. Prefer compact metadata:
+
+```bash
+--project 'key=$key,title=$title,status'
+--add-fields 'body=$content'
+--sort 'modified_at:-1'
+```
+
+Project `$content` only when the body is required, and pair it with token limits. Sort does not replace a result limit.
+
+### Block predicates
+
+`--blocks` accepts one inline block predicate and may appear once per command. Use separate targeted commands only for unrelated selectors.
+
+```bash
+--blocks '{ $within: Goals, $text: "Q3" }'
+--blocks '{ $header: Status }'
+```
+
+Do not invent infix expressions. For mutation, carry the exact selector into the operator and add an inline `expect` guard.
 
 ## Destructive operations
 
