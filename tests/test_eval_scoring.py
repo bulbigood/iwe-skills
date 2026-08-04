@@ -506,6 +506,8 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("Agent: Codex CLI `0.146.0`", markdown)
         self.assertIn("AI model: `gpt-5.6-terra`; reasoning: `medium`", markdown)
         self.assertIn("Judge AI model: `gpt-5.6-sol`; reasoning: `low`", markdown)
+        for label, description in renderer.METRIC_DESCRIPTIONS:
+            self.assertIn(f"**{label}:** {description}", markdown)
         self.assertIn("0/1 **(FAIL)**", markdown)
         self.assertIn("Machine-readable reports: `reports/run`", markdown)
 
