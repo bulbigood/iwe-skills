@@ -210,12 +210,12 @@ class IweSkillTests(unittest.TestCase):
             lines = skill.splitlines()
             words = skill.split()
             self.assertGreaterEqual(len(lines), 60)
-            self.assertLessEqual(len(lines), 150)
+            self.assertLessEqual(len(lines), 180)
             self.assertGreaterEqual(len(words), 500)
-            self.assertLessEqual(len(words), 1500)
+            self.assertLessEqual(len(words), 1_800)
             references = sorted(path.name for path in (spec.path / "references").glob("*.md"))
-            self.assertEqual(references, ["errors.md", "query-language.md"])
-            self.assertIn("references/query-language.md", skill)
+            self.assertEqual(references, ["errors.md"])
+            self.assertIn("## Complex IWE queries", skill)
             self.assertIn("references/errors.md", skill)
             self.assertLessEqual(
                 sum(path.stat().st_size for path in (spec.path / "references").glob("*.md")),
@@ -305,10 +305,10 @@ class IweSkillTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         metrics = payload["skills"][0]
         self.assertEqual(metrics["external_urls"], 0)
-        self.assertEqual(metrics["reference_files"], 2)
-        self.assertLessEqual(metrics["skill_lines"], 150)
+        self.assertEqual(metrics["reference_files"], 1)
+        self.assertLessEqual(metrics["skill_lines"], 180)
         self.assertGreaterEqual(metrics["estimated_tokens"], 800)
-        self.assertLessEqual(metrics["estimated_tokens"], 2_000)
+        self.assertLessEqual(metrics["estimated_tokens"], 2_600)
         self.assertEqual(metrics["contract_operations"], 7)
 
     def test_eval_configuration_and_scenarios_load(self) -> None:
