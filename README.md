@@ -102,26 +102,12 @@ The harness also supports paired multi-target experiments in which every target 
 
 ### Latest paired A/B snapshot
 
-On 2026-08-04, `iwe-v18` skill `0.2.0` and legacy `iwe-memory-system` skill `0.0.67` were evaluated with the same IWE CLI `0.18.0`, agent/judge configuration, pinned fixture, independent oracle, and five paired samples. The selected scenario was **Discover and retrieve bounded multi-hop context**: a common, demanding retrieval-and-synthesis task comparing three thinkers and citing the supporting note keys.
-
 | Target | Skill version | IWE CLI version | Result verdict | Procedure verdict | Overall | Valid samples | Procedure-clean | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
 | --- | ---: | ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `iwe-v18` | `0.2.0` | `0.18.0` | **PASS** | **FAIL** | **FAIL** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 | 2/5 |
 | `iwe-memory-system` | `0.0.67` | `0.18.0` | **PASS** | **FAIL** | **FAIL** | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 | 0/5 |
 
-Reproduce this paired test from the repository root:
-
-```bash
-python3 scripts/run_iwe_skill_ab_eval.py
-```
-
-Use `--samples N` to override the default five paired samples. The command reads `default_skill`, its skill version, exact tested IWE CLI version, runtime source, and frozen contract from `config.toml`; it verifies that configured runtime before any paid call. Because deprecated `iwe-memory-system` has no declared compatible IWE version, the command pairs it with the exact tested CLI version and contract of the current `default_skill`. It reads the deprecated skill version from that skill's own frontmatter.
-
-The table reclassifies the saved raw judge outputs under the current two-axis aggregation model; it does not represent a second paid run. Both targets pass result quality: their answers were correct, safe, scenario-compliant, and independently supported. `iwe-v18` misses the configured tool-efficiency (3/5) and resource-efficiency (2/5) thresholds. Every legacy sample has explicit procedure failures from unbounded/deprecated command forms and telemetry/capture conflicts, so it fails skill compliance and both efficiency gates without erasing its 5/5 content results.
-
-Raw per-sample reports, agent events, commands, judge evidence, independent oracle snapshots, runtime provenance, and pairwise telemetry were retained locally in the gitignored temporary report directory `tests/eval/reports/20260804T094536Z-iwe-v18-vs-memory-multihop/`. See the [behavioral evaluation guide](tests/eval/README.md) for validity and threshold semantics.
-
-Agent and judge runs invoke paid, nondeterministic model services. Run them only with explicit operator authorization.
+[Full paired A/B results](tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md)
 
 ## Maintainer documentation
 
