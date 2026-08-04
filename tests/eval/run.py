@@ -203,8 +203,8 @@ class Scenario:
 
     min_tool_calls: int = 0
     max_tool_calls: int = 0
-    min_document_reads: int = 0
-    max_document_reads: int = 0
+    min_task_tool_output_bytes: int = 0
+    max_task_tool_output_bytes: int = 0
     scoring: dict[str, dict] | None = None
     procedure: dict[str, list[str]] | None = None
 
@@ -276,8 +276,8 @@ def load_scenarios(
             iwe_mode=mode,
             min_tool_calls=budgets["task_tool_calls"][0],
             max_tool_calls=budgets["task_tool_calls"][1],
-            min_document_reads=budgets["document_reads"][0],
-            max_document_reads=budgets["document_reads"][1],
+            min_task_tool_output_bytes=budgets["task_tool_output_bytes"][0],
+            max_task_tool_output_bytes=budgets["task_tool_output_bytes"][1],
             scoring=scoring,
             procedure={
                 name: [step.strip() for step in item["procedure"].get(name, [])]
@@ -485,10 +485,11 @@ def command_metrics(
         "reference_reads": 0,
         "iwe_output_bytes": 0,
         "context_bytes": 0,
+        "task_tool_output_bytes": 0,
         "failed_iwe_calls": 0,
         "unbounded_read_calls": 0,
         "max_result_count": 0,
-        "document_reads": 0,
+        "result_records": 0,
         "iwe_telemetry_missing": 0,
         "iwe_telemetry_extra": 0,
         "iwe_telemetry_mismatch": 0,
@@ -522,6 +523,8 @@ def command_metrics(
             ".agents/skills/" in command and "/references/" in command
         )
         metrics["context_bytes"] += len(output.encode("utf-8"))
+        if not _is_skill_activation(item, tested_skill):
+            metrics["task_tool_output_bytes"] += len(output.encode("utf-8"))
         for read_command, arguments in re.findall(
             r"(?<![\w-])iwe\s+(find|retrieve)\b(.*?)"
             r"(?=(?:\s+&&|\s+\|\||[;\n]|$))",
@@ -596,13 +599,13 @@ def command_metrics(
                 (int(item["result_count"]) for item in telemetry if item.get("result_count") is not None),
                 default=0,
             )
-            metrics["document_reads"] = sum(
+            metrics["result_records"] = sum(
                 int(item.get("result_count") or 0) for item in telemetry
             )
-    metrics["document_reads"] += (
-        metrics["forbidden_fallback_calls"] + metrics["broad_workspace_reads"]
-    )
     metrics["estimated_context_tokens"] = (metrics["context_bytes"] + 3) // 4
+    metrics["estimated_task_input_tokens"] = (
+        metrics["task_tool_output_bytes"] + 3
+    ) // 4
     return metrics
 
 
@@ -694,6 +697,89 @@ def _source_excerpt(text: str, terms: tuple[str, ...], limit: int = 420) -> str:
     return compact[start:start + limit]
 
 
+def _parse_frontmatter(text: str) -> tuple[dict, str]:
+    if not text.startswith("---\n"):
+        return {}, text
+    end = text.find("\n---\n", 4)
+    if end < 0:
+        return {}, text
+    try:
+        value = yaml.safe_load(text[4:end]) or {}
+    except yaml.YAMLError:
+        return {}, text[end + 5:]
+    return (value if isinstance(value, dict) else {}), text[end + 5:]
+
+
+def independent_schema_validation_evidence(
+    scenario: Scenario,
+    after: dict[str, str],
+) -> dict:
+    """Validate the authored meeting schema directly from snapshot files, without IWE."""
+    schema_path = ".iwe/schemas/meeting.yaml"
+    document_paths = sorted(
+        path for path in after
+        if path.startswith("graph/meetings/") and path.endswith(".md")
+    )
+    errors: list[str] = []
+    schema: dict = {}
+    try:
+        parsed = yaml.safe_load(after.get(schema_path, "")) or {}
+        schema = parsed if isinstance(parsed, dict) else {}
+    except yaml.YAMLError as error:
+        errors.append(f"schema YAML is invalid: {error}")
+    if len(document_paths) != 1:
+        errors.append(f"expected exactly one meeting document, found {len(document_paths)}")
+    document_path = document_paths[0] if len(document_paths) == 1 else None
+    if not schema:
+        errors.append("meeting schema is missing or empty")
+    if document_path:
+        frontmatter, body = _parse_frontmatter(after[document_path])
+        frontmatter_schema = schema.get("frontmatter", {})
+        for field in frontmatter_schema.get("required", []):
+            if field not in frontmatter:
+                errors.append(f"missing required frontmatter field: {field}")
+        for field, rule in frontmatter_schema.get("properties", {}).items():
+            if field not in frontmatter or not isinstance(rule, dict):
+                continue
+            if "const" in rule and frontmatter[field] != rule["const"]:
+                errors.append(f"frontmatter {field} does not equal {rule['const']!r}")
+            if rule.get("type") == "boolean" and not isinstance(frontmatter[field], bool):
+                errors.append(f"frontmatter {field} is not boolean")
+        headings = [
+            (len(match.group(1)), match.group(2).strip())
+            for match in re.finditer(r"^(#{1,6})\s+(.+?)\s*$", body, re.MULTILINE)
+        ]
+        level_one = [title for level, title in headings if level == 1]
+        root_rules = schema.get("sections", [])
+        if len(level_one) != 1:
+            errors.append(f"expected exactly one level-1 section, found {len(level_one)}")
+        elif root_rules and isinstance(root_rules[0], dict):
+            pattern = root_rules[0].get("header", {}).get("pattern")
+            if pattern and re.fullmatch(pattern, level_one[0]) is None:
+                errors.append("level-1 section does not match schema")
+            allowed = {
+                child.get("header", {}).get("const")
+                for child in root_rules[0].get("sections", [])
+                if isinstance(child, dict)
+            }
+            actual = [title for level, title in headings if level == 2]
+            for expected in sorted(value for value in allowed if value):
+                if actual.count(expected) != 1:
+                    errors.append(f"expected exactly one level-2 section: {expected}")
+            if root_rules[0].get("additionalSections") is False:
+                for title in actual:
+                    if title not in allowed:
+                        errors.append(f"unexpected level-2 section: {title}")
+    return {
+        "applicable": scenario.id == "create-and-validate-a-schema-bound-document",
+        "schema_path": schema_path,
+        "document_path": document_path,
+        "valid": not errors,
+        "errors": errors,
+        "method": "independent YAML frontmatter and Markdown heading-tree validation",
+    }
+
+
 def independent_oracle_evidence(
     scenario: Scenario,
     before: dict[str, str],
@@ -718,10 +804,12 @@ def independent_oracle_evidence(
         if terms and not any(term in lowered for term in terms):
             continue
         key = path.removeprefix("graph/").removesuffix(".md")
+        frontmatter, _ = _parse_frontmatter(text)
         links = sorted(set(re.findall(r"\[\[([^\]|#]+)", text)))[:12]
         documents.append({
             "key": key,
             "title": _document_title(text, Path(key).name),
+            "frontmatter": frontmatter,
             "links": links,
             "source_excerpt": _source_excerpt(text, terms),
             "named_in_response": key.casefold() in response_keys,
@@ -729,6 +817,15 @@ def independent_oracle_evidence(
 
     documents.sort(key=lambda item: (not item["named_in_response"], item["key"]))
     documents = documents[:20]
+    authoritative_matches = (
+        [
+            item for item in documents
+            if item["frontmatter"].get("type") == "project"
+            and "api" in after[f"graph/{item['key']}.md"].casefold()
+        ]
+        if scenario.id == "ambiguous-discovery-with-one-follow-up"
+        else []
+    )
     changed = sorted(key for key in before.keys() | after.keys() if before.get(key) != after.get(key))
     diffs = {}
     for path in changed[:6]:
@@ -748,9 +845,15 @@ def independent_oracle_evidence(
     return {
         "source": "direct independent parsing of fixture snapshots; no tested CLI or skill",
         "matching_documents": documents,
+        "authoritative_matches": authoritative_matches,
         "changed_files": changed,
         "independent_diffs": diffs,
         "prepared_documents": prepared,
+        "schema_validation": (
+            independent_schema_validation_evidence(scenario, after)
+            if scenario.id == "create-and-validate-a-schema-bound-document"
+            else None
+        ),
         "response_for_comparison": final_response,
     }
 
@@ -792,7 +895,13 @@ def ensure_fixture(config: dict, name: str, cache: Path) -> Path:
 
 
 def prepare(workspace: Path, fixture: str) -> None:
-    if fixture == "pkm-demo-update":
+    if fixture == "pkm-demo-api-project":
+        path = workspace / "graph/api-integration.md"
+        path.write_text(
+            "---\ntype: project\n---\n\n" + path.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+    elif fixture == "pkm-demo-update":
         (workspace / "graph/eval-roadmap.md").write_text(
             "---\ntype: project\nstatus: draft\n---\n\n# Evaluation Roadmap\n\n## Goals\n\nShip safely.\n\n## Status\n\nIn review.\n\n## Unrelated\n\nPreserve this exact paragraph.\n",
             encoding="utf-8",
@@ -1115,7 +1224,10 @@ def judge_prompt(
     changed = sorted(key for key in before.keys() | after.keys() if before.get(key) != after.get(key))
     expectations = {
         "task_tool_calls": [scenario.min_tool_calls, scenario.max_tool_calls],
-        "document_reads": [scenario.min_document_reads, scenario.max_document_reads],
+        "task_tool_output_bytes": [
+            scenario.min_task_tool_output_bytes,
+            scenario.max_task_tool_output_bytes,
+        ],
     }
     scoring = scenario.scoring or {}
     eval_config = eval_config or load_eval_config()
@@ -1132,7 +1244,7 @@ For each metric, apply both the global scale and its scenario-specific excellent
 Minimum scores: {json.dumps(minimums)}
 Excellent efficiency targets: {json.dumps(expectations)}
 Efficiency range diagnostics: {json.dumps(diagnostics)}
-`task_tool_calls` excludes at most one exact successful standalone activation read of the tested skill. `document_reads` is the sum of exact IWE JSON result counts plus an allowed targeted filesystem fallback. Judge the purpose, necessity, sequencing, stopping point, relevance, duplication, and magnitude of observed range deviations. Counts and deviations are objective evidence, not a formula that assigns or caps a score. Efficiency defects affect only their respective metric scores. Correctness and safety still dominate.
+`task_tool_calls` counts tested-agent tool execution events and excludes at most one exact successful standalone activation read of the tested skill. `task_tool_output_bytes` is the UTF-8 byte volume returned by task tool events to the agent, excluding that activation; `estimated_task_input_tokens` is its explicit bytes/4 approximation. `result_records` remains telemetry only and is not a document-read metric. Judge purpose, necessity, sequencing, stopping point, relevance, duplication, and volume. Diagnostics are evidence, not a formula that assigns or caps a score. Efficiency defects affect only their respective metric scores. Correctness and safety still dominate.
 
 Ideal semantic procedure: {json.dumps(scenario.procedure or {}, ensure_ascii=False)}
 Use this procedure to judge the purpose, necessity, sequencing, and stopping point of tool calls. Equivalent bounded strategies and more efficient routes may receive full semantic credit; do not require an exact command transcript. A call count inside the excellent range never proves semantic efficiency, and a range miss must be interpreted using the observed evidence and its cause.
@@ -1196,10 +1308,10 @@ def efficiency_diagnostics(
             scenario.min_tool_calls,
             scenario.max_tool_calls,
         ),
-        "document_reads": efficiency_range_diagnostic(
-            metrics.get("document_reads", 0),
-            scenario.min_document_reads,
-            scenario.max_document_reads,
+        "task_tool_output_bytes": efficiency_range_diagnostic(
+            metrics.get("task_tool_output_bytes", 0),
+            scenario.min_task_tool_output_bytes,
+            scenario.max_task_tool_output_bytes,
         ),
         "unbounded_read": bool(metrics.get("unbounded_read_calls", 0)),
     }
@@ -1529,7 +1641,10 @@ def main() -> int:
             },
             "efficiency_expectations": {
                 "task_tool_calls": [scenario.min_tool_calls, scenario.max_tool_calls],
-                "document_reads": [scenario.min_document_reads, scenario.max_document_reads],
+                "task_tool_output_bytes": [
+                    scenario.min_task_tool_output_bytes,
+                    scenario.max_task_tool_output_bytes,
+                ],
             },
             "agent": agent,
             "efficiency_diagnostics": range_diagnostics,

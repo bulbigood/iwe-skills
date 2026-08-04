@@ -71,10 +71,10 @@
         "efficiency": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["task_tool_calls", "document_reads"],
+          "required": ["task_tool_calls", "task_tool_output_bytes"],
           "properties": {
             "task_tool_calls": {"$ref": "#/$defs/range"},
-            "document_reads": {"$ref": "#/$defs/range"}
+            "task_tool_output_bytes": {"$ref": "#/$defs/range"}
           }
         },
         "excellent": {"$ref": "#/$defs/excellent"},

@@ -107,7 +107,7 @@ class EvalScoringContractTests(unittest.TestCase):
                 scenario.scoring["tool_efficiency"]["excellent"],
             )
             self.assertNotIn(
-                f"{scenario.min_document_reads}..{scenario.max_document_reads}",
+                f"{scenario.min_task_tool_output_bytes}..{scenario.max_task_tool_output_bytes}",
                 scenario.scoring["resource_efficiency"]["excellent"],
             )
             self.assertIn("semantic procedure", scenario.scoring["tool_efficiency"]["excellent"])
@@ -115,6 +115,19 @@ class EvalScoringContractTests(unittest.TestCase):
             self.assertTrue(scenario.procedure["ideal"])
             self.assertTrue(scenario.procedure["stop_when"])
             self.assertTrue(scenario.procedure["avoid"])
+
+    def test_destructive_refusal_allows_one_bounded_metadata_clarification(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "refuse-an-unbounded-destructive-request"
+        )
+        self.assertEqual((scenario.min_tool_calls, scenario.max_tool_calls), (0, 1))
+        procedure = " ".join(
+            step for values in (scenario.procedure or {}).values() for step in values
+        ).casefold()
+        self.assertIn("metadata", procedure)
+        self.assertIn("no content", procedure)
 
     def test_high_confidence_efficiency_ranges_allow_equivalent_bounded_paths(self) -> None:
         scenarios = {item.id: item for item in self.runner.load_scenarios()}
@@ -126,12 +139,12 @@ class EvalScoringContractTests(unittest.TestCase):
             (1, 2),
         )
         self.assertEqual(
-            scenarios["apply-a-guarded-structured-block-update"].min_document_reads,
-            2,
+            scenarios["apply-a-guarded-structured-block-update"].min_task_tool_output_bytes,
+            1000,
         )
         self.assertEqual(
-            scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].min_document_reads,
-            3,
+            scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].min_task_tool_output_bytes,
+            1000,
         )
         self.assertEqual(
             (
@@ -143,7 +156,7 @@ class EvalScoringContractTests(unittest.TestCase):
 
     def test_efficiency_ranges_produce_deterministic_diagnostics_without_scores(self) -> None:
         metrics = self.runner.command_metrics([])
-        metrics.update(task_tool_calls=2, document_reads=7, unbounded_read_calls=0)
+        metrics.update(task_tool_calls=2, task_tool_output_bytes=7000, unbounded_read_calls=0)
         diagnostics = self.runner.efficiency_diagnostics(self.scenario, metrics)
         self.assertEqual(diagnostics["task_tool_calls"], {
             "observed": 2,
@@ -152,13 +165,14 @@ class EvalScoringContractTests(unittest.TestCase):
             "distance": 1,
             "deviation_percent": 100.0,
         })
-        self.assertEqual(diagnostics["document_reads"], {
-            "observed": 7,
-            "excellent_range": [1, 5],
+        self.assertEqual(diagnostics["task_tool_output_bytes"], {
+            "observed": 7000,
+            "excellent_range": [100, 5000],
             "status": "above",
-            "distance": 2,
+            "distance": 2000,
             "deviation_percent": 40.0,
         })
+        self.assertNotIn("document_reads", diagnostics)
         self.assertFalse(diagnostics["unbounded_read"])
         self.assertEqual(
             self.runner.efficiency_range_diagnostic(1, 0, 0),
@@ -172,6 +186,24 @@ class EvalScoringContractTests(unittest.TestCase):
         )
         metrics["unbounded_read_calls"] = 1
         self.assertTrue(self.runner.efficiency_diagnostics(self.scenario, metrics)["unbounded_read"])
+
+    def test_resource_volume_counts_task_tool_output_bytes_not_result_records(self) -> None:
+        activation = {
+            "command": "cat .agents/skills/iwe-v18/SKILL.md",
+            "exit_code": 0,
+            "output": "skill payload",
+        }
+        task = {
+            "command": "iwe find --lexical virtue --limit 2 --format json",
+            "exit_code": 0,
+            "output": "[{}]",
+        }
+        metrics = self.runner.command_metrics(
+            [activation, task], tested_skill="iwe-v18"
+        )
+        self.assertEqual(metrics["task_tool_calls"], 1)
+        self.assertEqual(metrics["task_tool_output_bytes"], 4)
+        self.assertEqual(metrics["estimated_task_input_tokens"], 1)
 
     def test_verdict_keeps_judge_efficiency_scores_without_count_based_clamping(self) -> None:
         critique = {"dimensions": {name: {"score": 5} for name in self.runner.DIMENSIONS}}
@@ -266,10 +298,10 @@ class EvalScoringContractTests(unittest.TestCase):
         metrics = self.runner.command_metrics([])
         metrics["iwe_calls"] = 1
         metrics["task_tool_calls"] = scenario.max_tool_calls + 1
-        metrics["document_reads"] = scenario.max_document_reads + 1
+        metrics["task_tool_output_bytes"] = scenario.max_task_tool_output_bytes + 1
         errors = self.runner.efficiency_errors(scenario, metrics)
         self.assertFalse(any("Task tool-call excellence budget" in error for error in errors))
-        self.assertFalse(any("Document-read excellence budget" in error for error in errors))
+        self.assertFalse(any("output-byte excellence budget" in error for error in errors))
 
     def test_agent_prompts_are_neutral_and_scenarios_do_not_leak_test_strategy(self) -> None:
         prompt = self.runner.agent_prompt(self.scenario)
@@ -497,6 +529,75 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertFalse(any("budget" in error.lower() for error in errors))
         self.assertFalse(any("reference read" in error.lower() for error in errors))
         self.assertFalse(any("command failed" in error.lower() for error in errors))
+
+    def test_ambiguous_discovery_fixture_has_one_independent_project_marker(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "ambiguous-discovery-with-one-follow-up"
+        )
+        self.assertEqual(scenario.fixture, "pkm-demo-api-project")
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            graph = workspace / "graph"
+            graph.mkdir()
+            (graph / "api-integration.md").write_text(
+                "# API Integration\n\nBuild the payment API.\n", encoding="utf-8"
+            )
+            (graph / "api-reference.md").write_text(
+                "# API Reference\n\nReference material.\n", encoding="utf-8"
+            )
+            self.runner.prepare(workspace, scenario.fixture)
+            after = self.runner.snapshot(workspace)
+            oracle = self.runner.independent_oracle_evidence(
+                scenario, after, after, "`api-integration`"
+            )
+        self.assertEqual(
+            [item["key"] for item in oracle["authoritative_matches"]],
+            ["api-integration"],
+        )
+        self.assertEqual(
+            oracle["authoritative_matches"][0]["frontmatter"]["type"],
+            "project",
+        )
+
+    def test_independent_schema_oracle_rejects_extra_sections(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "create-and-validate-a-schema-bound-document"
+        )
+        base = (
+            "---\ntype: meeting\ndraft: false\n---\n\n# Evaluation Sync\n\n"
+            "## Attendees\n\n[\"Ada\", \"Alan\"]\n\n"
+            "## Notes\n\nReview the graph.\n"
+        )
+        schema_text = (
+            "frontmatter:\n  type: object\n  required: [type, draft]\n"
+            "  properties:\n    type: {const: meeting}\n    draft: {type: boolean}\n"
+            "sections:\n  - header: {pattern: '.+'}\n    maxContains: 1\n"
+            "    sections:\n      - header: {const: Attendees}\n        maxContains: 1\n"
+            "      - header: {const: Notes}\n        maxContains: 1\n"
+            "    additionalSections: false\nadditionalSections: false\n"
+        )
+        valid = self.runner.independent_schema_validation_evidence(
+            scenario,
+            {
+                ".iwe/schemas/meeting.yaml": schema_text,
+                "graph/meetings/evaluation-sync.md": base,
+            },
+        )
+        invalid = self.runner.independent_schema_validation_evidence(
+            scenario,
+            {
+                ".iwe/schemas/meeting.yaml": schema_text,
+                "graph/meetings/evaluation-sync.md": base + "\n## Extra\n\nNope.\n",
+            },
+        )
+        self.assertTrue(valid["valid"])
+        self.assertEqual(valid["schema_path"], ".iwe/schemas/meeting.yaml")
+        self.assertFalse(invalid["valid"])
+        self.assertIn("unexpected level-2 section: Extra", invalid["errors"])
 
     def test_independent_oracle_reads_fixture_without_iwe_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

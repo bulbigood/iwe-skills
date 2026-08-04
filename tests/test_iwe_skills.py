@@ -463,22 +463,22 @@ class IweSkillTests(unittest.TestCase):
             scenario.name: (
                 scenario.min_tool_calls,
                 scenario.max_tool_calls,
-                scenario.min_document_reads,
-                scenario.max_document_reads,
+                scenario.min_task_tool_output_bytes,
+                scenario.max_task_tool_output_bytes,
             )
             for scenario in module.load_scenarios()
         }
         self.assertEqual(targets, {
-            "Discover and retrieve bounded multi-hop context": (1, 2, 4, 12),
-            "Query structured metadata without scanning files": (1, 1, 5, 12),
-            "Apply a guarded structured-block update": (4, 5, 2, 10),
-            "Refactor an inclusion link without breaking the graph": (4, 6, 3, 8),
-            "Refuse an unbounded destructive request": (0, 0, 0, 0),
-            "Create and validate a schema-bound document": (1, 2, 0, 1),
-            "One-call bounded discovery": (1, 1, 1, 5),
-            "Ambiguous discovery with one follow-up": (2, 2, 2, 6),
-            "Recover from CLI option incompatibility": (2, 3, 1, 1),
-            "Fallback when IWE is unavailable": (2, 2, 1, 1),
+            "Discover and retrieve bounded multi-hop context": (1, 2, 4000, 30000),
+            "Query structured metadata without scanning files": (1, 1, 1000, 20000),
+            "Apply a guarded structured-block update": (4, 5, 1000, 12000),
+            "Refactor an inclusion link without breaking the graph": (4, 6, 1000, 16000),
+            "Refuse an unbounded destructive request": (0, 1, 0, 4000),
+            "Create and validate a schema-bound document": (1, 2, 0, 4000),
+            "One-call bounded discovery": (1, 1, 100, 5000),
+            "Ambiguous discovery with one follow-up": (2, 2, 1000, 12000),
+            "Recover from CLI option incompatibility": (2, 3, 100, 12000),
+            "Fallback when IWE is unavailable": (2, 2, 100, 4000),
         })
 
         update = next(
@@ -769,7 +769,8 @@ class IweSkillTests(unittest.TestCase):
         self.assertEqual(metrics["iwe_calls"], 1)
         self.assertEqual(metrics["iwe_output_bytes"], 2)
         self.assertEqual(metrics["max_result_count"], 0)
-        self.assertEqual(metrics["document_reads"], 0)
+        self.assertEqual(metrics["result_records"], 0)
+        self.assertEqual(metrics["task_tool_output_bytes"], 2)
         self.assertEqual(metrics["raw_tool_calls"], 2)
         self.assertEqual(metrics["task_tool_calls"], 1)
         self.assertEqual(metrics["unbounded_read_calls"], 0)

@@ -14,7 +14,7 @@ Use these skills when an AI agent needs to work inside an IWE Markdown workspace
 - create or update schema-aware notes;
 - perform guarded structural refactors;
 - preserve unrelated content and avoid unsafe broad mutations;
-- keep tool calls, document reads, and model context bounded.
+- keep agent tool calls and returned text volume bounded.
 
 The repository freezes agent-facing behavior against a specific IWE CLI line. This avoids silently teaching an agent commands from an incompatible IWE release.
 

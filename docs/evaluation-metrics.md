@@ -58,7 +58,7 @@ Whether the agent used a direct, purposeful sequence of tool calls without avoid
 
 ### Resource efficiency
 
-Whether document reads and context consumption stayed within the scenario's bounded resource targets and remained relevant to the ideal procedure. This is separate from tool efficiency: a run can use few commands while retrieving excessive or duplicate context.
+Whether the text returned by task tool events stayed bounded, relevant, and non-duplicative. The primary deterministic volume is `task_tool_output_bytes`: exact UTF-8 bytes returned to the tested agent, excluding one exact standalone skill-activation read. `estimated_task_input_tokens = ceil(bytes / 4)` is explicitly an approximation, not provider token accounting. JSON result records remain provenance only and are not called document reads. This is separate from Tool efficiency: one agent tool call can still return excessive context.
 
 ## Score scale
 

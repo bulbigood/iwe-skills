@@ -47,7 +47,7 @@ Every scenario declares only scenario-specific data:
 - a stable id, name, fixture, and operator request;
 - optional failure-injection mode and output-cap override;
 - an ideal semantic procedure, acceptable equivalent variations, stopping condition, and actions to avoid;
-- excellent ranges for task tool calls and document reads;
+- excellent ranges for tested-agent tool calls and task-tool output bytes;
 - scenario-specific excellence conditions for correctness, request compliance, evidence quality, and non-default safety behavior.
 
 Example:
@@ -71,7 +71,7 @@ procedure:
     - Retrieving full documents or issuing follow-up calls when keys and titles are already available.
 efficiency:
   task_tool_calls: [1, 1]
-  document_reads: [1, 5]
+  task_tool_output_bytes: [100, 5000]
 excellent:
   task_correctness: Returns a compact list with at most five matching document keys and titles derived from the fixture.
   scenario_compliance: Returns only a small, relevant key/title list without external sources.
@@ -93,7 +93,7 @@ Scores are ordinal integers. They are not percentages and are never averaged, we
 
 For each metric, the judge applies the global scale and the merged excellence condition. Tool and Resource efficiency additionally use their metric-specific scales from `config.toml`. Scenario-specific content rubrics, semantic procedures, and excellent efficiency ranges come from YAML; shared skill/safety defaults come from `config.toml`. The semantic procedure describes purposes and stopping conditions rather than an exact command transcript, so equivalent bounded strategies remain eligible for full credit.
 
-The runner deterministically records whether observed calls and document reads are within, above, or below their excellent ranges, plus absolute and percentage distance from the nearest boundary. These diagnostics are evidence, not score bands: they neither assign nor cap a score. The judge interprets their magnitude and cause together with the semantic procedure. Thus an inside-range run can still score poorly for duplicate work, while an explained range miss is not converted into a score by arithmetic alone.
+The runner deterministically records whether observed agent tool calls and task-tool output bytes are within, above, or below their excellent ranges, plus absolute and percentage distance from the nearest boundary. Task-tool output bytes are the UTF-8 volume returned to the agent by task tool events, excluding one exact standalone skill-activation read. The report also includes an explicit bytes/4 token approximation. These diagnostics are evidence, not score bands: they neither assign nor cap a score.
 
 All values `0..5` are valid. Missing, boolean, non-integer, or out-of-range judge scores invalidate the sample and are recorded as `0`.
 
@@ -107,15 +107,15 @@ The comparison is inclusive. No metric can compensate for another metric.
 
 ## Behavioral efficiency and mechanical validity
 
-The `task_tool_calls` and `document_reads` ranges are manually calculated per scenario as the excellent-efficiency target. The scenario's hidden semantic procedure tells the isolated judge what purposes the calls should serve, when the agent has enough evidence to stop, and which deviations are avoidable; it is never exposed to the tested agent. The runner adds informational range diagnostics (`within`, `above`, or `below`, absolute distance, and percentage distance) without mapping them to scores. `task_tool_calls` counts command-execution events after excluding at most one successful standalone `cat`/`sed`/`head`/`tail` invocation whose sole file operand is the exact tested `SKILL.md`; the exact `/bin/bash -lc` or `/bin/sh -lc` wrapper emitted by the configured agent is safely unwrapped before classification. Combined, failed, noncanonical, or differently wrapped reads remain task calls. `document_reads` is the sum of exact IWE JSON result counts plus one permitted targeted filesystem fallback. A proxy shim records exact IWE data before agent telemetry can truncate it. The runner shell-tokenizes actual command-position IWE invocations and keeps that observed count authoritative; telemetry is compared with observed argv one-to-one and any missing, extra, or mismatched records are reported as tool-procedure failures. The runner also records:
+The `task_tool_calls` and `task_tool_output_bytes` ranges are manually calculated per scenario as excellent-efficiency evidence. `task_tool_calls` counts tested-agent tool execution events, not IWE invocations or semantic stages. The scenario's hidden semantic procedure tells the isolated judge what purposes the calls should serve, when the agent has enough evidence to stop, and which deviations are avoidable; it is never exposed to the tested agent. One exact successful standalone `cat`/`sed`/`head`/`tail` activation read of the tested `SKILL.md` is excluded from task events and output volume; combined, failed, noncanonical, or differently wrapped reads remain task activity. A proxy shim records exact IWE data before agent telemetry can truncate it. The runner separately retains JSON `result_records` as provenance, without pretending each record is a document read. Telemetry argv is compared with observed invocations one-to-one, and missing, extra, or mismatched records remain visible procedure failures. The runner also records:
 
 - command-specific help calls;
 - web/network and built-in documentation calls;
 - forbidden `grep`, `rg`, and `find` fallbacks;
 - direct broad workspace reads;
 - optional reference reads;
-- raw/task tool calls, exact IWE stdout bytes, JSON result counts, and total document reads;
-- total captured command-output bytes and a stable byte-to-token context estimate;
+- raw/task agent tool calls, exact IWE stdout bytes, and JSON result-record counts;
+- task-tool output bytes, total captured command-output bytes, and explicit byte-to-token estimates;
 - failed and unbounded IWE calls.
 
 The proxy caps emitted IWE stdout at the scenario output budget while preserving the original byte count. Missing or inconsistent telemetry, unbounded operations, deprecated syntax, truncation, forbidden fallback, and recovery detours are recorded as `procedure_errors`. They remain visible to the judge and affect skill compliance and tool/resource efficiency, but do not invalidate independently oracle-supported answer content. Mechanical invalidity is reserved for failures that make the result itself untrustworthy: process failure, malformed judge output, prohibited external actions, isolation failure, or failed deterministic artifact postconditions.
