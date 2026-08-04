@@ -102,14 +102,10 @@ The harness also supports paired multi-target experiments in which every target 
 
 ### Latest paired A/B snapshot
 
-| Target | Skill version | IWE CLI version | Result verdict | Procedure verdict | Overall | Valid samples | Procedure-clean | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
-| --- | ---: | ---: | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `iwe-v18` | `0.2.0` | `0.18.0` | **PASS** | **FAIL** | **FAIL** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 **(FAIL)** | 2/5 **(FAIL)** |
-| `iwe-memory-system` | `0.0.67` | `0.18.0` | **PASS** | **FAIL** | **FAIL** | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 **(FAIL)** | 5/5 | 5/5 | 0/5 **(FAIL)** | 0/5 **(FAIL)** |
-
-- **Result verdict:** task correctness, scenario compliance, safety, and evidence quality.
-- **Procedure verdict:** skill compliance, tool efficiency, and resource efficiency.
-- **Overall:** passes only when both result and procedure verdicts pass.
+| Target | Skill version | IWE CLI version | Samples | Overall | Valid samples | Procedure-clean | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
+| --- | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `iwe-v18` | `0.2.0` | `0.18.0` | 5 | **FAIL** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 **(FAIL)** | 2/5 **(FAIL)** |
+| `iwe-memory-system` | `0.0.67` | `0.18.0` | 5 | **FAIL** | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 **(FAIL)** | 5/5 | 5/5 | 0/5 **(FAIL)** | 0/5 **(FAIL)** |
 
 Reproduce the table:
 
