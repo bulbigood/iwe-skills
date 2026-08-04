@@ -377,6 +377,8 @@ def _json_list_count(value: str) -> int | None:
 def _unbounded_iwe_args(args: list[str]) -> bool:
     if not args or args[0] not in {"find", "retrieve"}:
         return False
+    if "--help" in args or "-h" in args:
+        return False
 
     zero_unbounded_flags = {
         "--limit",
@@ -501,7 +503,12 @@ def command_metrics(
         item_invocations = _observed_iwe_invocations(command)
         observed_invocations.extend(item_invocations)
         observed_details.extend(
-            (output, int(item["exit_code"]) if item.get("exit_code") is not None and len(item_invocations) == 1 else None)
+            (
+                output if len(item_invocations) == 1 else "",
+                int(item["exit_code"])
+                if item.get("exit_code") is not None and len(item_invocations) == 1
+                else None,
+            )
             for _ in item_invocations
         )
         iwe_calls = len(item_invocations)
@@ -562,7 +569,8 @@ def command_metrics(
                     and raw_bytes >= emitted_bytes
                     and (not observed_output or bool(stdout or stderr))
                     and (
-                        observed_output.endswith(stdout + stderr)
+                        not observed_output
+                        or observed_output.endswith(stdout + stderr)
                         or observed_output.endswith(stderr + stdout)
                     )
                     and result_count == _json_list_count(stdout)

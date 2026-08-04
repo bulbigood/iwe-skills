@@ -394,6 +394,47 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertEqual(retry.returncode, 0)
         self.assertEqual(retry.stdout, "recovered\n")
 
+    def test_help_output_is_not_classified_as_an_unbounded_read(self) -> None:
+        stdout = "usage: iwe find [OPTIONS]\n"
+        metrics = self.runner.command_metrics(
+            [{"command": "iwe find --help", "exit_code": 0, "output": stdout}],
+            [{
+                "args": ["find", "--help"],
+                "exit_code": 0,
+                "stdout": stdout,
+                "stderr": "",
+                "stdout_bytes": len(stdout.encode()),
+                "emitted_stdout_bytes": len(stdout.encode()),
+                "stderr_bytes": 0,
+                "result_count": None,
+            }],
+        )
+        self.assertEqual(metrics["unbounded_read_calls"], 0)
+        self.assertEqual(metrics["iwe_telemetry_invalid"], 0)
+
+    def test_compound_iwe_outputs_do_not_falsely_invalidate_matching_telemetry(self) -> None:
+        command = "iwe retrieve --key a --limit 1 --format json && iwe retrieve --key b --limit 1 --format json"
+        outputs = ['[{"key":"a"}]\n', '[{"key":"b"}]\n']
+        telemetry = []
+        for key, stdout in zip(("a", "b"), outputs, strict=True):
+            telemetry.append({
+                "args": ["retrieve", "--key", key, "--limit", "1", "--format", "json"],
+                "exit_code": 0,
+                "stdout": stdout,
+                "stderr": "",
+                "stdout_bytes": len(stdout.encode()),
+                "emitted_stdout_bytes": len(stdout.encode()),
+                "stderr_bytes": 0,
+                "result_count": 1,
+            })
+        metrics = self.runner.command_metrics(
+            [{"command": command, "exit_code": 0, "output": "".join(outputs)}],
+            telemetry,
+        )
+        self.assertEqual(metrics["iwe_telemetry_invalid"], 0)
+        self.assertEqual(metrics["iwe_telemetry_mismatch"], 0)
+        self.assertEqual(metrics["iwe_calls"], 2)
+
     def test_create_postcondition_accepts_typed_attendee_list_rendered_by_runtime(self) -> None:
         scenario = next(
             item
