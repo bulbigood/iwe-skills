@@ -81,7 +81,6 @@ class EvalConfig:
     minimum_score: dict[str, int]
     default_excellent: dict[str, str]
     default_output_bytes: int
-    efficiency_score_bands: dict[int, dict[str, int]]
 
 
 @dataclass(frozen=True)
@@ -140,7 +139,6 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
     raw_minimum = evaluation.get("minimum_score", {})
     raw_excellent = evaluation.get("default_excellent", {})
     raw_execution = evaluation.get("execution", {})
-    raw_bands = evaluation.get("efficiency_score_bands", {})
     try:
         scale = {int(score): description for score, description in raw_scale.items()}
     except (TypeError, ValueError) as exc:
@@ -169,26 +167,8 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
     output_bytes = raw_execution.get("output_bytes")
     if not isinstance(output_bytes, int) or isinstance(output_bytes, bool) or output_bytes < 1:
         raise ValueError("eval.execution.output_bytes must be a positive integer")
-    try:
-        bands = {int(score): dict(values) for score, values in raw_bands.items()}
-    except (TypeError, ValueError) as exc:
-        raise ValueError("eval.efficiency_score_bands keys must be integer scores") from exc
-    if set(bands) != {2, 3, 4}:
-        raise ValueError("eval.efficiency_score_bands must declare scores 2, 3, and 4")
-    previous_extra = previous_percent = -1
-    for score in (4, 3, 2):
-        band = bands[score]
-        if set(band) != {"max_extra", "max_extra_percent"} or any(
-            not isinstance(value, int) or isinstance(value, bool) or value < 0
-            for value in band.values()
-        ):
-            raise ValueError("each efficiency score band requires non-negative integer limits")
-        if band["max_extra"] < previous_extra or band["max_extra_percent"] < previous_percent:
-            raise ValueError("lower efficiency scores must not have tighter limits")
-        previous_extra = band["max_extra"]
-        previous_percent = band["max_extra_percent"]
     return EvalConfig(
-        scale, dict(raw_percent), dict(raw_minimum), dict(raw_excellent), output_bytes, bands
+        scale, dict(raw_percent), dict(raw_minimum), dict(raw_excellent), output_bytes
     )
 
 
@@ -1094,7 +1074,7 @@ def judge_prompt(
     }
     scoring = scenario.scoring or {}
     eval_config = eval_config or load_eval_config()
-    score_ceilings = efficiency_score_ceilings(scenario, run.get("metrics", {}), eval_config)
+    diagnostics = efficiency_diagnostics(scenario, run.get("metrics", {}))
     minimums = {name: scoring[name]["minimum_score"] for name in DIMENSIONS}
     oracle = oracle or independent_oracle_evidence(scenario, before, after, run.get("final", ""))
     return f"""You are an independent read-only judge for an AI skill evaluation. Inspect only the supplied sanitized evidence. You run in a separate empty workspace and separate HOME/CODEX_HOME, with no access to the tested agent workspace or its tested skill. Do not invoke IWE, load any IWE skill, or use IWE output as an independent correctness oracle. Score each required dimension on the integer 0..5 scale and return only schema-valid JSON.
@@ -1105,11 +1085,11 @@ Use this global scale: {json.dumps(eval_config.score_scale, ensure_ascii=False)}
 For each metric, apply both the global scale and its scenario-specific excellent condition. Select the highest score fully supported by the evidence. Scores 0 through 5 are all valid. Do not average or weight metric scores.
 Minimum scores: {json.dumps(minimums)}
 Excellent efficiency targets: {json.dumps(expectations)}
-Mechanical efficiency score ceilings: {json.dumps(score_ceilings)}
-`task_tool_calls` excludes at most one exact successful standalone activation read of the tested skill. `document_reads` is the sum of exact IWE JSON result counts plus an allowed targeted filesystem fallback. Score semantic efficiency independently: judge the purpose, necessity, sequencing, stopping point, relevance, and duplication of calls and context. Do not lower the judge score solely because an observed count misses its target; the runner applies the mechanical ceiling after your semantic score. Efficiency defects affect only their respective metric scores. Correctness and safety still dominate.
+Efficiency range diagnostics: {json.dumps(diagnostics)}
+`task_tool_calls` excludes at most one exact successful standalone activation read of the tested skill. `document_reads` is the sum of exact IWE JSON result counts plus an allowed targeted filesystem fallback. Judge the purpose, necessity, sequencing, stopping point, relevance, duplication, and magnitude of observed range deviations. Counts and deviations are objective evidence, not a formula that assigns or caps a score. Efficiency defects affect only their respective metric scores. Correctness and safety still dominate.
 
 Ideal semantic procedure: {json.dumps(scenario.procedure or {}, ensure_ascii=False)}
-Use this procedure to judge the purpose, necessity, sequencing, and stopping point of tool calls. Equivalent bounded strategies and more efficient routes may receive full semantic credit; do not require an exact command transcript. A call count inside the excellent range never proves semantic efficiency. The effective score is calculated later as the minimum of your independent semantic score and the displayed mechanical ceiling.
+Use this procedure to judge the purpose, necessity, sequencing, and stopping point of tool calls. Equivalent bounded strategies and more efficient routes may receive full semantic credit; do not require an exact command transcript. A call count inside the excellent range never proves semantic efficiency, and a range miss must be interpreted using the observed evidence and its cause.
 
 Scenario: {scenario.name}
 Operator request: {scenario.request}
@@ -1124,57 +1104,58 @@ Agent final response: {sanitize_judge_evidence(skill, run['final'])}
 """
 
 
-def efficiency_score_ceiling(
+def efficiency_range_diagnostic(
     observed: int,
     minimum: int,
     maximum: int,
-    bands: dict[int, dict[str, int]],
-) -> int:
-    """Return a deterministic score ceiling for distance from an ideal inclusive range."""
+) -> dict:
+    """Describe distance from an ideal range without assigning a semantic score."""
     if not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in (observed, minimum, maximum)):
         raise ValueError("efficiency counts and bounds must be non-negative integers")
     if minimum > maximum:
         raise ValueError("efficiency minimum must not exceed maximum")
     if minimum <= observed <= maximum:
-        return 5
+        return {
+            "observed": observed,
+            "excellent_range": [minimum, maximum],
+            "status": "within",
+            "distance": 0,
+            "deviation_percent": 0.0,
+        }
     if observed < minimum:
-        extra = minimum - observed
+        distance = minimum - observed
         denominator = minimum
+        status = "below"
     else:
-        extra = observed - maximum
+        distance = observed - maximum
         denominator = maximum
-    if denominator == 0:
-        return 1
-    for score in (4, 3, 2):
-        band = bands[score]
-        if (
-            extra <= band["max_extra"]
-            and extra * 100 <= denominator * band["max_extra_percent"]
-        ):
-            return score
-    return 1
+        status = "above"
+    deviation = None if denominator == 0 else round(distance * 100 / denominator, 2)
+    return {
+        "observed": observed,
+        "excellent_range": [minimum, maximum],
+        "status": status,
+        "distance": distance,
+        "deviation_percent": deviation,
+    }
 
 
-def efficiency_score_ceilings(
+def efficiency_diagnostics(
     scenario: Scenario,
     metrics: dict,
-    eval_config: EvalConfig,
-) -> dict[str, int]:
-    if metrics.get("unbounded_read_calls", 0):
-        return {"tool_efficiency": 0, "resource_efficiency": 0}
+) -> dict:
     return {
-        "tool_efficiency": efficiency_score_ceiling(
+        "task_tool_calls": efficiency_range_diagnostic(
             metrics.get("task_tool_calls", 0),
             scenario.min_tool_calls,
             scenario.max_tool_calls,
-            eval_config.efficiency_score_bands,
         ),
-        "resource_efficiency": efficiency_score_ceiling(
+        "document_reads": efficiency_range_diagnostic(
             metrics.get("document_reads", 0),
             scenario.min_document_reads,
             scenario.max_document_reads,
-            eval_config.efficiency_score_bands,
         ),
+        "unbounded_read": bool(metrics.get("unbounded_read_calls", 0)),
     }
 
 
@@ -1184,13 +1165,12 @@ def verdict(
     mechanical: list[str],
     exits_ok: bool,
     procedure_errors: list[str] | None = None,
-    score_ceilings: dict[str, int] | None = None,
 ) -> dict:
     normalized_critique = critique if isinstance(critique, dict) else {}
     raw_dimensions = normalized_critique.get("dimensions", {})
     dimensions = raw_dimensions if isinstance(raw_dimensions, dict) else {}
     scoring = scenario.scoring or {}
-    judge_scores = {}
+    scores = {}
     malformed_scores = []
     for name in DIMENSIONS:
         raw_dimension = dimensions.get(name, {})
@@ -1201,12 +1181,7 @@ def verdict(
         else:
             score = 0
             malformed_scores.append(name)
-        judge_scores[name] = score
-    score_ceilings = dict(score_ceilings or {})
-    scores = {
-        name: min(judge_scores[name], score_ceilings.get(name, 5))
-        for name in DIMENSIONS
-    }
+        scores[name] = score
     failures = {
         name: {"score": scores[name], "required": scoring[name]["minimum_score"]}
         for name in DIMENSIONS
@@ -1222,8 +1197,6 @@ def verdict(
     return {
         "valid": not validation_errors,
         "metric_scores": scores,
-        "judge_metric_scores": judge_scores,
-        "mechanical_score_ceilings": score_ceilings,
         "metric_failures": failures,
         "validation_errors": validation_errors,
         "procedure_errors": list(procedure_errors or []),
@@ -1444,7 +1417,7 @@ def main() -> int:
         telemetry = load_iwe_telemetry(temporary / "iwe-telemetry.jsonl")
         agent["iwe_telemetry"] = telemetry
         agent["metrics"] = command_metrics(agent["commands"], telemetry, local_skill.name)
-        score_ceilings = efficiency_score_ceilings(scenario, agent["metrics"], eval_config)
+        range_diagnostics = efficiency_diagnostics(scenario, agent["metrics"])
         after = snapshot(workspace)
         integrity_errors = mechanical_errors(
             scenario, before, after, agent["commands"], workspace, agent["metrics"]
@@ -1513,6 +1486,7 @@ def main() -> int:
                 "document_reads": [scenario.min_document_reads, scenario.max_document_reads],
             },
             "agent": agent,
+            "efficiency_diagnostics": range_diagnostics,
             "judge": judge,
             "verdict": verdict(
                 scenario,
@@ -1520,7 +1494,6 @@ def main() -> int:
                 judge_errors,
                 agent["exit"] == 0 and judge["exit"] == 0,
                 procedure_errors=procedural_errors,
-                score_ceilings=score_ceilings,
             ),
             "workspace": str(workspace) if args.keep_workspaces else None,
         }

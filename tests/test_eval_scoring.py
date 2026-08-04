@@ -78,14 +78,6 @@ class EvalScoringContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(self.config.default_output_bytes, 65536)
-        self.assertEqual(
-            self.config.efficiency_score_bands,
-            {
-                4: {"max_extra": 2, "max_extra_percent": 20},
-                3: {"max_extra": 4, "max_extra_percent": 50},
-                2: {"max_extra": 8, "max_extra_percent": 100},
-            },
-        )
         self.assertTrue(self.config.default_excellent["skill_compliance"].strip())
         self.assertTrue(self.config.default_excellent["safety"].strip())
 
@@ -117,54 +109,45 @@ class EvalScoringContractTests(unittest.TestCase):
             self.assertTrue(scenario.procedure["stop_when"])
             self.assertTrue(scenario.procedure["avoid"])
 
-    def test_efficiency_bands_produce_deterministic_score_ceilings(self) -> None:
-        ceiling = self.runner.efficiency_score_ceiling
-        bands = self.config.efficiency_score_bands
-        self.assertEqual(ceiling(1, 1, 1, bands), 5)
-        self.assertEqual(ceiling(2, 1, 1, bands), 2)
-        self.assertEqual(ceiling(6, 5, 5, bands), 4)
-        self.assertEqual(ceiling(3, 2, 2, bands), 3)
-        self.assertEqual(ceiling(17, 4, 12, bands), 2)
-
+    def test_efficiency_ranges_produce_deterministic_diagnostics_without_scores(self) -> None:
         metrics = self.runner.command_metrics([])
         metrics.update(task_tool_calls=2, document_reads=7, unbounded_read_calls=0)
-        ceilings = self.runner.efficiency_score_ceilings(self.scenario, metrics, self.config)
-        self.assertEqual(ceilings, {"tool_efficiency": 2, "resource_efficiency": 3})
+        diagnostics = self.runner.efficiency_diagnostics(self.scenario, metrics)
+        self.assertEqual(diagnostics["task_tool_calls"], {
+            "observed": 2,
+            "excellent_range": [1, 1],
+            "status": "above",
+            "distance": 1,
+            "deviation_percent": 100.0,
+        })
+        self.assertEqual(diagnostics["document_reads"], {
+            "observed": 7,
+            "excellent_range": [1, 5],
+            "status": "above",
+            "distance": 2,
+            "deviation_percent": 40.0,
+        })
+        self.assertFalse(diagnostics["unbounded_read"])
+        self.assertEqual(
+            self.runner.efficiency_range_diagnostic(1, 0, 0),
+            {
+                "observed": 1,
+                "excellent_range": [0, 0],
+                "status": "above",
+                "distance": 1,
+                "deviation_percent": None,
+            },
+        )
         metrics["unbounded_read_calls"] = 1
-        self.assertEqual(
-            self.runner.efficiency_score_ceilings(self.scenario, metrics, self.config),
-            {"tool_efficiency": 0, "resource_efficiency": 0},
-        )
+        self.assertTrue(self.runner.efficiency_diagnostics(self.scenario, metrics)["unbounded_read"])
 
-    def test_efficiency_band_config_rejects_missing_or_non_monotonic_limits(self) -> None:
-        source = (ROOT / "config.toml").read_text(encoding="utf-8")
-        variants = (
-            source.replace('[eval.efficiency_score_bands."2"]', '[removed."2"]'),
-            source.replace("max_extra = 4\nmax_extra_percent = 50", "max_extra = 1\nmax_extra_percent = 10"),
-        )
-        for text in variants:
-            with self.subTest(text=text[-200:]), tempfile.TemporaryDirectory() as directory:
-                path = Path(directory) / "config.toml"
-                path.write_text(text, encoding="utf-8")
-                with self.assertRaises(ValueError):
-                    self.runner.load_eval_config(path)
-
-    def test_verdict_clamps_efficiency_scores_to_mechanical_ceilings(self) -> None:
+    def test_verdict_keeps_judge_efficiency_scores_without_count_based_clamping(self) -> None:
         critique = {"dimensions": {name: {"score": 5} for name in self.runner.DIMENSIONS}}
-        result = self.runner.verdict(
-            self.scenario,
-            critique,
-            [],
-            True,
-            score_ceilings={"tool_efficiency": 3, "resource_efficiency": 4},
-        )
-        self.assertEqual(result["judge_metric_scores"]["tool_efficiency"], 5)
-        self.assertEqual(result["metric_scores"]["tool_efficiency"], 3)
-        self.assertEqual(result["metric_scores"]["resource_efficiency"], 4)
-        self.assertEqual(
-            result["mechanical_score_ceilings"],
-            {"tool_efficiency": 3, "resource_efficiency": 4},
-        )
+        result = self.runner.verdict(self.scenario, critique, [], True)
+        self.assertEqual(result["metric_scores"]["tool_efficiency"], 5)
+        self.assertEqual(result["metric_scores"]["resource_efficiency"], 5)
+        self.assertNotIn("judge_metric_scores", result)
+        self.assertNotIn("mechanical_score_ceilings", result)
 
     def test_verdict_uses_only_local_metric_minimums_for_scores(self) -> None:
         critique = {
@@ -372,6 +355,8 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertIn("Ideal semantic procedure", prompt)
         self.assertIn(self.scenario.procedure["ideal"][0], prompt)
         self.assertIn("Equivalent bounded strategies", prompt)
+        self.assertIn("Efficiency range diagnostics", prompt)
+        self.assertNotIn("score ceiling", prompt.lower())
         with tempfile.TemporaryDirectory() as directory:
             env = self.runner.judge_environment(Path(directory), Path(directory), Path(directory))
         self.assertNotIn("iwe", env["PATH"].lower())
