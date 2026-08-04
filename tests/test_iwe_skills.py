@@ -43,9 +43,16 @@ class IweSkillTests(unittest.TestCase):
             self.assertEqual(contract["output_format"], "json")
             self.assertEqual(
                 set(contract["commands"]),
-                {"find", "retrieve", "update", "create", "extract", "delete", "schema.validate"},
+                {
+                    "init", "create", "new", "retrieve", "find", "count",
+                    "normalize", "tree", "squash", "export", "schema",
+                    "schema.validate", "stats", "stats.similarity", "rename",
+                    "delete", "extract", "inline", "update", "attach",
+                    "completions", "docs",
+                },
             )
-            self.assertNotIn("docs", contract["commands"])
+            self.assertTrue(contract["commands"]["docs"]["control_plane_only"])
+            self.assertEqual(contract["global_flags"], ["--verbose", "--help", "--version"])
 
     def test_runtime_binary_sources_and_configured_version(self) -> None:
         base = load_skill(root=ROOT)
@@ -160,15 +167,15 @@ class IweSkillTests(unittest.TestCase):
 
     def test_manifest_rejects_model_facing_version_or_compatibility_drift(self) -> None:
         for old, new, message in (
-            ('version: "0.2.0"', 'version: "0.2.1"', "skill_version"),
+            ('version: "0.3.0"', 'version: "0.3.1"', "skill_version"),
             (
-                'metadata:\n  version: "0.2.0"',
-                'version: "0.2.0"',
+                'metadata:\n  version: "0.3.0"',
+                'version: "0.3.0"',
                 "metadata",
             ),
             (
-                'metadata:\n  version: "0.2.0"',
-                'metadata:\n  nested:\n    version: "0.2.0"',
+                'metadata:\n  version: "0.3.0"',
+                'metadata:\n  nested:\n    version: "0.3.0"',
                 "metadata.version",
             ),
             (
@@ -210,9 +217,9 @@ class IweSkillTests(unittest.TestCase):
             lines = skill.splitlines()
             words = skill.split()
             self.assertGreaterEqual(len(lines), 60)
-            self.assertLessEqual(len(lines), 180)
+            self.assertLessEqual(len(lines), 270)
             self.assertGreaterEqual(len(words), 500)
-            self.assertLessEqual(len(words), 1_800)
+            self.assertLessEqual(len(words), 2_700)
             references = sorted(path.name for path in (spec.path / "references").glob("*.md"))
             self.assertEqual(references, ["errors.md"])
             self.assertIn("## Complex IWE queries", skill)
@@ -232,7 +239,7 @@ class IweSkillTests(unittest.TestCase):
                 "Do not run routine preflight",
                 "Default result limit: 20",
                 "Do not run a second query",
-                "unknown command or option",
+                "Exact command help",
                 "Refine the IWE query once",
                 "fresh, focused confirmation",
             ):
@@ -306,10 +313,45 @@ class IweSkillTests(unittest.TestCase):
         metrics = payload["skills"][0]
         self.assertEqual(metrics["external_urls"], 0)
         self.assertEqual(metrics["reference_files"], 1)
-        self.assertLessEqual(metrics["skill_lines"], 180)
+        self.assertLessEqual(metrics["skill_lines"], 270)
         self.assertGreaterEqual(metrics["estimated_tokens"], 800)
-        self.assertLessEqual(metrics["estimated_tokens"], 2_600)
-        self.assertEqual(metrics["contract_operations"], 7)
+        self.assertLessEqual(metrics["estimated_tokens"], 3_900)
+        self.assertEqual(metrics["contract_operations"], 22)
+
+    def test_skill_contains_every_cataloged_case_and_command_glossary_entry(self) -> None:
+        spec = load_skill(root=ROOT)
+        skill = (spec.path / "SKILL.md").read_text(encoding="utf-8")
+        contract = json.loads(spec.contract_file.read_text(encoding="utf-8"))
+        expected_cases = {
+            *(f"**A{i} " for i in range(1, 11)),
+            *(f"**B{i} " for i in range(1, 11)),
+            *(f"**C{i} " for i in range(1, 9)),
+            *(f"**D{i} " for i in range(1, 7)),
+            *(f"**E{i} " for i in range(1, 6)),
+            *(f"**F{i} " for i in range(1, 9)),
+            *(f"**G{i} " for i in range(1, 8)),
+            *(f"**H{i} " for i in range(1, 4)),
+            *(f"**I{i} " for i in range(1, 6)),
+        }
+        self.assertEqual(len(expected_cases), 62)
+        for case in expected_cases:
+            self.assertIn(case, skill)
+        glossary = skill.split("## Command glossary", 1)[1].split("## Complex IWE queries", 1)[0]
+        for operation in contract["commands"]:
+            command = operation.replace(".", " ")
+            self.assertIn(f"`{command}`", glossary)
+        for rare_case in (
+            "missing executable",
+            "still-unknown command/option",
+            "invalid YAML",
+            "empty result after refinement",
+            "unsupported operation",
+            "source outside index",
+            "unexplained truncation",
+            "permission/I/O failure",
+            "schema/expectation failure",
+        ):
+            self.assertIn(rare_case, skill)
 
     def test_eval_configuration_and_scenarios_load(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"

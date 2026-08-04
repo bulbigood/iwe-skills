@@ -34,7 +34,7 @@ python3 scripts/sync_iwe_contract.py --skill iwe-v18
 python3 scripts/sync_iwe_contract.py --skill iwe-v18 --check
 ```
 
-6. Keep `SKILL.md` within 60–150 lines and approximately 800–2,000 tokens. Keep normal commands, limits, failure policy, fallback policy, and mutation safety in that file.
+6. Keep `SKILL.md` within the expanded hard caps of 270 lines, 2,700 words, and 3,900 estimated tokens (50% above the prior enforced maxima). Prefer 60–225 lines when completeness permits. Keep normal commands, all cataloged cases, parameter derivation, the command glossary, limits, failure policy, fallback policy, and mutation safety in that file.
 7. Keep no more than two narrow references unless a measured eval regression proves another is necessary. Every reference requires a precise read trigger.
 8. Update `docs/upstream-sources.md` with the synchronization date, release/source revision, and divergence notes.
 9. Keep `tests/eval/scenarios/iwe.eval.yaml` schema-valid. Every scenario must explicitly declare all seven `0..5` scoring rubrics, attainable score conditions, dimension floors and weights, minimum weighted score, and mechanical budgets. Do not reintroduce a regex-parsed feature DSL.
@@ -64,8 +64,8 @@ The default complete run is ten scenarios, one agent plus one judge per scenario
 - Contract sync and all unit tests pass.
 - Installed payload has zero external URLs and exactly two references.
 - The normal discovery budget is one IWE call; discovery plus targeted retrieval is at most two.
-- Command help appears only after an unknown command or option.
+- Command-specific help appears only after selecting the task command and needing a rare syntax/default/detail absent from `SKILL.md`, or after that command rejects known syntax; global help remains prohibited.
 - Network and forbidden fallback tools are blocked and logged by eval shims.
 - Mechanically measurable behavior is not delegated to the AI judge.
 - Mutation safety budgets permit preview, guarded application, and verification.
-- No complete CLI manual is shipped in the skill.
+- The skill ships a short glossary of every task command, not a flag-by-flag CLI manual.

@@ -238,12 +238,17 @@ def load_skills(root: Path = ROOT) -> tuple[str, dict[str, SkillSpec]]:
             "delete",
             "schema.validate",
         }
-        if not isinstance(commands, dict) or set(commands) != required_operations:
+        if not isinstance(commands, dict) or not required_operations.issubset(commands):
+            missing = sorted(required_operations - set(commands or {}))
             raise ValueError(
-                f"contract operations must equal {sorted(required_operations)}: {contract_file}"
+                f"contract is missing required operations {missing}: {contract_file}"
             )
-        if "docs" in commands:
-            raise ValueError("runtime contract must not expose iwe docs")
+        docs_contract = commands.get("docs")
+        if docs_contract is not None and (
+            not isinstance(docs_contract, dict)
+            or docs_contract.get("control_plane_only") is not True
+        ):
+            raise ValueError("iwe docs must be marked control_plane_only")
 
         fallbacks = execution.get("forbidden_fallbacks")
         if not isinstance(fallbacks, list) or not all(isinstance(item, str) for item in fallbacks):
