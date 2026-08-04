@@ -37,19 +37,30 @@ npx skills add bulbigood/iwe-skills --skill iwe-v18
 
 ## Latest paired A/B snapshot
 
-- **Scenario:** `discover-and-retrieve-bounded-multi-hop-context`
-- **Paired samples per target:** `5`
+- **Published scenarios:** `1` (the next production run includes every scenario declared in `iwe.eval.yaml`)
+- **Paired samples per scenario and target:** `5`
 - **Agent:** Codex CLI `0.146.0`; `gpt-5.6-terra`, medium reasoning
 - **Judge:** `gpt-5.6-sol`, low reasoning
 
-| Target | Skill version | IWE CLI | Overall | Valid | Procedure-clean (info) | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
-| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `iwe-v18` | `0.3.0` | `0.18.0` | **PASS** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 |
-| `iwe-memory-system` | `0.0.67` | `0.18.0` | **FAIL** | 5/5 | 0/5 | 5/5 | 5/5 | 1/5 **(FAIL)** | 5/5 | 5/5 | 0/5 **(FAIL)** | 0/5 **(FAIL)** |
+Each paired metric cell is `first / second`, and every `N/5` is a successful-, valid-, or clean-sample count—not an average score. See [metric and score definitions](docs/evaluation-metrics.md).
 
-Every `N/5` value is a successful-, valid-, or clean-sample count as labelled, never an average score. See [metric and score definitions](docs/evaluation-metrics.md).
+### `iwe-v18`
 
-Reproduce the standard five-sample comparison:
+Skill `0.3.0`; IWE CLI `0.18.0`.
+
+| Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Multi-hop context | **PASS** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
+
+### `iwe-memory-system` — deprecated
+
+Skill `0.0.67`; evaluated on IWE CLI `0.18.0` using the maintained runtime contract because the legacy skill declares no compatible CLI version.
+
+| Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / 1/5 **(FAIL)** | 5/5 | 0/5 / 0/5 **(FAIL)** |
+
+Run the production five-sample comparison across all declared scenarios:
 
 ```bash
 python3 scripts/run_iwe_skill_ab_eval.py

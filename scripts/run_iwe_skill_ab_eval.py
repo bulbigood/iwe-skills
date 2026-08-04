@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reproduce the paired iwe-v18 versus deprecated-skill evaluation."""
+"""Run the production all-scenario iwe-v18 versus deprecated-skill evaluation."""
 
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ from skill_manifest import load_skills, verify_runtime_binary
 ROOT = Path(__file__).resolve().parents[1]
 DEPRECATED_SKILL = "iwe-memory-system"
 CURRENT_SKILL = "iwe-v18"
-SCENARIO = "discover-and-retrieve-bounded-multi-hop-context"
 DEFAULT_SAMPLES = 5
-CACHE = Path("tests/eval/.cache/iwe-v18-vs-memory-multihop")
+SCENARIOS_FILE = Path("tests/eval/scenarios/iwe.eval.yaml")
+CACHE = Path("tests/eval/.cache/iwe-v18-vs-memory-all-scenarios")
 DEFAULT_RESULTS_FILE = Path("tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md")
 
 
@@ -82,6 +82,22 @@ def _deprecated_version(skill_file: Path) -> str:
     return version
 
 
+def load_scenario_ids(root: Path = ROOT) -> tuple[str, ...]:
+    source = yaml.safe_load((root / SCENARIOS_FILE).read_text(encoding="utf-8"))
+    scenarios = source.get("scenarios") if isinstance(source, dict) else None
+    if not isinstance(scenarios, list) or not scenarios:
+        raise ValueError(f"no scenarios declared in {SCENARIOS_FILE}")
+    ids: list[str] = []
+    for item in scenarios:
+        identifier = item.get("id") if isinstance(item, dict) else None
+        if not isinstance(identifier, str) or not identifier:
+            raise ValueError(f"every scenario in {SCENARIOS_FILE} must have a non-empty id")
+        ids.append(identifier)
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"duplicate scenario id in {SCENARIOS_FILE}")
+    return tuple(ids)
+
+
 def load_targets(root: Path = ROOT) -> tuple[Target, Target]:
     default_id, skills = load_skills(root)
     if CURRENT_SKILL not in skills:
@@ -115,14 +131,15 @@ def load_targets(root: Path = ROOT) -> tuple[Target, Target]:
 def write_experiment(samples: int, root: Path = ROOT) -> Path:
     _, skills = load_skills(root)
     targets = load_targets(root)
+    scenario_ids = load_scenario_ids(root)
     cache = (root / CACHE).resolve()
     jobs = json.loads((root / "tests/eval/configs/codex.json").read_text(encoding="utf-8"))["jobs"]
 
     lines = [
         "schema_version = 1",
-        'name = "iwe-v18-vs-memory-multihop"',
+        'name = "iwe-v18-vs-memory-all-scenarios"',
         'agent_judge_config = "codex"',
-        f'scenarios = ["{SCENARIO}"]',
+        f"scenarios = {json.dumps(scenario_ids)}",
         f"samples = {samples}",
         f"jobs = {jobs}",
     ]

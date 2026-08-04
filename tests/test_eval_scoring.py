@@ -9,6 +9,7 @@ import math
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -839,6 +840,28 @@ class ProductionEvalCommandTests(unittest.TestCase):
 
 
 class PairedSkillEvalCommandTests(unittest.TestCase):
+    def test_ab_command_uses_every_declared_scenario(self) -> None:
+        module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
+        expected = tuple(item.id for item in load_runner().load_scenarios())
+        self.assertEqual(len(expected), 10)
+        self.assertEqual(module.load_scenario_ids(ROOT), expected)
+        manifest_path = module.write_experiment(1, ROOT)
+        manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(tuple(manifest["scenarios"]), expected)
+        self.assertEqual(manifest["name"], "iwe-v18-vs-memory-all-scenarios")
+
+    def test_readme_splits_compact_scenario_results_by_skill(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        snapshot = readme.split("## Latest paired A/B snapshot", 1)[1].split(
+            "## Documentation", 1
+        )[0]
+        self.assertIn("### `iwe-v18`", snapshot)
+        self.assertIn("### `iwe-memory-system` — deprecated", snapshot)
+        self.assertEqual(snapshot.count("| Scenario | Overall |"), 2)
+        self.assertNotIn("| Target |", snapshot)
+        self.assertIn("Valid / Clean (info)", snapshot)
+        self.assertIn("Tool / Resource", snapshot)
+
     def test_ab_command_maps_default_and_deprecated_skills_to_default_cli(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
