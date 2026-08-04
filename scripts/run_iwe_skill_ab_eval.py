@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEPRECATED_SKILL = "iwe-memory-system"
 CURRENT_SKILL = "iwe-v18"
 DEFAULT_SAMPLES = 5
+DEFAULT_JOBS = 10
 SCENARIOS_FILE = Path("tests/eval/scenarios/iwe.eval.yaml")
 CACHE = Path("tests/eval/.cache/iwe-v18-vs-memory-all-scenarios")
 DEFAULT_RESULTS_FILE = Path("tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md")
@@ -41,7 +42,7 @@ class Target:
 def positive_int(value: str) -> int:
     number = int(value)
     if number < 1:
-        raise argparse.ArgumentTypeError("samples must be at least 1")
+        raise argparse.ArgumentTypeError("value must be at least 1")
     return number
 
 
@@ -54,6 +55,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=positive_int,
         default=DEFAULT_SAMPLES,
         help=f"paired samples per target (default: {DEFAULT_SAMPLES})",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=positive_int,
+        default=DEFAULT_JOBS,
+        help=f"concurrent production evaluation cells (default: {DEFAULT_JOBS})",
     )
     parser.add_argument(
         "--results-file",
@@ -128,13 +135,13 @@ def load_targets(root: Path = ROOT) -> tuple[Target, Target]:
     )
 
 
-def write_experiment(samples: int, root: Path = ROOT) -> Path:
+def write_experiment(
+    samples: int, root: Path = ROOT, jobs: int = DEFAULT_JOBS
+) -> Path:
     _, skills = load_skills(root)
     targets = load_targets(root)
     scenario_ids = load_scenario_ids(root)
     cache = (root / CACHE).resolve()
-    jobs = json.loads((root / "tests/eval/configs/codex.json").read_text(encoding="utf-8"))["jobs"]
-
     lines = [
         "schema_version = 1",
         'name = "iwe-v18-vs-memory-all-scenarios"',
@@ -187,7 +194,7 @@ def build_command(manifest: Path, results_file: Path, agent: str = "codex") -> l
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    manifest = write_experiment(args.samples)
+    manifest = write_experiment(args.samples, jobs=args.jobs)
     return subprocess.call(build_command(manifest, args.results_file, args.agent), cwd=ROOT)
 
 

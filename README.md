@@ -60,7 +60,7 @@ Skill `0.0.67`; evaluated on IWE CLI `0.18.0` using the maintained runtime contr
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / 1/5 **(FAIL)** | 5/5 | 0/5 / 0/5 **(FAIL)** |
 
-Run the production five-sample comparison across all declared scenarios:
+Run the production five-sample comparison across all declared scenarios. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
 
 ```bash
 python3 scripts/run_iwe_skill_ab_eval.py

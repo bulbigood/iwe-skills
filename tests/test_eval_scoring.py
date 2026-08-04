@@ -849,6 +849,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(tuple(manifest["scenarios"]), expected)
         self.assertEqual(manifest["name"], "iwe-v18-vs-memory-all-scenarios")
+        self.assertEqual(manifest["jobs"], 10)
 
     def test_readme_splits_compact_scenario_results_by_skill(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -971,9 +972,19 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_ab_command_defaults_to_five_samples_and_allows_override(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_args")
         self.assertEqual(module.parse_args([]).samples, 5)
+        self.assertEqual(module.parse_args([]).jobs, 10)
         self.assertEqual(module.parse_args(["--samples", "2"]).samples, 2)
+        self.assertEqual(module.parse_args(["--jobs", "4"]).jobs, 4)
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             module.parse_args(["--samples", "0"])
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            module.parse_args(["--jobs", "0"])
+
+    def test_non_production_evals_default_to_five_jobs(self) -> None:
+        config = json.loads(
+            (ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(config["jobs"], 5)
 
 
 if __name__ == "__main__":
