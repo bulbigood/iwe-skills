@@ -22,10 +22,10 @@
 - Samples: `5`
 - Overall: **FAIL**
 - Valid samples: `5/5`
-- Procedure-clean samples: `5/5`
 
 | Metric | Successful samples | Required samples | Verdict | Score histogram |
 | --- | ---: | ---: | --- | --- |
+| Procedure-clean | 5/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Scenario compliance | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Skill compliance | 5/5 | 5/5 | **PASS** | `5: 5` |
@@ -41,10 +41,10 @@
 - Samples: `5`
 - Overall: **FAIL**
 - Valid samples: `5/5`
-- Procedure-clean samples: `0/5`
 
 | Metric | Successful samples | Required samples | Verdict | Score histogram |
 | --- | ---: | ---: | --- | --- |
+| Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Scenario compliance | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `2: 4, 3: 1` |

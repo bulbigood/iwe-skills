@@ -108,12 +108,12 @@ The harness also supports paired multi-target experiments in which every target 
 - **AI model:** `gpt-5.6-terra`; reasoning: `medium`
 - **Judge AI model:** `gpt-5.6-sol`; reasoning: `low`
 
-| Target | Skill version | IWE CLI version | Overall | Valid samples | Procedure-clean | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
+| Target | Skill version | IWE CLI version | Overall | Valid samples | Procedure-clean (info) | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
 | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `iwe-v18` | `0.2.0` | `0.18.0` | **FAIL** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 **(FAIL)** | 2/5 **(FAIL)** |
 | `iwe-memory-system` | `0.0.67` | `0.18.0` | **FAIL** | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 **(FAIL)** | 5/5 | 5/5 | 0/5 **(FAIL)** | 0/5 **(FAIL)** |
 
-[Metric and score definitions](docs/evaluation-metrics.md)
+[Metric and score definitions](docs/evaluation-metrics.md). Metric cells show successful samples / total samples, not average scores.
 
 Reproduce the table:
 

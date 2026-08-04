@@ -510,6 +510,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             "[Metric and score definitions](../../../docs/evaluation-metrics.md)", markdown
         )
         self.assertIn("0/1 **(FAIL)**", markdown)
+        self.assertIn("| Procedure-clean | 0/1 | — | Informational | — |", markdown)
         self.assertIn("Machine-readable reports: `reports/run`", markdown)
 
         definitions = (ROOT / "docs/evaluation-metrics.md").read_text(encoding="utf-8")

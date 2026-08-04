@@ -45,6 +45,7 @@ def render_markdown(experiment: dict, summary: dict, report_dir: Path) -> str:
     for outcome in summary["scenarios"]:
         target = targets[outcome["target_id"]]
         runtime = target["runtime"]
+        procedure_clean = outcome.get("samples", 0) - outcome.get("procedure_failure_samples", 0)
         lines.extend([
             f"## {outcome['scenario']} — `{outcome['target_id']}`",
             "",
@@ -53,10 +54,10 @@ def render_markdown(experiment: dict, summary: dict, report_dir: Path) -> str:
             f"- Samples: `{outcome['samples']}`",
             f"- Overall: **{'PASS' if outcome['pass'] else 'FAIL'}**",
             f"- Valid samples: `{outcome['samples'] - outcome['invalid_samples']}/{outcome['samples']}`",
-            f"- Procedure-clean samples: `{outcome.get('samples', 0) - outcome.get('procedure_failure_samples', 0)}/{outcome['samples']}`",
             "",
             "| Metric | Successful samples | Required samples | Verdict | Score histogram |",
             "| --- | ---: | ---: | --- | --- |",
+            f"| Procedure-clean | {procedure_clean}/{outcome['samples']} | — | Informational | — |",
         ])
         for name, label in METRIC_LABELS.items():
             metric = outcome["metrics"][name]

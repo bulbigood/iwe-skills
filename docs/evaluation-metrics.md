@@ -28,7 +28,7 @@ Invalidity is reserved for failures that make the result itself untrustworthy. I
 
 The number of samples with no deterministic tool-procedure errors. Examples include deprecated or unbounded commands, telemetry conflicts, forbidden fallback, and output truncation.
 
-`Procedure-clean` is a mechanical count, not a judge-scored metric. Procedure failures remain visible and affect the relevant skill-compliance or efficiency judgments, but they do not erase independently supported content quality.
+`Procedure-clean` is a mechanical count, not a judge-scored metric and not an independent acceptance gate. Procedure failures are reported separately alongside judge metrics, but they do not erase independently supported content quality.
 
 ## Judge-scored metrics
 
@@ -58,7 +58,7 @@ Whether the agent used a direct, purposeful sequence of tool calls without avoid
 
 ### Resource efficiency
 
-Whether document reads, captured output, and context consumption stayed within the scenario's bounded resource targets. This is separate from tool efficiency: a run can use few commands while retrieving excessive context.
+Whether document reads and context consumption stayed within the scenario's bounded resource targets. This is separate from tool efficiency: a run can use few commands while retrieving excessive context.
 
 ## Score scale
 
@@ -76,3 +76,7 @@ The canonical wording below comes from [`eval.score_scale` in `config.toml`](../
 For each metric, the judge applies this global scale together with the selected scenario's `excellent` condition. A sample succeeds for a metric when its score is greater than or equal to that scenario's `minimum_score`.
 
 Aggregate acceptance then applies the metric's repeated-sample percentage from [`eval.required_success_percent` in `config.toml`](../config.toml). The required count is `ceil(samples × percent / 100)`.
+
+## Reading the tables
+
+Cells such as `3/5` show **successful samples / total samples**, not an average score. Full reports additionally show each judge metric's required successful-sample count, verdict, and `0..5` score histogram. `Valid samples` and `Procedure-clean` are deterministic status counts and therefore have no score histogram.
