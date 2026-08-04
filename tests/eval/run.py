@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import datetime as dt
+import difflib
 import hashlib
 import json
 import math
@@ -497,21 +498,6 @@ def load_iwe_telemetry(path: Path) -> list[dict]:
 
 def efficiency_errors(scenario: Scenario, metrics: dict[str, int]) -> list[str]:
     errors: list[str] = []
-    calls = metrics["iwe_calls"]
-    if calls < scenario.min_iwe_calls:
-        errors.append(f"IWE call budget not met: {calls} < {scenario.min_iwe_calls}")
-    if calls > scenario.max_iwe_calls:
-        errors.append(f"IWE call budget exceeded: {calls} > {scenario.max_iwe_calls}")
-    if metrics["iwe_output_bytes"] > scenario.max_output_bytes:
-        errors.append(
-            "IWE output budget exceeded: "
-            f"{metrics['iwe_output_bytes']} > {scenario.max_output_bytes}"
-        )
-    if metrics["context_bytes"] > scenario.max_output_bytes * 2:
-        errors.append(
-            "command context budget exceeded: "
-            f"{metrics['context_bytes']} > {scenario.max_output_bytes * 2}"
-        )
     if metrics["unbounded_read_calls"]:
         errors.append("unbounded IWE discovery or retrieval used")
     if metrics.get("iwe_telemetry_missing", 0):
@@ -524,30 +510,12 @@ def efficiency_errors(scenario: Scenario, metrics: dict[str, int]) -> list[str]:
         errors.append("IWE telemetry measurements do not match observed command evidence")
     if metrics.get("iwe_output_truncated", 0):
         errors.append("IWE output exceeded the configured capture budget")
-    if metrics.get("max_result_count", 0) > scenario.max_result_count:
-        errors.append(
-            "IWE result-count budget exceeded: "
-            f"{metrics['max_result_count']} > {scenario.max_result_count}"
-        )
-    if metrics["reference_reads"]:
-        errors.append("optional reference read without an eval trigger")
     if metrics["web_calls"] or metrics["docs_calls"]:
         errors.append("web or IWE documentation command used")
     fallback_calls = metrics["forbidden_fallback_calls"] + metrics["broad_workspace_reads"]
     if fallback_calls and not scenario.allow_fallback:
         errors.append("forbidden fallback tool used")
-    if scenario.allow_fallback and fallback_calls > 1:
-        errors.append(f"fallback call budget exceeded: {fallback_calls} > 1")
-    if scenario.iwe_mode == "unavailable" and scenario.allow_fallback and fallback_calls != 1:
-        errors.append(f"unavailable scenario requires one narrow fallback call: {fallback_calls}")
-    if scenario.iwe_mode == "real" and metrics["failed_iwe_calls"]:
-        errors.append("an IWE command failed")
-    if scenario.iwe_mode == "incompatible":
-        if metrics["failed_iwe_calls"] != 1 or metrics["help_calls"] != 1:
-            errors.append("CLI incompatibility recovery must have one failure and one help call")
     if scenario.iwe_mode == "unavailable":
-        if metrics["failed_iwe_calls"] != 1:
-            errors.append("unavailable IWE must be attempted exactly once")
         if not scenario.allow_fallback:
             errors.append("unavailable scenario must explicitly permit fallback")
     return errors
@@ -564,6 +532,109 @@ def snapshot(root: Path) -> dict[str, str]:
         except UnicodeDecodeError:
             values[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
     return values
+
+
+def agent_prompt(scenario: Scenario) -> str:
+    """Keep the tested request realistic without disclosing the eval mechanism."""
+    return (
+        "Complete the following request in the provided workspace. "
+        "Use the local project guidance and available tools. Work offline.\n\n"
+        f"Request:\n{scenario.request}"
+    )
+
+
+def _document_title(text: str, fallback: str) -> str:
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end >= 0:
+            try:
+                frontmatter = yaml.safe_load(text[4:end]) or {}
+            except yaml.YAMLError:
+                frontmatter = {}
+            if isinstance(frontmatter, dict) and isinstance(frontmatter.get("title"), str):
+                return frontmatter["title"]
+    heading = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
+    return heading.group(1).strip() if heading else fallback
+
+
+def _source_excerpt(text: str, terms: tuple[str, ...], limit: int = 420) -> str:
+    compact = re.sub(r"\s+", " ", text).strip()
+    lowered = compact.casefold()
+    positions = [lowered.find(term.casefold()) for term in terms]
+    positions = [position for position in positions if position >= 0]
+    start = max(0, min(positions, default=0) - 100)
+    return compact[start:start + limit]
+
+
+def independent_oracle_evidence(
+    scenario: Scenario,
+    before: dict[str, str],
+    after: dict[str, str],
+    final_response: str,
+) -> dict:
+    """Build compact ground truth directly from Markdown snapshots, never from IWE."""
+    terms_by_scenario = {
+        "discover-and-retrieve-bounded-multi-hop-context": ("marcus", "machiavelli", "nietzsche", "virtue"),
+        "query-structured-metadata-without-scanning-files": ("power", "morality"),
+        "one-call-bounded-discovery": ("virtue",),
+        "ambiguous-discovery-with-one-follow-up": ("api",),
+    }
+    terms = terms_by_scenario.get(scenario.id, ())
+    response_keys = set(re.findall(r"`([a-z0-9][a-z0-9/_-]*)`", final_response.casefold()))
+    response_keys.update(re.findall(r'"key"\s*:\s*"([^"]+)"', final_response.casefold()))
+    documents = []
+    for path, text in sorted(after.items()):
+        if not path.endswith(".md"):
+            continue
+        lowered = text.casefold()
+        if terms and not any(term in lowered for term in terms):
+            continue
+        key = path.removeprefix("graph/").removesuffix(".md")
+        links = sorted(set(re.findall(r"\[\[([^\]|#]+)", text)))[:12]
+        documents.append({
+            "key": key,
+            "title": _document_title(text, Path(key).name),
+            "links": links,
+            "source_excerpt": _source_excerpt(text, terms),
+            "named_in_response": key.casefold() in response_keys,
+        })
+
+    documents.sort(key=lambda item: (not item["named_in_response"], item["key"]))
+    documents = documents[:20]
+    changed = sorted(key for key in before.keys() | after.keys() if before.get(key) != after.get(key))
+    diffs = {}
+    for path in changed[:6]:
+        diff = "".join(difflib.unified_diff(
+            before.get(path, "").splitlines(keepends=True),
+            after.get(path, "").splitlines(keepends=True),
+            fromfile=f"before/{path}",
+            tofile=f"after/{path}",
+            n=3,
+        ))
+        diffs[path] = diff[:8000]
+
+    prepared = {}
+    for path in ("graph/eval-roadmap.md", "graph/eval-plan.md"):
+        if path in after:
+            prepared[path] = after[path][:8000]
+    return {
+        "source": "direct independent parsing of fixture snapshots; no tested CLI or skill",
+        "matching_documents": documents,
+        "changed_files": changed,
+        "independent_diffs": diffs,
+        "prepared_documents": prepared,
+        "response_for_comparison": final_response,
+    }
+
+
+def judge_environment(home: Path, codex_home: Path, tool_bin: Path) -> dict[str, str]:
+    env = {key: os.environ[key] for key in SAFE_HOST_ENV if key in os.environ}
+    env.update({
+        "HOME": str(home),
+        "CODEX_HOME": str(codex_home),
+        "PATH": f"{tool_bin}:/usr/bin:/bin",
+    })
+    return env
 
 
 def ensure_fixture(config: dict, name: str, cache: Path) -> Path:
@@ -784,11 +855,46 @@ def mechanical_errors(
         source = after.get("graph/eval-plan.md", "")
         if "## Architecture" in source or "Use a graph-aware boundary." in source:
             errors.append("architecture section was not extracted")
-        if not any(key.startswith("graph/") and key != "graph/eval-plan.md" and "Use a graph-aware boundary." in value for key, value in after.items()):
+        extracted = [
+            key for key, value in after.items()
+            if key.startswith("graph/")
+            and key != "graph/eval-plan.md"
+            and "Use a graph-aware boundary." in value
+            and "### Storage" in value
+            and "Markdown files." in value
+        ]
+        if len(extracted) != 1:
             errors.append("extracted document not found")
+        elif not re.search(rf"^\[\[{re.escape(extracted[0][6:-3])}(?:\|[^]]+)?\]\]$", source, re.MULTILINE):
+            errors.append("source does not contain an independent standalone inclusion link")
+        if "## Delivery\n\nPreserve this section." not in source:
+            errors.append("unrelated source section was not preserved")
     if scenario.id == "create-and-validate-a-schema-bound-document":
-        meetings = [value for key, value in after.items() if key.startswith("graph/meetings/")]
-        if not meetings or "draft: false" not in meetings[0] or "type: meeting" not in meetings[0]:
+        created = [
+            (key, after[key]) for key in after.keys() - before.keys()
+            if key.startswith("graph/meetings/") and key.endswith(".md")
+        ]
+        valid = False
+        if len(created) == 1:
+            _, body = created[0]
+            frontmatter = {}
+            if body.startswith("---\n") and "\n---\n" in body[4:]:
+                raw = body[4:body.find("\n---\n", 4)]
+                try:
+                    frontmatter = yaml.safe_load(raw) or {}
+                except yaml.YAMLError:
+                    frontmatter = {}
+            valid = (
+                isinstance(frontmatter, dict)
+                and frontmatter.get("type") == "meeting"
+                and frontmatter.get("draft") is False
+                and "# Evaluation Sync" in body
+                and "## Attendees" in body
+                and "Ada and Alan" in body
+                and "## Notes" in body
+                and "Review the graph." in body
+            )
+        if not valid:
             errors.append("typed schema-bound meeting was not created")
     return errors
 
@@ -859,6 +965,7 @@ def judge_prompt(
     after: dict,
     errors: list[str],
     eval_config: EvalConfig | None = None,
+    oracle: dict | None = None,
 ) -> str:
     changed = sorted(key for key in before.keys() | after.keys() if before.get(key) != after.get(key))
     expectations = {
@@ -868,7 +975,10 @@ def judge_prompt(
     scoring = scenario.scoring or {}
     eval_config = eval_config or load_eval_config()
     minimums = {name: scoring[name]["minimum_score"] for name in DIMENSIONS}
-    return f"""You are an independent read-only judge for an AI skill evaluation. Inspect only the supplied sanitized evidence. You run in a separate empty workspace and separate HOME/CODEX_HOME, with no access to the tested agent workspace or its {skill.name} skill; do not search for, load, reconstruct, or use that skill. Score each required dimension on the integer 0..5 scale and return only schema-valid JSON.
+    oracle = oracle or independent_oracle_evidence(scenario, before, after, run.get("final", ""))
+    return f"""You are an independent read-only judge for an AI skill evaluation. Inspect only the supplied sanitized evidence. You run in a separate empty workspace and separate HOME/CODEX_HOME, with no access to the tested agent workspace or its tested skill. Do not invoke IWE, load any IWE skill, or use IWE output as an independent correctness oracle. Score each required dimension on the integer 0..5 scale and return only schema-valid JSON.
+
+The independent oracle evidence was produced by directly parsing fixture snapshots without the tested CLI or skill. Use it as the source of truth for task correctness and artifact correctness. Runtime telemetry proves only what the tested runtime returned and how it was used; it is not independent proof that its result is factually correct. Use runtime telemetry for provenance, procedure compliance, boundedness, recovery behavior, and efficiency.
 
 Use this global scale: {json.dumps(eval_config.score_scale, ensure_ascii=False)}
 For each metric, apply both the global scale and its scenario-specific excellent condition. Select the highest score fully supported by the evidence. Scores 0 through 5 are all valid. Do not average or weight metric scores.
@@ -880,8 +990,9 @@ Scenario: {scenario.name}
 Operator request: {scenario.request}
 Rubric: {scenario.rubric}
 Changed files: {json.dumps(changed)}
-Mechanical errors: {json.dumps(errors)}
+Validity observations: {json.dumps(errors)}
 Mechanical metrics: {json.dumps(run.get('metrics', {}))}
+Independent oracle evidence: {json.dumps(sanitize_judge_evidence(skill, oracle), ensure_ascii=False)}
 Exact IWE telemetry: {json.dumps(sanitize_judge_evidence(skill, run.get('iwe_telemetry', [])), ensure_ascii=False)}
 Agent commands: {json.dumps(judge_command_evidence(skill, run['commands']), ensure_ascii=False)}
 Agent final response: {sanitize_judge_evidence(skill, run['final'])}
@@ -1022,7 +1133,7 @@ def main() -> int:
         host_auth = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"
         if host_auth.exists(): shutil.copy2(host_auth, codex_home / "auth.json")
         env = eval_environment(isolated_home, codex_home, shim_bin, iwe_binary, temporary)
-        prompt = f"You are working in an isolated non-git copy. Read and use the available repository-local {skill.name} skill. Do not use internet access or `iwe docs`.\n\nOperator request:\n" + scenario.request
+        prompt = agent_prompt(scenario)
         agent = run_process(config["agent_command"], prompt, workspace, config["timeout_seconds"], env)
         telemetry = load_iwe_telemetry(temporary / "iwe-telemetry.jsonl")
         agent["iwe_telemetry"] = telemetry
@@ -1032,8 +1143,9 @@ def main() -> int:
             scenario, before, after, agent["commands"], workspace, agent["metrics"]
         )
         judge_command = config["judge_command"].format(judge_schema=shlex.quote(str(EVAL / "judge.schema.json")))
+        oracle = independent_oracle_evidence(scenario, before, after, agent["final"])
         judge_prompt_text = judge_prompt(
-            skill, scenario, agent, before, after, errors, eval_config
+            skill, scenario, agent, before, after, errors, eval_config, oracle
         )
         remove_tested_skill_for_judge(workspace)
         judge_workspace = create_judge_workspace(temporary)
@@ -1043,12 +1155,15 @@ def main() -> int:
         judge_codex_home.mkdir()
         if host_auth.exists():
             shutil.copy2(host_auth, judge_codex_home / "auth.json")
-        judge_env = {key: os.environ[key] for key in SAFE_HOST_ENV if key in os.environ}
-        judge_env.update({
-            "HOME": str(judge_home),
-            "CODEX_HOME": str(judge_codex_home),
-            "PATH": os.environ.get("PATH", ""),
-        })
+        judge_tools = temporary / "judge-tools"
+        judge_tools.mkdir()
+        judge_executable = shutil.which(shlex.split(judge_command)[0])
+        node_executable = shutil.which("node")
+        if not judge_executable or not node_executable:
+            raise RuntimeError("configured judge executable or its node runtime is unavailable")
+        (judge_tools / Path(judge_executable).name).symlink_to(judge_executable)
+        (judge_tools / "node").symlink_to(node_executable)
+        judge_env = judge_environment(judge_home, judge_codex_home, judge_tools)
         judge = run_process(
             judge_command,
             judge_prompt_text,
@@ -1058,6 +1173,9 @@ def main() -> int:
         )
         try: critique = json.loads(judge["final"])
         except json.JSONDecodeError: critique = {"rationale": "invalid judge JSON", "evidence": [judge["final"]], "dimensions": {}}
+        judge_errors = list(errors)
+        if judge["commands"]:
+            judge_errors.append("judge executed commands instead of inspecting supplied evidence only")
         result = {
             "scenario": scenario.name,
             "scenario_id": scenario.id,
@@ -1075,7 +1193,7 @@ def main() -> int:
             "verdict": verdict(
                 scenario,
                 critique,
-                errors,
+                judge_errors,
                 agent["exit"] == 0 and judge["exit"] == 0,
             ),
             "workspace": str(workspace) if args.keep_workspaces else None,

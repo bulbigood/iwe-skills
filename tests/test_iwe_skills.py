@@ -817,7 +817,7 @@ class IweSkillTests(unittest.TestCase):
             module.efficiency_errors(module.load_scenarios()[0], same_argv_forgery),
         )
 
-    def test_eval_budget_errors_are_mechanical(self) -> None:
+    def test_eval_mechanical_errors_only_gate_integrity_and_prohibited_actions(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
         spec = importlib.util.spec_from_file_location("iwe_skill_eval_budget", runner_path)
         assert spec is not None and spec.loader is not None
@@ -834,18 +834,20 @@ class IweSkillTests(unittest.TestCase):
             "docs_calls": 0,
             "forbidden_fallback_calls": 1,
             "broad_workspace_reads": 0,
-            "reference_reads": 0,
+            "reference_reads": 1,
             "iwe_output_bytes": 100,
             "context_bytes": 100,
-            "failed_iwe_calls": 0,
+            "failed_iwe_calls": 1,
             "unbounded_read_calls": 1,
             "max_result_count": 21,
         })
-        self.assertIn("IWE call budget exceeded: 2 > 1", errors)
-        self.assertIn("forbidden fallback tool used", errors)
-        self.assertIn("IWE output budget exceeded: 100 > 64", errors)
-        self.assertIn("unbounded IWE discovery or retrieval used", errors)
-        self.assertIn("IWE result-count budget exceeded: 21 > 20", errors)
+        self.assertEqual(
+            errors,
+            [
+                "unbounded IWE discovery or retrieval used",
+                "forbidden fallback tool used",
+            ],
+        )
 
     def test_eval_fixture_cache_enforces_pinned_commit_and_clean_tree(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"

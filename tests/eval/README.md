@@ -84,7 +84,7 @@ score >= minimum_score
 
 The comparison is inclusive. No metric can compensate for another metric.
 
-## Mechanical efficiency contract
+## Behavioral efficiency and mechanical validity
 
 The `task_tool_calls` and `document_reads` ranges are manually calculated per scenario as the excellent-efficiency target. `task_tool_calls` counts command-execution events after excluding at most one successful standalone `cat`/`sed`/`head`/`tail` invocation whose sole file operand is the exact tested `SKILL.md`; the exact `/bin/bash -lc` or `/bin/sh -lc` wrapper emitted by the configured agent is safely unwrapped before classification. Combined, failed, noncanonical, or differently wrapped reads remain task calls. `document_reads` is the sum of exact IWE JSON result counts plus one permitted targeted filesystem fallback. A proxy shim records exact IWE data before agent telemetry can truncate it. The runner shell-tokenizes actual command-position IWE invocations and keeps that observed count authoritative; telemetry must match observed argv one-to-one, and missing, extra, or mismatched records fail mechanically. The runner also records:
 
@@ -97,7 +97,9 @@ The `task_tool_calls` and `document_reads` ranges are manually calculated per sc
 - total captured command-output bytes and a stable byte-to-token context estimate;
 - failed and unbounded IWE calls.
 
-The proxy caps emitted IWE stdout at the scenario output budget while preserving the original byte count for validation. Telemetry measurements must agree with captured command stdout/stderr, exit status, byte counts, and parsed JSON result counts; a missing, extra, reordered, mismatched, or internally inconsistent record invalidates the sample. IWE call, output, context, fallback, result-count, prohibited-action, and unbounded-read checks remain fail-closed validity gates. The `task_tool_calls` and `document_reads` targets are not validity gates: misses affect only `tool_efficiency` and `resource_efficiency`, respectively.
+The proxy caps emitted IWE stdout at the scenario output budget while preserving the original byte count for validation. Telemetry measurements must agree with captured command stdout/stderr, exit status, byte counts, and parsed JSON result counts; a missing, extra, reordered, mismatched, or internally inconsistent record invalidates the sample. Prohibited actions, unbounded operations, forbidden fallback, telemetry corruption, truncation, isolation failures, and failed deterministic artifact postconditions remain fail-closed validity gates. Ordinary call-count, output-size, result-count, optional-reference, harmless retry, and context-budget misses are behavioral observations: they affect the relevant compliance or efficiency metric but do not make otherwise trustworthy evidence invalid.
+
+The tested agent receives a neutral wrapper that asks it to use local project guidance and work offline. The wrapper and operator requests do not name IWE, the tested skill, CLI syntax, injected failure modes, exact tool counts, or hidden rubric strategy. Failure injection and efficiency expectations remain harness-only information.
 
 ## Metric thresholds and sample aggregation
 
@@ -118,7 +120,9 @@ A scenario aggregate passes only when every metric reaches its configured succes
 
 `tests/eval/shims/` blocks and logs `grep`, `rg`, `find`, `curl`, and `wget` by placing shims first on the tested agent's `PATH`. Command telemetry separately rejects `gh`, `git clone`, `iwe docs`, and known network commands. The agent receives an explicit environment allowlist rather than a copy of the host environment.
 
-Before the judge starts, the runner snapshots the result and removes the entire repository-local `.agents/` tree. It redacts command output from every direct tested-skill/reference read and scans command evidence, IWE telemetry, and the final response with normalized rolling fingerprints that survive whitespace changes and line wrapping. The judge then runs in a separate empty workspace with a separate empty `HOME` and `CODEX_HOME`; it receives neither the agent workspace, the tested IWE skill, nor the agent shims, and is explicitly forbidden to search for or reconstruct the skill. It evaluates only sanitized command evidence, deterministic postconditions, mechanical metrics, exact IWE telemetry, and the agent's final response.
+Before the judge starts, the runner snapshots the result and removes the entire repository-local `.agents/` tree. It redacts command output from every direct tested-skill/reference read and scans command evidence, IWE telemetry, and the final response with normalized rolling fingerprints that survive whitespace changes and line wrapping. The judge then runs in a separate empty workspace with a separate empty `HOME` and `CODEX_HOME`. Its allowlisted `PATH` contains only the configured judge launcher, its runtime, and base system tools; it does not inherit IWE. Any judge command execution invalidates the sample.
+
+The harness builds compact independent oracle evidence directly from pinned fixture Markdown and before/after snapshots without invoking IWE or loading an IWE skill. Retrieval facts, titles, links, source excerpts, changed files, and diffs come from this independent path. The judge must use that evidence for task and artifact correctness. IWE telemetry is not a factual oracle: it is used only for provenance, procedure compliance, boundedness, recovery behavior, and efficiency. This separation prevents a bug in the tested runtime from validating itself.
 
 The Codex configuration enforces `workspace-write` with disabled sandbox network access for the tested agent, `read-only` for the judge, and no generated-shell environment inheritance for either process. Shims are defense in depth, not the network boundary. Any additional agent configuration must provide equivalent filesystem, environment, and network isolation.
 
@@ -159,7 +163,7 @@ Write scenarios receive larger IWE budgets because preview, strict mutation, and
 - Extract creates a target document and replaces the source section with an inclusion edge.
 - Schema-bound creation preserves typed frontmatter and produces a meeting document.
 - Destructive refusal performs no mutation.
-- Every scenario obeys its IWE/output/fallback budget, avoids deprecated positional `find`, and makes no web or documentation call.
+- Every scenario avoids unbounded operations, forbidden fallback, deprecated positional `find`, and web or documentation calls. Advisory IWE/output/result budgets are scored semantically rather than treated as evidence-integrity failures.
 
 ## Running strategy
 

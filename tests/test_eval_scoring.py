@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -145,6 +147,71 @@ class EvalScoringContractTests(unittest.TestCase):
         errors = self.runner.efficiency_errors(scenario, metrics)
         self.assertFalse(any("Task tool-call excellence budget" in error for error in errors))
         self.assertFalse(any("Document-read excellence budget" in error for error in errors))
+
+    def test_agent_prompts_are_neutral_and_scenarios_do_not_leak_test_strategy(self) -> None:
+        prompt = self.runner.agent_prompt(self.scenario)
+        lowered = prompt.lower()
+        for leaked in ("iwe", "cli", "skill", "non-git", "repository query"):
+            self.assertNotIn(leaked, lowered)
+
+        requests = "\n".join(item.request.lower() for item in self.runner.load_scenarios())
+        for leaked in (
+            "iwe",
+            "cli",
+            "one repository query",
+            "empty filter",
+            "single narrow file read",
+            "first syntax",
+        ):
+            self.assertNotIn(leaked, requests)
+
+    def test_behavioral_efficiency_misses_do_not_invalidate_trustworthy_evidence(self) -> None:
+        metrics = self.runner.command_metrics([])
+        metrics.update({
+            "iwe_calls": self.scenario.max_iwe_calls + 1,
+            "failed_iwe_calls": 1,
+            "reference_reads": 1,
+            "iwe_output_bytes": self.scenario.max_output_bytes + 1,
+            "context_bytes": self.scenario.max_output_bytes * 2 + 1,
+            "max_result_count": self.scenario.max_result_count + 1,
+        })
+        errors = self.runner.efficiency_errors(self.scenario, metrics)
+        self.assertFalse(any("budget" in error.lower() for error in errors))
+        self.assertFalse(any("reference read" in error.lower() for error in errors))
+        self.assertFalse(any("command failed" in error.lower() for error in errors))
+
+    def test_independent_oracle_reads_fixture_without_iwe_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            graph = root / "graph"
+            graph.mkdir()
+            (graph / "virtue-note.md").write_text(
+                "---\ntitle: Virtue Note\n---\n\nVirtue requires patience.\n",
+                encoding="utf-8",
+            )
+            evidence = self.runner.independent_oracle_evidence(
+                self.scenario, {}, self.runner.snapshot(root), ""
+            )
+        serialized = json.dumps(evidence)
+        self.assertIn("virtue-note", serialized)
+        self.assertIn("Virtue Note", serialized)
+        self.assertNotIn("iwe_telemetry", evidence)
+
+    def test_judge_is_forbidden_from_using_iwe_as_correctness_oracle(self) -> None:
+        prompt = self.runner.judge_prompt(
+            self.runner.load_skill(root=ROOT),
+            self.scenario,
+            {"metrics": {}, "iwe_telemetry": [], "commands": [], "final": "[]"},
+            {},
+            {},
+            [],
+        )
+        self.assertIn("Do not invoke IWE", prompt)
+        self.assertIn("not independent proof", prompt)
+        self.assertIn("Independent oracle evidence", prompt)
+        with tempfile.TemporaryDirectory() as directory:
+            env = self.runner.judge_environment(Path(directory), Path(directory), Path(directory))
+        self.assertNotIn("iwe", env["PATH"].lower())
 
 
 if __name__ == "__main__":
