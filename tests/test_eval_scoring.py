@@ -506,10 +506,25 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("Agent: Codex CLI `0.146.0`", markdown)
         self.assertIn("AI model: `gpt-5.6-terra`; reasoning: `medium`", markdown)
         self.assertIn("Judge AI model: `gpt-5.6-sol`; reasoning: `low`", markdown)
-        for label, description in renderer.METRIC_DESCRIPTIONS:
-            self.assertIn(f"**{label}:** {description}", markdown)
+        self.assertIn(
+            "[Metric and score definitions](../../../docs/evaluation-metrics.md)", markdown
+        )
         self.assertIn("0/1 **(FAIL)**", markdown)
         self.assertIn("Machine-readable reports: `reports/run`", markdown)
+
+        definitions = (ROOT / "docs/evaluation-metrics.md").read_text(encoding="utf-8")
+        for label in (
+            "Overall", "Valid samples", "Procedure-clean", "Task correctness",
+            "Scenario compliance", "Skill compliance", "Safety", "Evidence quality",
+            "Tool efficiency", "Resource efficiency",
+        ):
+            self.assertIn(f"### {label}", definitions)
+        for source in (
+            "../config.toml",
+            "../tests/eval/scenarios/iwe.eval.yaml",
+            "../tests/eval/run.py",
+        ):
+            self.assertIn(source, definitions)
 
     def test_ab_command_defaults_to_five_samples_and_allows_override(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_args")

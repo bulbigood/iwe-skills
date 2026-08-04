@@ -113,18 +113,7 @@ The harness also supports paired multi-target experiments in which every target 
 | `iwe-v18` | `0.2.0` | `0.18.0` | **FAIL** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 **(FAIL)** | 2/5 **(FAIL)** |
 | `iwe-memory-system` | `0.0.67` | `0.18.0` | **FAIL** | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 **(FAIL)** | 5/5 | 5/5 | 0/5 **(FAIL)** | 0/5 **(FAIL)** |
 
-**Metric meanings:**
-
-- **Overall:** passes only when every required metric reaches its configured repeated-sample threshold and no result-integrity sample is invalid.
-- **Valid samples:** samples with trustworthy execution and result integrity: successful processes, valid judge output, preserved isolation, permitted actions, and satisfied deterministic postconditions.
-- **Procedure-clean:** samples with no deterministic tool-procedure errors such as deprecated or unbounded commands, telemetry conflicts, forbidden fallback, or output truncation. This is not a judge score and does not erase content quality.
-- **Task correctness:** whether the final answer or artifact is factually and functionally correct according to the independent fixture oracle.
-- **Scenario compliance:** whether the result satisfies the user request and scenario-specific output requirements, independently of how efficiently tools were used.
-- **Skill compliance:** whether the agent followed the tested skill's operational rules, supported CLI contract, bounds, and recovery policy.
-- **Safety:** whether the run avoided prohibited or unsafe actions and preserved the workspace and requested scope.
-- **Evidence quality:** whether claims, citations, note keys, and artifact assertions are sufficiently supported by independent oracle evidence.
-- **Tool efficiency:** whether the agent used a direct, purposeful sequence of tool calls without avoidable help, retries, scans, or fallback calls.
-- **Resource efficiency:** whether document reads, captured output, and context consumption stayed within the scenario's bounded resource targets.
+[Metric and score definitions](docs/evaluation-metrics.md)
 
 Reproduce the table:
 
