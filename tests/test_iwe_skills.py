@@ -30,7 +30,7 @@ class IweSkillTests(unittest.TestCase):
             self.assertEqual(name, spec.path.name)
             self.assertEqual(spec.runtime_cli, "iwe")
             self.assertEqual(spec.runtime_source, "homebrew")
-            self.assertEqual(spec.supported, ">=0.18.0 <0.19.0")
+            self.assertEqual(spec.supported, ">=0.18.0")
             self.assertEqual(spec.tested_version, "0.18.0")
             self.assertLessEqual(spec.normal_tool_calls, 1)
             self.assertLessEqual(spec.maximum_search_results, 20)
@@ -57,7 +57,7 @@ class IweSkillTests(unittest.TestCase):
                 binary = parent / "iwe"
                 binary.write_text(f"#!/bin/sh\nprintf 'iwe {version}\\n'\n", encoding="utf-8")
                 binary.chmod(0o755)
-                return binary
+                return binary.resolve()
 
             brew_binary = executable(root / "brew/bin")
             brew_spec = replace(base, runtime_source="homebrew", runtime_directory=None)
@@ -86,7 +86,7 @@ class IweSkillTests(unittest.TestCase):
             )
             (relative_root / "config.toml").write_text(relative_config, encoding="utf-8")
             relative_spec = load_skill(root=relative_root)
-            self.assertEqual(relative_spec.runtime_directory, relative_root / "tools")
+            self.assertEqual(relative_spec.runtime_directory, (relative_root / "tools").resolve())
             self.assertEqual(skill_manifest.verify_runtime_binary(relative_spec), relative_binary)
 
             absolute_binary = executable(root / "absolute-tools")
@@ -172,8 +172,8 @@ class IweSkillTests(unittest.TestCase):
                 "metadata.version",
             ),
             (
-                "compatibility: Requires IWE CLI >=0.18.0 and <0.19.0.",
-                "compatibility: Requires IWE CLI >=0.19.0 and <0.20.0.",
+                "compatibility: Requires IWE CLI >=0.18.0.",
+                "compatibility: Requires IWE CLI >=0.17.0.",
                 "compatibility",
             ),
         ):

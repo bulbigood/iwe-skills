@@ -208,17 +208,12 @@ def load_skills(root: Path = ROOT) -> tuple[str, dict[str, SkillSpec]]:
             runtime_directory = None
         line_match = re.match(r"^(\d+)\.(\d+)\.", tested)
         expected_range = (
-            f">={line_match.group(1)}.{line_match.group(2)}.0 "
-            f"<{line_match.group(1)}.{int(line_match.group(2)) + 1}.0"
-            if line_match
-            else ""
+            f">={line_match.group(1)}.{line_match.group(2)}.0" if line_match else ""
         )
         if supported != expected_range:
             raise ValueError(f"tested version {tested} does not match supported range {supported}")
         compatibility = _frontmatter_scalar(path / "SKILL.md", "compatibility")
-        expected_compatibility = (
-            f"Requires IWE CLI {supported.split()[0]} and {supported.split()[1]}."
-        )
+        expected_compatibility = f"Requires IWE CLI {supported}."
         if compatibility != expected_compatibility:
             raise ValueError(
                 "skill compatibility does not match configured supported runtime: "

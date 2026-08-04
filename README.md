@@ -20,13 +20,13 @@ The repository freezes agent-facing behavior against a specific IWE CLI line. Th
 
 ## Available skills
 
-- **`iwe-v18`** — Supports IWE CLI `>=0.18.0` and `<0.19.0`; tested with `0.18.0`. This is the current, supported skill for bounded retrieval, graph-aware project work, and safe Markdown refactoring. Skill version: `0.2.0`.
+- **`iwe-v18`** — Supports IWE CLI `>=0.18.0`; tested with `0.18.0`. This is the current, supported skill for bounded retrieval, graph-aware project work, and safe Markdown refactoring. Skill version: `0.2.0`.
 - **`iwe-memory-system` [deprecated]** — Legacy, unversioned IWE workflow skill. It does not declare a supported IWE CLI range and is retained only for compatibility and historical reference. Do not use it for new projects; use `iwe-v18` instead. Skill version: `0.0.67`.
 
 ## Requirements
 
 - An IWE workspace with IWE installed locally.
-- For `iwe-v18`, an IWE CLI version in the supported `0.18.x` line.
+- For `iwe-v18`, IWE CLI version `>=0.18.0`.
 - An AI-agent runtime that can load repository or user skills.
 
 The skills do not install, update, configure, or repair IWE. Runtime availability remains the operator's responsibility.

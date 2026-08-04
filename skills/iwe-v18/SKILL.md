@@ -1,7 +1,7 @@
 ---
 name: iwe-v18
 description: Use for IWE 0.18 knowledge-graph retrieval and safe Markdown refactors. Prefer bounded IWE commands over filesystem discovery.
-compatibility: Requires IWE CLI >=0.18.0 and <0.19.0.
+compatibility: Requires IWE CLI >=0.18.0.
 metadata:
   version: "0.2.0"
 ---
