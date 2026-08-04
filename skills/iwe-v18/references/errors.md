@@ -1,4 +1,4 @@
-# Rare IWE 0.18 errors
+# Rare IWE errors
 
 Read this file only when stderr does not explain the failure or when deciding whether fallback is permitted. Do not read it during a normal successful request.
 

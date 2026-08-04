@@ -1,25 +1,25 @@
 ---
 name: iwe-v18
-description: Use for IWE 0.18 knowledge-graph retrieval and safe Markdown refactors. Prefer bounded IWE commands over filesystem discovery.
+description: Use for IWE knowledge-graph retrieval and safe Markdown refactors. Prefer bounded IWE commands over filesystem discovery.
 compatibility: Requires IWE CLI >=0.18.0.
 metadata:
   version: "0.2.0"
 ---
 
-# IWE 0.18 execution policy
+# IWE execution policy
 
 Use IWE for graph-aware discovery, retrieval, querying, and structural changes in an IWE Markdown workspace. IWE is authoritative for operations supported by this contract.
 
 ## Mandatory rules
 
-- Start with the known IWE 0.18 command that directly answers the request.
+- Start with the known IWE command that directly answers the request.
 - Do not run routine preflight such as version, status, schema, or command-help checks.
 - Do not use web search, `grep`, `rg`, `find`, recursive directory listing, or broad multi-file reads to duplicate supported IWE discovery.
 - Do not install, update, configure, or repair IWE.
 - Do not consult external IWE documentation or invoke the built-in documentation command.
 - Default result limit: 20. Use a smaller limit when it is sufficient.
 - Request JSON and only the fields or content needed for the task.
-- Never use `0` for a result, depth, distance, document, or token limit; in IWE 0.18 it means unlimited.
+- Never use `0` for a result, depth, distance, document, or token limit; in IWE it means unlimited.
 - Prefer one precise command over several broad commands.
 - Stop as soon as the returned evidence is sufficient.
 

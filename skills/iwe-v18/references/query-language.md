@@ -1,4 +1,4 @@
-# Complex IWE 0.18 queries
+# Complex IWE queries
 
 Read this file only when the required nested boolean, comparison, projection, sort, or graph predicate cannot be expressed with the examples in `SKILL.md`.
 
