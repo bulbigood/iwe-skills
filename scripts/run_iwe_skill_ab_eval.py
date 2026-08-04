@@ -25,6 +25,7 @@ CURRENT_SKILL = "iwe-v18"
 SCENARIO = "discover-and-retrieve-bounded-multi-hop-context"
 DEFAULT_SAMPLES = 5
 CACHE = Path("tests/eval/.cache/iwe-v18-vs-memory-multihop")
+DEFAULT_RESULTS_FILE = Path("tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md")
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=positive_int,
         default=DEFAULT_SAMPLES,
         help=f"paired samples per target (default: {DEFAULT_SAMPLES})",
+    )
+    parser.add_argument(
+        "--results-file",
+        type=Path,
+        default=DEFAULT_RESULTS_FILE,
+        help=f"generated Markdown report (default: {DEFAULT_RESULTS_FILE})",
     )
     return parser.parse_args(argv)
 
@@ -142,11 +149,21 @@ def write_experiment(samples: int, root: Path = ROOT) -> Path:
     return path
 
 
+def build_command(manifest: Path, results_file: Path) -> list[str]:
+    return [
+        sys.executable,
+        str(ROOT / "tests/eval/run.py"),
+        "--experiment",
+        str(manifest),
+        "--markdown-report",
+        str(results_file),
+    ]
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     manifest = write_experiment(args.samples)
-    command = [sys.executable, str(ROOT / "tests/eval/run.py"), "--experiment", str(manifest)]
-    return subprocess.call(command, cwd=ROOT)
+    return subprocess.call(build_command(manifest, args.results_file), cwd=ROOT)
 
 
 if __name__ == "__main__":

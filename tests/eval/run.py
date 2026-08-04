@@ -1190,8 +1190,11 @@ def main() -> int:
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--jobs", type=int)
     parser.add_argument("--samples", type=int)
+    parser.add_argument("--markdown-report", type=Path)
     parser.add_argument("--keep-workspaces", action="store_true")
     args = parser.parse_args()
+    if args.markdown_report and not args.experiment:
+        parser.error("--markdown-report requires --experiment")
     experiment = load_experiment(args.experiment, ROOT) if args.experiment else None
     skill = None if experiment else load_skill(args.skill)
     config_name = experiment.agent_judge_config if experiment else args.config
@@ -1401,6 +1404,7 @@ def main() -> int:
             for r in results
         ],
     }
+    snapshot_document = None
     if experiment:
         from compare import compare_results
         expected_pairs = {
@@ -1443,6 +1447,14 @@ def main() -> int:
         for key, values in grouped_comparisons.items():
             atomic_write_json(report_dir / "comparisons" / f"{key}.json", values)
     atomic_write_json(report_dir / "summary.json", summary)
+    if args.markdown_report:
+        from report_markdown import write_markdown
+
+        assert snapshot_document is not None
+        markdown_path = args.markdown_report
+        if not markdown_path.is_absolute():
+            markdown_path = ROOT / markdown_path
+        write_markdown(markdown_path, snapshot_document, summary, report_dir.relative_to(ROOT))
     for outcome in outcomes:
         failed_metrics = [
             name for name, detail in outcome["metrics"].items() if not detail["pass"]
