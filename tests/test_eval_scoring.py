@@ -368,5 +368,27 @@ class ProductionEvalCommandTests(unittest.TestCase):
             module.parse_args(["--samples", "0"])
 
 
+class PairedSkillEvalCommandTests(unittest.TestCase):
+    def test_ab_command_maps_default_and_deprecated_skills_to_default_cli(self) -> None:
+        module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
+        targets = module.load_targets(ROOT)
+        self.assertEqual(targets[0].skill_id, "iwe-v18")
+        self.assertEqual(targets[0].skill_version, "0.2.0")
+        self.assertEqual(targets[0].iwe_version, "0.18.0")
+        self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
+        self.assertEqual(targets[1].skill_id, "iwe-memory-system")
+        self.assertEqual(targets[1].skill_version, "0.0.67")
+        self.assertEqual(targets[1].iwe_version, targets[0].iwe_version)
+        self.assertEqual(targets[1].contract_file, targets[0].contract_file)
+        self.assertEqual(targets[1].runtime_skill_id, "iwe-v18")
+
+    def test_ab_command_defaults_to_five_samples_and_allows_override(self) -> None:
+        module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_args")
+        self.assertEqual(module.parse_args([]).samples, 5)
+        self.assertEqual(module.parse_args(["--samples", "2"]).samples, 2)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            module.parse_args(["--samples", "0"])
+
+
 if __name__ == "__main__":
     unittest.main()
