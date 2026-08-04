@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -9,6 +10,16 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def load_eval_module(name: str):
+    path = ROOT / f"tests/eval/{name}.py"
+    spec = importlib.util.spec_from_file_location(f"iwe_eval_{name}", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def load_runner():
@@ -212,6 +223,128 @@ class EvalScoringContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             env = self.runner.judge_environment(Path(directory), Path(directory), Path(directory))
         self.assertNotIn("iwe", env["PATH"].lower())
+
+
+class ExperimentManifestTests(unittest.TestCase):
+    def test_loads_two_target_manifest_with_target_local_runtimes(self) -> None:
+        experiment_module = load_eval_module("experiment")
+        experiment = experiment_module.load_experiment(
+            ROOT / "tests/eval/experiments/example.toml", ROOT
+        )
+        self.assertEqual(len(experiment.targets), 2)
+        self.assertEqual(experiment.samples, 2)
+        self.assertEqual(experiment.targets[0].runtime.version, "0.18.0")
+        self.assertEqual(experiment.targets[1].runtime.version, "0.18.1")
+        self.assertEqual(experiment.targets[0].skill_path, experiment.targets[1].skill_path)
+        self.assertNotEqual(experiment.targets[0].id, experiment.targets[1].id)
+
+    def test_matrix_is_complete_paired_and_deterministic(self) -> None:
+        runner = load_runner()
+        experiment = load_eval_module("experiment").load_experiment(
+            ROOT / "tests/eval/experiments/example.toml", ROOT
+        )
+        scenarios = [s for s in runner.load_scenarios() if s.id in experiment.scenario_ids]
+        cells = runner.build_matrix(experiment, scenarios)
+        self.assertEqual(len(cells), 8)
+        self.assertEqual(len({(c.target_id, c.scenario_id, c.sample_index) for c in cells}), 8)
+        self.assertEqual(len({c.pair_id for c in cells}), 4)
+        for pair_id in {c.pair_id for c in cells}:
+            self.assertEqual(sum(c.pair_id == pair_id for c in cells), 2)
+
+    def test_pairwise_comparison_is_threshold_based_and_keeps_invalid_cells(self) -> None:
+        compare = load_eval_module("compare")
+        def result(target, sample, score, valid=True):
+            scores = {name: 5 for name in load_runner().DIMENSIONS}
+            scores["tool_efficiency"] = score
+            return {"target_id": target, "scenario_id": "s", "sample": sample,
+                    "pair_id": f"pair-{sample}",
+                    "verdict": {"valid": valid, "metric_scores": scores,
+                                "metric_failures": {} if score >= 4 else {"tool_efficiency": {}},
+                                "validation_errors": [] if valid else ["bad"]},
+                    "agent": {"metrics": {"tool_calls": sample}}}
+        comparison = compare.compare_results([
+            result("a", 1, 5), result("b", 1, 3),
+            result("a", 2, 3, False), result("b", 2, 5),
+        ], ("a", "b"), ("tool_efficiency",))[0]
+        metric = comparison["metrics"]["tool_efficiency"]
+        self.assertEqual((metric["left_wins"], metric["ties"], metric["left_losses"]), (1, 0, 1))
+        self.assertEqual(comparison["invalid_cells"], {"a": 1, "b": 0})
+        self.assertNotIn("mean", json.dumps(comparison).lower())
+        self.assertNotIn("weighted", json.dumps(comparison).lower())
+
+    def test_experiment_list_mode_shows_pairs_without_resolving_binaries(self) -> None:
+        completed = subprocess.run([
+            str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"),
+            "--experiment", "tests/eval/experiments/example.toml", "--list",
+        ], cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("v18-on-0180", completed.stdout)
+        self.assertIn("IWE 0.18.1", completed.stdout)
+        self.assertIn("one-call-bounded-discovery", completed.stdout)
+
+    def test_target_aggregation_is_independent_complete_and_histogrammed(self) -> None:
+        runner = load_runner()
+        scores = {name: 5 for name in runner.DIMENSIONS}
+        rows = []
+        for target in ("a", "b"):
+            for sample in (1, 2):
+                target_scores = dict(scores)
+                if target == "b":
+                    target_scores["task_correctness"] = 0
+                rows.append({"target_id": target, "scenario": "S", "scenario_id": "s",
+                             "sample": sample, "verdict": {"valid": True,
+                             "metric_scores": target_scores,
+                             "metric_failures": {} if target == "a" else {"task_correctness": {}},
+                             "validation_errors": []}})
+        outcomes = runner.aggregate_results(rows, runner.load_eval_config(), expected_samples=2)
+        self.assertTrue(next(o for o in outcomes if o["target_id"] == "a")["pass"])
+        failed = next(o for o in outcomes if o["target_id"] == "b")
+        self.assertFalse(failed["pass"])
+        self.assertEqual(failed["metrics"]["task_correctness"]["score_histogram"]["0"], 2)
+
+    def test_experiment_rejects_skill_name_mismatch_in_strict_frontmatter(self) -> None:
+        experiment_module = load_eval_module("experiment")
+        source = (ROOT / "tests/eval/experiments/example.toml").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            root = Path(directory)
+            (root / "skill").mkdir()
+            (root / "skill/SKILL.md").write_text(
+                "---\nname: wrong-name\nmetadata:\n  version: 0.2.0\n---\nbody\n",
+                encoding="utf-8",
+            )
+            (root / "contract.json").write_text(
+                json.dumps({"schema_version": 1, "cli_line": "0.18", "commands": {"find": {}}}),
+                encoding="utf-8",
+            )
+            manifest = source.replace("skills/iwe-v18", str((root / "skill").relative_to(ROOT))).replace(
+                "contracts/iwe-v18.json", str((root / "contract.json").relative_to(ROOT))
+            )
+            path = root / "experiment.toml"
+            path.write_text(manifest, encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "skill name"):
+                experiment_module.load_experiment(path, ROOT)
+
+    def test_comparison_rejects_conflicting_pair_ids_and_missing_expected_cells(self) -> None:
+        compare = load_eval_module("compare")
+        rows = [
+            {"target_id": target, "scenario_id": "s", "sample": 1, "pair_id": pair_id,
+             "verdict": {"valid": True, "metric_scores": {"safety": 5}, "metric_failures": {}},
+             "agent": {"metrics": {}}}
+            for target, pair_id in (("a", "pair-a"), ("b", "pair-b"))
+        ]
+        with self.assertRaisesRegex(ValueError, "pair_id"):
+            compare.compare_results(rows, ("a", "b"), ("safety",), {("s", 1): "expected"})
+        with self.assertRaisesRegex(ValueError, "missing expected"):
+            compare.compare_results([], ("a", "b"), ("safety",), {("s", 1): "expected"})
+
+    def test_single_skill_list_output_remains_legacy_compatible(self) -> None:
+        completed = subprocess.run([
+            str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"), "--list",
+        ], cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        first = completed.stdout.splitlines()[0]
+        self.assertFalse(first.startswith("discover-and-retrieve-"), first)
+        self.assertRegex(first, r"^.+ \[[^]]+\]$")
 
 
 if __name__ == "__main__":

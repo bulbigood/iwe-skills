@@ -29,8 +29,10 @@ EVAL = Path(__file__).resolve().parent
 SCENARIOS_FILE = EVAL / "scenarios/iwe.eval.yaml"
 SCENARIO_SCHEMA = EVAL / "scenario.schema.json"
 sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(EVAL))
 
 from skill_manifest import SkillSpec, load_skill, verify_runtime_binary
+from experiment import load_experiment
 
 
 DIMENSIONS = ("task_correctness", "scenario_compliance", "skill_compliance", "safety", "evidence_quality", "tool_efficiency", "resource_efficiency")
@@ -74,6 +76,54 @@ StrictSafeLoader.add_constructor(
 class EvalConfig:
     score_scale: dict[int, str]
     required_success_percent: dict[str, int]
+
+
+@dataclass(frozen=True)
+class MatrixCell:
+    target_id: str
+    scenario_id: str
+    sample_index: int
+    pair_id: str
+    target: object
+    scenario: object
+
+
+def build_matrix(experiment, scenarios) -> list[MatrixCell]:
+    """Expand a complete matrix in scenario/sample/target order."""
+    selected = {scenario.id: scenario for scenario in scenarios}
+    scenario_ids = tuple(scenario_id for scenario_id in experiment.scenario_ids if scenario_id in selected)
+    if not scenario_ids:
+        raise ValueError("no experiment scenarios selected")
+    cells = []
+    for scenario_id in scenario_ids:
+        for sample in range(1, experiment.samples + 1):
+            pair_id = hashlib.sha256(
+                f"{experiment.name}\0{scenario_id}\0{sample}".encode()
+            ).hexdigest()[:16]
+            for target in experiment.targets:
+                cells.append(MatrixCell(target.id, scenario_id, sample, pair_id, target, selected[scenario_id]))
+    expected = len(experiment.targets) * len(scenario_ids) * experiment.samples
+    identities = {(c.target_id, c.scenario_id, c.sample_index) for c in cells}
+    if len(cells) != expected or len(identities) != expected:
+        raise ValueError("incomplete or duplicate evaluation matrix")
+    return cells
+
+
+def payload_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    for file in sorted(item for item in path.rglob("*") if item.is_file()):
+        digest.update(file.relative_to(path).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(file.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def atomic_write_json(path: Path, value: object) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
@@ -1045,18 +1095,26 @@ def required_successes(total: int, percent: int) -> int:
     return math.ceil(total * percent / 100)
 
 
-def aggregate_results(results: list[dict], eval_config: EvalConfig | None = None) -> list[dict]:
+def aggregate_results(
+    results: list[dict], eval_config: EvalConfig | None = None, expected_samples: int | None = None
+) -> list[dict]:
     eval_config = eval_config or load_eval_config()
-    grouped: dict[str, list[dict]] = {}
+    grouped: dict[tuple[str | None, str], list[dict]] = {}
     for result in results:
-        grouped.setdefault(result["scenario"], []).append(result)
+        grouped.setdefault((result.get("target_id"), result["scenario"]), []).append(result)
     outcomes = []
-    for scenario, samples in grouped.items():
+    for (target_id, scenario), samples in grouped.items():
         total = len(samples)
+        sample_ids = [sample["sample"] for sample in samples]
+        if len(sample_ids) != len(set(sample_ids)):
+            raise ValueError(f"duplicate samples for {target_id or 'single'} / {scenario}")
+        if expected_samples is not None and set(sample_ids) != set(range(1, expected_samples + 1)):
+            raise ValueError(f"incomplete samples for {target_id or 'single'} / {scenario}")
         metrics = {}
         for dimension in DIMENSIONS:
             successful = sum(
-                dimension not in sample["verdict"].get("metric_failures", {})
+                sample["verdict"].get("valid", False)
+                and dimension not in sample["verdict"].get("metric_failures", {})
                 for sample in samples
             )
             percent = eval_config.required_success_percent[dimension]
@@ -1067,77 +1125,127 @@ def aggregate_results(results: list[dict], eval_config: EvalConfig | None = None
                 "success_percent": successful * 100 / total,
                 "required_success_percent": percent,
                 "required_successes": required,
+                "score_histogram": {
+                    str(score): sum(
+                        sample["verdict"].get("metric_scores", {}).get(dimension, 0) == score
+                        for sample in samples
+                    )
+                    for score in range(6)
+                },
                 "pass": successful >= required,
             }
         invalid_samples = sum(not sample["verdict"].get("valid", False) for sample in samples)
-        outcomes.append({
+        outcome = {
             "scenario": scenario,
             "samples": total,
             "invalid_samples": invalid_samples,
             "metrics": metrics,
             "pass": invalid_samples == 0 and all(item["pass"] for item in metrics.values()),
-        })
+        }
+        if target_id is not None:
+            outcome["target_id"] = target_id
+        outcomes.append(outcome)
     return outcomes
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="codex")
-    parser.add_argument("--skill", help="skill id from the root config.toml")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--skill", help="skill id from the root config.toml")
+    mode.add_argument("--experiment", type=Path, help="paired experiment TOML")
     parser.add_argument("--scenario", action="append")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--jobs", type=int)
     parser.add_argument("--samples", type=int)
     parser.add_argument("--keep-workspaces", action="store_true")
     args = parser.parse_args()
-    skill = load_skill(args.skill)
-    config_path = EVAL / "configs" / f"{args.config}.json"
+    experiment = load_experiment(args.experiment, ROOT) if args.experiment else None
+    skill = None if experiment else load_skill(args.skill)
+    config_name = experiment.agent_judge_config if experiment else args.config
+    config_path = EVAL / "configs" / f"{config_name}.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
     eval_config = load_eval_config()
     scenarios = load_scenarios()
+    if experiment:
+        scenarios = [s for s in scenarios if s.id in experiment.scenario_ids]
     if args.scenario:
         scenarios = [s for s in scenarios if any(value.lower() in s.name.lower() for value in args.scenario)]
     if args.list:
+        if experiment:
+            for target in experiment.targets:
+                print(f"target {target.id}: {target.skill_path.relative_to(ROOT)} @ IWE {target.runtime.version} ({target.runtime.source})")
         for scenario in scenarios:
-            print(f"{scenario.name} [{scenario.fixture}]")
+            if experiment:
+                print(f"{scenario.id}: {scenario.name} [{scenario.fixture}]")
+            else:
+                print(f"{scenario.name} [{scenario.fixture}]")
         return 0
     if not scenarios:
         parser.error("no scenarios selected")
-    iwe_binary = verify_iwe_binary(skill)
-    jobs = args.jobs or config["jobs"]
-    samples = args.samples or config["samples"]
+    if experiment and (args.jobs is not None or args.samples is not None):
+        parser.error("experiment samples/jobs are authoritative; edit the manifest")
+    if experiment:
+        runtime_binaries = {
+            target.id: verify_runtime_binary(target.runtime) for target in experiment.targets
+        }
+        canonical = {}
+        for target in experiment.targets:
+            binary = runtime_binaries[target.id]
+            previous = canonical.setdefault(binary, target.runtime.version)
+            if previous != target.runtime.version:
+                raise RuntimeError(
+                    f"targets resolve {binary} with conflicting versions; use distinct directory sources"
+                )
+        jobs = experiment.jobs
+        samples = experiment.samples
+    else:
+        assert skill is not None
+        iwe_binary = verify_iwe_binary(skill)
+        runtime_binaries = {"single": iwe_binary}
+        jobs = args.jobs or config["jobs"]
+        samples = args.samples or config["samples"]
     cache = EVAL / ".cache"
     cache.mkdir(exist_ok=True)
     fixtures = {name: ensure_fixture(config, name, cache) for name in {s.fixture for s in scenarios}}
-    report_dir = EVAL / "reports" / dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ")
+    suffix = f"-{experiment.name}" if experiment else ""
+    report_dir = EVAL / "reports" / (dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ") + suffix)
     report_dir.mkdir(parents=True)
 
-    def execute(task: tuple[Scenario, int]) -> dict:
-        scenario, sample = task
-        temporary = Path(tempfile.mkdtemp(prefix=f"iwe-skill-eval-{scenario.slug[:20]}-"))
+    def execute(task) -> dict:
+        if isinstance(task, MatrixCell):
+            scenario, sample = task.scenario, task.sample_index
+            local_skill, target_id, pair_id = task.target, task.target_id, task.pair_id
+            local_iwe_binary = runtime_binaries[target_id]
+        else:
+            scenario, sample = task
+            assert skill is not None
+            local_skill, target_id, pair_id = skill, "single", None
+            local_iwe_binary = runtime_binaries[target_id]
+        temporary = Path(tempfile.mkdtemp(prefix=f"iwe-skill-eval-{target_id[:16]}-{scenario.slug[:20]}-"))
         workspace = temporary / "workspace"
         base_name = "seventeen-centuries" if scenario.fixture.startswith("seventeen") else "pkm-demo"
         shutil.copytree(fixtures[scenario.fixture], workspace, ignore=shutil.ignore_patterns(".git"))
         prepare(workspace, scenario.fixture)
-        install_skill(workspace, skill)
+        install_skill(workspace, local_skill)
         before = snapshot(workspace)
         isolated_home = temporary / "home"
         codex_home = temporary / "codex-home"
         isolated_home.mkdir(); codex_home.mkdir()
         shim_bin = temporary / "shims"
-        install_command_shims(shim_bin, scenario, iwe_binary, temporary)
+        install_command_shims(shim_bin, scenario, local_iwe_binary, temporary)
         (isolated_home / ".bash_profile").write_text(
-            f'export PATH="{shim_bin}:{iwe_binary.parent}:$PATH"\n',
+            f'export PATH="{shim_bin}:{local_iwe_binary.parent}:$PATH"\n',
             encoding="utf-8",
         )
         host_auth = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"
         if host_auth.exists(): shutil.copy2(host_auth, codex_home / "auth.json")
-        env = eval_environment(isolated_home, codex_home, shim_bin, iwe_binary, temporary)
+        env = eval_environment(isolated_home, codex_home, shim_bin, local_iwe_binary, temporary)
         prompt = agent_prompt(scenario)
         agent = run_process(config["agent_command"], prompt, workspace, config["timeout_seconds"], env)
         telemetry = load_iwe_telemetry(temporary / "iwe-telemetry.jsonl")
         agent["iwe_telemetry"] = telemetry
-        agent["metrics"] = command_metrics(agent["commands"], telemetry, skill.name)
+        agent["metrics"] = command_metrics(agent["commands"], telemetry, local_skill.name)
         after = snapshot(workspace)
         errors = mechanical_errors(
             scenario, before, after, agent["commands"], workspace, agent["metrics"]
@@ -1145,7 +1253,7 @@ def main() -> int:
         judge_command = config["judge_command"].format(judge_schema=shlex.quote(str(EVAL / "judge.schema.json")))
         oracle = independent_oracle_evidence(scenario, before, after, agent["final"])
         judge_prompt_text = judge_prompt(
-            skill, scenario, agent, before, after, errors, eval_config, oracle
+            local_skill, scenario, agent, before, after, errors, eval_config, oracle
         )
         remove_tested_skill_for_judge(workspace)
         judge_workspace = create_judge_workspace(temporary)
@@ -1180,6 +1288,15 @@ def main() -> int:
             "scenario": scenario.name,
             "scenario_id": scenario.id,
             "sample": sample,
+            "fixture": {
+                "name": scenario.fixture,
+                "commit": config["fixtures"][base_name]["commit"],
+            },
+            "agent_judge_config": {
+                "name": config["name"],
+                "agent_command_sha256": hashlib.sha256(config["agent_command"].encode()).hexdigest(),
+                "judge_command_sha256": hashlib.sha256(config["judge_command"].encode()).hexdigest(),
+            },
             "scoring_contract": {
                 "scale": eval_config.score_scale,
                 "dimensions": scenario.scoring,
@@ -1198,7 +1315,26 @@ def main() -> int:
             ),
             "workspace": str(workspace) if args.keep_workspaces else None,
         }
-        (report_dir / f"{scenario.slug}--{sample}.json").write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        if experiment:
+            result["target_id"] = target_id
+            result["pair_id"] = pair_id
+            target_dir = report_dir / "targets" / target_id
+            target_dir.mkdir(parents=True, exist_ok=True)
+            result["target_provenance"] = {
+                "skill_path": str(local_skill.path.relative_to(ROOT)),
+                "skill_version": local_skill.skill_version,
+                "skill_sha256": payload_hash(local_skill.path),
+                "contract_file": str(local_skill.contract_file.relative_to(ROOT)),
+                "contract_sha256": hashlib.sha256(local_skill.contract_file.read_bytes()).hexdigest(),
+                "runtime_source": local_skill.runtime.source,
+                "runtime_binary": str(local_iwe_binary),
+                "declared_runtime_version": local_skill.runtime.version,
+                "observed_runtime_version": local_skill.runtime.version,
+            }
+            raw_path = target_dir / f"{scenario.slug}--{sample}.json"
+        else:
+            raw_path = report_dir / f"{scenario.slug}--{sample}.json"
+        atomic_write_json(raw_path, result)
         failures = sorted(result["verdict"]["metric_failures"])
         status = "VALID" if result["verdict"]["valid"] else "INVALID"
         suffix = f" metric_failures={failures}" if failures else ""
@@ -1206,21 +1342,66 @@ def main() -> int:
         if not args.keep_workspaces: shutil.rmtree(temporary)
         return result
 
-    tasks = [(scenario, sample) for scenario in scenarios for sample in range(1, samples + 1)]
+    tasks = build_matrix(experiment, scenarios) if experiment else [
+        (scenario, sample) for scenario in scenarios for sample in range(1, samples + 1)
+    ]
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, len(tasks))) as executor:
         results = list(executor.map(execute, tasks))
-    outcomes = aggregate_results(results, eval_config)
+    outcomes = aggregate_results(results, eval_config, expected_samples=samples)
     summary = {
         "configuration": config["name"],
-        "skill": skill.name,
+        "skill": skill.name if skill else None,
+        "experiment": experiment.name if experiment else None,
         "required_success_percent": eval_config.required_success_percent,
         "scenarios": outcomes,
         "results": [
-            {"scenario": r["scenario"], "sample": r["sample"], "verdict": r["verdict"]}
+            ({"target_id": r["target_id"], "pair_id": r["pair_id"]} if experiment else {})
+            | {"scenario": r["scenario"], "sample": r["sample"], "verdict": r["verdict"]}
             for r in results
         ],
     }
-    (report_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    if experiment:
+        from compare import compare_results
+        expected_pairs = {
+            (cell.scenario_id, cell.sample_index): cell.pair_id
+            for cell in tasks
+            if isinstance(cell, MatrixCell)
+        }
+        comparisons = compare_results(
+            results,
+            tuple(target.id for target in experiment.targets),
+            DIMENSIONS,
+            expected_pairs,
+        )
+        summary["comparisons"] = comparisons
+        snapshot_document = {
+            "schema_version": 1, "name": experiment.name,
+            "scenarios": [scenario.id for scenario in scenarios],
+            "samples": samples, "jobs": jobs,
+            "agent_judge_config": experiment.agent_judge_config,
+            "estimated_agent_calls": len(tasks), "estimated_judge_calls": len(tasks),
+            "targets": [
+                {"id": target.id, "skill_path": str(target.path.relative_to(ROOT)),
+                 "skill_version": target.skill_version,
+                 "contract_file": str(target.contract_file.relative_to(ROOT)),
+                 "runtime": {"cli": target.runtime.cli, "source": target.runtime.source,
+                             "directory": str(target.runtime.directory), "version": target.runtime.version}}
+                for target in experiment.targets
+            ],
+        }
+        atomic_write_json(report_dir / "experiment.json", snapshot_document)
+        for target in experiment.targets:
+            atomic_write_json(report_dir / "targets" / target.id / "summary.json", {
+                "target_id": target.id,
+                "scenarios": [outcome for outcome in outcomes if outcome.get("target_id") == target.id],
+            })
+        grouped_comparisons = {}
+        for comparison in comparisons:
+            key = f"{comparison['left_target_id']}--vs--{comparison['right_target_id']}"
+            grouped_comparisons.setdefault(key, []).append(comparison)
+        for key, values in grouped_comparisons.items():
+            atomic_write_json(report_dir / "comparisons" / f"{key}.json", values)
+    atomic_write_json(report_dir / "summary.json", summary)
     for outcome in outcomes:
         failed_metrics = [
             name for name, detail in outcome["metrics"].items() if not detail["pass"]
@@ -1231,7 +1412,8 @@ def main() -> int:
         if outcome["invalid_samples"]:
             details.append(f"invalid_samples={outcome['invalid_samples']}")
         suffix = " " + " ".join(details) if details else ""
-        print(f"{'PASS' if outcome['pass'] else 'FAIL'} aggregate {outcome['scenario']}{suffix}")
+        target_prefix = f"{outcome.get('target_id')} / " if outcome.get("target_id") else ""
+        print(f"{'PASS' if outcome['pass'] else 'FAIL'} aggregate {target_prefix}{outcome['scenario']}{suffix}")
     print(f"Reports: {report_dir}")
     return 0 if all(outcome["pass"] for outcome in outcomes) else 1
 

@@ -7,9 +7,18 @@ python3 -m pip install -r tests/eval/requirements.txt
 python3 tests/eval/run.py --list
 python3 tests/eval/run.py --skill iwe-v18 --config codex
 python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario "One-call bounded discovery" --jobs 1 --samples 1
+python3 tests/eval/run.py --experiment tests/eval/experiments/example.toml --list
 ```
 
 When `--skill` is omitted, the runner uses `default_skill` from root `config.toml`. Before starting agents it verifies the configured local IWE binary against the exact tested version.
+
+## Multi-target paired experiments
+
+Use a TOML manifest under `experiments/` to compare any `N >= 2` skill/runtime targets across selected scenarios and `X >= 1` paired samples. Every target independently declares its skill payload, contract, exact IWE version, and unambiguous runtime directory. The runner verifies all binaries before fixture preparation or paid processes, applies one global jobs limit, and keeps the existing `--skill` mode compatible. See [experiments/README.md](experiments/README.md) for the complete contract and two-/three-target examples.
+
+All targets receive the same fixture preparation, operator request, independent Markdown-snapshot oracle, agent/judge configuration, metrics, rubric, score scale, and thresholds. Each target gets an independent absolute verdict. Pairwise threshold wins/ties/losses and valid-on-both efficiency deltas are evidence only: they cannot rescue an absolute failure. Invalid samples stay in denominators; missing and duplicate cells fail closed. Reports use raw score histograms and distributions—never ordinal means, medians, weighted scores, or rankings.
+
+Before execution, estimate paid work as `N × selected scenarios × X` agent calls plus the same number of judge calls. Listing is deterministic and starts neither process.
 
 ## Fixtures
 

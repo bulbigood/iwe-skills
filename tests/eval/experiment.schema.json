@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "name", "scenarios", "samples", "jobs", "agent_judge_config", "targets"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+    "scenarios": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "samples": {"type": "integer", "minimum": 1},
+    "jobs": {"type": "integer", "minimum": 1},
+    "agent_judge_config": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
+    "targets": {
+      "type": "array", "minItems": 2,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "skill_path", "skill_version", "contract_file", "runtime"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+          "skill_path": {"type": "string", "minLength": 1},
+          "skill_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "contract_file": {"type": "string", "minLength": 1},
+          "runtime": {
+            "type": "object", "additionalProperties": false,
+            "required": ["cli", "source", "version"],
+            "properties": {
+              "cli": {"type": "string", "pattern": "^[^/\\\\]+$"},
+              "source": {"const": "directory"},
+              "directory": {"type": "string", "minLength": 1},
+              "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"}
+            },
+            "allOf": [{"if": {"properties": {"source": {"const": "directory"}}}, "then": {"required": ["directory"]}, "else": {"not": {"required": ["directory"]}}}]
+          }
+        }
+      }
+    }
+  }
+}

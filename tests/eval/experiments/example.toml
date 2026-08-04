@@ -1,0 +1,28 @@
+schema_version = 1
+name = "iwe-v18-runtime-comparison"
+scenarios = ["one-call-bounded-discovery", "apply-a-guarded-structured-block-update"]
+samples = 2
+jobs = 2
+agent_judge_config = "codex"
+
+[[targets]]
+id = "v18-on-0180"
+skill_path = "skills/iwe-v18"
+skill_version = "0.2.0"
+contract_file = "contracts/iwe-v18.json"
+[targets.runtime]
+cli = "iwe"
+source = "directory"
+directory = ".runtimes/iwe-0.18.0/bin"
+version = "0.18.0"
+
+[[targets]]
+id = "v18-on-0181"
+skill_path = "skills/iwe-v18"
+skill_version = "0.2.0"
+contract_file = "contracts/iwe-v18.json"
+[targets.runtime]
+cli = "iwe"
+source = "directory"
+directory = ".runtimes/iwe-0.18.1/bin"
+version = "0.18.1"

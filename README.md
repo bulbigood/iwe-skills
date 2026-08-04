@@ -84,6 +84,8 @@ python3 tests/eval/run.py --list
 
 Behavioral evaluations use pinned fixture repositories, isolated agent and judge workspaces, exact runtime telemetry, independent fixture-based correctness evidence, and per-metric repeated-sample acceptance thresholds. The scenarios are schema-validated YAML in [`tests/eval/scenarios/iwe.eval.yaml`](tests/eval/scenarios/iwe.eval.yaml).
 
+The harness also supports paired multi-target experiments in which every target declares its own exact IWE runtime and skill payload. Results evaluate skill/runtime pairs while sharing fixtures, the independent oracle, judges, metrics, and rubrics. See [`tests/eval/experiments/README.md`](tests/eval/experiments/README.md).
+
 Agent and judge runs invoke paid, nondeterministic model services. Run them only with explicit operator authorization.
 
 ## Maintainer documentation
