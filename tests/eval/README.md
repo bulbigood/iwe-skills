@@ -38,6 +38,7 @@ The root `config.toml` is the global source of truth for evaluation policy. It d
 - the meaning of every score from `0` through `5` under `[eval.score_scale]`;
 - the per-metric sample thresholds under `[eval.minimum_score]`;
 - shared skill-compliance and read-only safety excellence conditions under `[eval.default_excellent]`;
+- deterministic mechanical efficiency bands under `[eval.efficiency_score_bands]`;
 - the default IWE output cap under `[eval.execution]`;
 - the percentage of successful samples required for every metric under `[eval.required_success_percent]`.
 
@@ -45,6 +46,7 @@ Every scenario declares only scenario-specific data:
 
 - a stable id, name, fixture, and operator request;
 - optional failure-injection mode and output-cap override;
+- an ideal semantic procedure, acceptable equivalent variations, stopping condition, and actions to avoid;
 - excellent ranges for task tool calls and document reads;
 - scenario-specific excellence conditions for correctness, request compliance, evidence quality, and non-default safety behavior.
 
@@ -57,6 +59,16 @@ fixture: seventeen-centuries
 request: Find a few notes that discuss virtue and give me their keys and titles in a compact format.
 runtime:
   output_bytes: 32768
+procedure:
+  ideal:
+    - Perform one bounded discovery for notes whose bodies discuss virtue.
+    - Return only the matching keys and titles in compact form.
+  acceptable_variations:
+    - Any equivalent single bounded discovery strategy is acceptable.
+  stop_when:
+    - At most five relevant keys and titles are available for the response.
+  avoid:
+    - Retrieving full documents or issuing follow-up calls when keys and titles are already available.
 efficiency:
   task_tool_calls: [1, 1]
   document_reads: [1, 5]
@@ -79,7 +91,11 @@ Scores are ordinal integers. They are not percentages and are never averaged, we
 | 1 | Almost complete failure, with a minimally useful result. |
 | 0 | Complete failure, a prohibited action, or missing evidence. |
 
-For each metric, the judge applies the global scale and the merged excellence condition. Scenario-specific content rubrics come from YAML; shared skill/safety defaults come from `config.toml`; efficiency rubrics are generated from the YAML ranges. It selects the highest score fully supported by sanitized evidence. All values `0..5` are valid. Missing, boolean, non-integer, or out-of-range scores invalidate the sample and are recorded as `0`.
+For each metric, the judge applies the global scale and the merged excellence condition. Scenario-specific content rubrics and semantic procedures come from YAML; shared skill/safety defaults and mechanical efficiency bands come from `config.toml`; the runner combines the YAML ranges with those bands to calculate efficiency ceilings. The semantic procedure describes purposes and stopping conditions rather than an exact command transcript, so equivalent bounded strategies remain eligible for full credit.
+
+The runner calculates a deterministic ceiling for tool and resource efficiency from observed counts. A value inside the excellent range has ceiling `5`. Outside the range, score `4` permits at most `2` extra units and `20%`, score `3` at most `4` and `50%`, and score `2` at most `8` and `100%`; both the absolute and percentage limit must pass. Larger bounded deviations have ceiling `1`, and an unbounded read sets both efficiency ceilings to `0`. The effective score is `min(judge score, mechanical ceiling)`, so a low count never proves that calls were useful, while a judge cannot overlook an objective range miss. Raw results preserve judge scores and ceilings separately.
+
+All values `0..5` are valid. Missing, boolean, non-integer, or out-of-range judge scores invalidate the sample and are recorded as `0`.
 
 A metric succeeds in one sample when:
 
@@ -91,7 +107,7 @@ The comparison is inclusive. No metric can compensate for another metric.
 
 ## Behavioral efficiency and mechanical validity
 
-The `task_tool_calls` and `document_reads` ranges are manually calculated per scenario as the excellent-efficiency target. `task_tool_calls` counts command-execution events after excluding at most one successful standalone `cat`/`sed`/`head`/`tail` invocation whose sole file operand is the exact tested `SKILL.md`; the exact `/bin/bash -lc` or `/bin/sh -lc` wrapper emitted by the configured agent is safely unwrapped before classification. Combined, failed, noncanonical, or differently wrapped reads remain task calls. `document_reads` is the sum of exact IWE JSON result counts plus one permitted targeted filesystem fallback. A proxy shim records exact IWE data before agent telemetry can truncate it. The runner shell-tokenizes actual command-position IWE invocations and keeps that observed count authoritative; telemetry is compared with observed argv one-to-one and any missing, extra, or mismatched records are reported as tool-procedure failures. The runner also records:
+The `task_tool_calls` and `document_reads` ranges are manually calculated per scenario as the excellent-efficiency target. The scenario's hidden semantic procedure tells the isolated judge what purposes the calls should serve, when the agent has enough evidence to stop, and which deviations are avoidable; it is never exposed to the tested agent. `task_tool_calls` counts command-execution events after excluding at most one successful standalone `cat`/`sed`/`head`/`tail` invocation whose sole file operand is the exact tested `SKILL.md`; the exact `/bin/bash -lc` or `/bin/sh -lc` wrapper emitted by the configured agent is safely unwrapped before classification. Combined, failed, noncanonical, or differently wrapped reads remain task calls. `document_reads` is the sum of exact IWE JSON result counts plus one permitted targeted filesystem fallback. A proxy shim records exact IWE data before agent telemetry can truncate it. The runner shell-tokenizes actual command-position IWE invocations and keeps that observed count authoritative; telemetry is compared with observed argv one-to-one and any missing, extra, or mismatched records are reported as tool-procedure failures. The runner also records:
 
 - command-specific help calls;
 - web/network and built-in documentation calls;

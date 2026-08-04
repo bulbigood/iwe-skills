@@ -329,6 +329,11 @@ class IweSkillTests(unittest.TestCase):
             self.assertNotIn("scoring", item)
             self.assertNotIn("iwe_calls", item.get("efficiency", {}))
             self.assertNotIn("result_limit", item.get("runtime", {}))
+            self.assertEqual(
+                set(item["procedure"]),
+                {"ideal", "acceptable_variations", "stop_when", "avoid"},
+            )
+            self.assertTrue(all(item["procedure"].values()))
         names = {scenario.name for scenario in scenarios}
         self.assertEqual(len(scenarios), 10)
         for expected in (
@@ -386,6 +391,8 @@ class IweSkillTests(unittest.TestCase):
         reject(lambda document: document["scenarios"][0]["excellent"].update(weight="unsupported"))
         reject(lambda document: document["scenarios"][0]["efficiency"].update(task_tool_calls=[3, 2]))
         reject(lambda document: document["scenarios"][0]["excellent"].pop("evidence_quality"))
+        reject(lambda document: document["scenarios"][0].pop("procedure"))
+        reject(lambda document: document["scenarios"][0]["procedure"].update(ideal=[]))
 
         duplicate_key = module.SCENARIOS_FILE.read_text(encoding="utf-8").replace(
             "    task_correctness:",
