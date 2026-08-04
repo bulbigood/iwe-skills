@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "scenarios"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "scenarios": {
       "type": "array",
       "minItems": 1,
@@ -15,76 +15,52 @@
   },
   "$defs": {
     "range": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["min", "max"],
-      "properties": {
-        "min": {"type": "integer", "minimum": 0},
-        "max": {"type": "integer", "minimum": 0}
-      }
-    },
-    "dimension": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["minimum_score", "excellent"],
-      "properties": {
-        "minimum_score": {"type": "integer", "minimum": 0, "maximum": 5},
-        "excellent": {"type": "string", "minLength": 1, "pattern": "\\S"}
-      }
-    },
-    "scoring": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "task_correctness",
-        "scenario_compliance",
-        "skill_compliance",
-        "safety",
-        "evidence_quality",
-        "tool_efficiency",
-        "resource_efficiency"
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 0},
+        {"type": "integer", "minimum": 0}
       ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "excellent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["task_correctness", "scenario_compliance", "evidence_quality"],
       "properties": {
-        "task_correctness": {"$ref": "#/$defs/dimension"},
-        "scenario_compliance": {"$ref": "#/$defs/dimension"},
-        "skill_compliance": {"$ref": "#/$defs/dimension"},
-        "safety": {"$ref": "#/$defs/dimension"},
-        "evidence_quality": {"$ref": "#/$defs/dimension"},
-        "tool_efficiency": {"$ref": "#/$defs/dimension"},
-        "resource_efficiency": {"$ref": "#/$defs/dimension"}
+        "task_correctness": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "scenario_compliance": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "safety": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "evidence_quality": {"type": "string", "minLength": 1, "pattern": "\\S"}
       }
     },
     "scenario": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "fixture", "request", "execution", "scoring"],
+      "required": ["id", "name", "fixture", "request", "efficiency", "excellent"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
         "name": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "fixture": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "request": {"type": "string", "minLength": 1, "pattern": "\\S"},
-        "execution": {
+        "runtime": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["mode", "fallback", "output_bytes", "result_limit", "budgets"],
           "properties": {
             "mode": {"enum": ["real", "incompatible", "unavailable"]},
-            "fallback": {"type": "boolean"},
-            "output_bytes": {"type": "integer", "minimum": 1},
-            "result_limit": {"type": "integer", "minimum": 1},
-            "budgets": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": ["iwe_calls", "task_tool_calls", "document_reads"],
-              "properties": {
-                "iwe_calls": {"$ref": "#/$defs/range"},
-                "task_tool_calls": {"$ref": "#/$defs/range"},
-                "document_reads": {"$ref": "#/$defs/range"}
-              }
-            }
+            "output_bytes": {"type": "integer", "minimum": 1}
           }
         },
-        "scoring": {"$ref": "#/$defs/scoring"}
+        "efficiency": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["task_tool_calls", "document_reads"],
+          "properties": {
+            "task_tool_calls": {"$ref": "#/$defs/range"},
+            "document_reads": {"$ref": "#/$defs/range"}
+          }
+        },
+        "excellent": {"$ref": "#/$defs/excellent"}
       }
     }
   }

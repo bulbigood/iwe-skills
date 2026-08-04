@@ -78,6 +78,9 @@ StrictSafeLoader.add_constructor(
 class EvalConfig:
     score_scale: dict[int, str]
     required_success_percent: dict[str, int]
+    minimum_score: dict[str, int]
+    default_excellent: dict[str, str]
+    default_output_bytes: int
 
 
 @dataclass(frozen=True)
@@ -133,6 +136,9 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
     evaluation = document.get("eval", {})
     raw_scale = evaluation.get("score_scale", {})
     raw_percent = evaluation.get("required_success_percent", {})
+    raw_minimum = evaluation.get("minimum_score", {})
+    raw_excellent = evaluation.get("default_excellent", {})
+    raw_execution = evaluation.get("execution", {})
     try:
         scale = {int(score): description for score, description in raw_scale.items()}
     except (TypeError, ValueError) as exc:
@@ -149,7 +155,21 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
         for value in raw_percent.values()
     ):
         raise ValueError("eval required success percentages must be integers in 1..100")
-    return EvalConfig(scale, dict(raw_percent))
+    if set(raw_minimum) != set(DIMENSIONS) or any(
+        not isinstance(score, int) or isinstance(score, bool) or not 0 <= score <= 5
+        for score in raw_minimum.values()
+    ):
+        raise ValueError("eval.minimum_score must declare integer scores 0..5 for every metric")
+    if set(raw_excellent) != {"skill_compliance", "safety"} or any(
+        not isinstance(text, str) or not text.strip() for text in raw_excellent.values()
+    ):
+        raise ValueError("eval.default_excellent must declare skill_compliance and safety")
+    output_bytes = raw_execution.get("output_bytes")
+    if not isinstance(output_bytes, int) or isinstance(output_bytes, bool) or output_bytes < 1:
+        raise ValueError("eval.execution.output_bytes must be a positive integer")
+    return EvalConfig(
+        scale, dict(raw_percent), dict(raw_minimum), dict(raw_excellent), output_bytes
+    )
 
 
 @dataclass(frozen=True)
@@ -158,13 +178,11 @@ class Scenario:
     fixture: str
     request: str
     rubric: str
-    min_iwe_calls: int
-    max_iwe_calls: int
     max_output_bytes: int
     allow_fallback: bool
     iwe_mode: str
     id: str = ""
-    max_result_count: int = 20
+
     min_tool_calls: int = 0
     max_tool_calls: int = 0
     min_document_reads: int = 0
@@ -176,7 +194,10 @@ class Scenario:
         return self.id or re.sub(r"[^a-z0-9]+", "-", self.name.lower()).strip("-")
 
 
-def load_scenarios(path: Path = SCENARIOS_FILE) -> list[Scenario]:
+def load_scenarios(
+    path: Path = SCENARIOS_FILE, eval_config: EvalConfig | None = None
+) -> list[Scenario]:
+    eval_config = eval_config or load_eval_config()
     schema = json.loads(SCENARIO_SCHEMA.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     try:
@@ -201,31 +222,43 @@ def load_scenarios(path: Path = SCENARIOS_FILE) -> list[Scenario]:
             raise ValueError(f"duplicate eval scenario id or name: {item['id']}")
         seen_ids.add(item["id"])
         seen_names.add(item["name"])
-        execution = item["execution"]
-        budgets = execution["budgets"]
+        runtime = item.get("runtime", {})
+        budgets = item["efficiency"]
         for name, bounds in budgets.items():
-            if bounds["min"] > bounds["max"]:
+            if bounds[0] > bounds[1]:
                 raise ValueError(f"invalid {name} range in scenario {item['id']}")
-        scoring = item["scoring"]
-        for name, dimension in scoring.items():
-            if not dimension["excellent"].strip():
-                raise ValueError(f"excellent condition must contain text for {item['id']}.{name}")
+        excellent = item["excellent"]
+        mode = runtime.get("mode", "real")
+        scoring = {
+            name: {
+                "minimum_score": eval_config.minimum_score[name],
+                "excellent": (
+                    excellent.get(name)
+                    or eval_config.default_excellent.get(name)
+                    or (
+                        f"Uses {budgets['task_tool_calls'][0]}..{budgets['task_tool_calls'][1]} "
+                        "task tool calls, completes the task, and makes no avoidable call."
+                        if name == "tool_efficiency"
+                        else f"Reads {budgets['document_reads'][0]}..{budgets['document_reads'][1]} "
+                        "documents and obtains no unnecessary context."
+                    )
+                ),
+            }
+            for name in DIMENSIONS
+        }
         result.append(Scenario(
             id=item["id"],
             name=item["name"],
             fixture=item["fixture"],
             request=item["request"].strip(),
             rubric=json.dumps(scoring, indent=2, ensure_ascii=False),
-            min_iwe_calls=budgets["iwe_calls"]["min"],
-            max_iwe_calls=budgets["iwe_calls"]["max"],
-            max_output_bytes=execution["output_bytes"],
-            allow_fallback=execution["fallback"],
-            iwe_mode=execution["mode"],
-            max_result_count=execution["result_limit"],
-            min_tool_calls=budgets["task_tool_calls"]["min"],
-            max_tool_calls=budgets["task_tool_calls"]["max"],
-            min_document_reads=budgets["document_reads"]["min"],
-            max_document_reads=budgets["document_reads"]["max"],
+            max_output_bytes=runtime.get("output_bytes", eval_config.default_output_bytes),
+            allow_fallback=mode == "unavailable",
+            iwe_mode=mode,
+            min_tool_calls=budgets["task_tool_calls"][0],
+            max_tool_calls=budgets["task_tool_calls"][1],
+            min_document_reads=budgets["document_reads"][0],
+            max_document_reads=budgets["document_reads"][1],
             scoring=scoring,
         ))
     return result

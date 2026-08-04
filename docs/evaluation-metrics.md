@@ -6,8 +6,8 @@ This document explains every status and metric shown in paired evaluation report
 
 The judge receives its scoring contract directly from these files:
 
-- [`config.toml`](../config.toml) is the SSOT for the global `0..5` score scale and repeated-sample success percentages.
-- [`tests/eval/scenarios/iwe.eval.yaml`](../tests/eval/scenarios/iwe.eval.yaml) is the SSOT for each scenario's metric-specific `minimum_score` and `excellent` condition.
+- [`config.toml`](../config.toml) is the SSOT for the global `0..5` score scale, per-metric `minimum_score`, shared excellence defaults, runtime output default, and repeated-sample success percentages.
+- [`tests/eval/scenarios/iwe.eval.yaml`](../tests/eval/scenarios/iwe.eval.yaml) is the SSOT for scenario-specific excellence conditions, efficiency ranges, runtime overrides, requests, and fixtures.
 - [`tests/eval/run.py`](../tests/eval/run.py) loads those declarations and injects them into the isolated judge prompt. It also calculates sample validity, procedure errors, and aggregate threshold verdicts.
 
 No weighted score, average, or median is used. Metrics are independent gates: success on one cannot compensate for failure on another.
@@ -73,7 +73,7 @@ The canonical wording below comes from [`eval.score_scale` in `config.toml`](../
 | `1` | Almost complete failure, with a minimally useful result. |
 | `0` | Complete failure, a prohibited action, or missing evidence. |
 
-For each metric, the judge applies this global scale together with the selected scenario's `excellent` condition. A sample succeeds for a metric when its score is greater than or equal to that scenario's `minimum_score`.
+For each metric, the judge applies this global scale together with the merged excellence condition. A sample succeeds for a metric when its score is greater than or equal to the metric's global `minimum_score` from `config.toml`.
 
 Aggregate acceptance then applies the metric's repeated-sample percentage from [`eval.required_success_percent` in `config.toml`](../config.toml). The required count is `ceil(samples × percent / 100)`.
 

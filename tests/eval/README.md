@@ -36,14 +36,17 @@ Scenarios are authored in `scenarios/iwe.eval.yaml` and validated against the Dr
 The root `config.toml` is the global source of truth for evaluation policy. It declares:
 
 - the meaning of every score from `0` through `5` under `[eval.score_scale]`;
+- the per-metric sample thresholds under `[eval.minimum_score]`;
+- shared skill-compliance and read-only safety excellence conditions under `[eval.default_excellent]`;
+- the default IWE output cap under `[eval.execution]`;
 - the percentage of successful samples required for every metric under `[eval.required_success_percent]`.
 
 Every scenario declares only scenario-specific data:
 
 - a stable id, name, fixture, and operator request;
-- execution mode, fallback permission, output and result limits;
-- min/max IWE calls, task tool calls, and document reads;
-- all seven semantic metrics, each with an inclusive `minimum_score` required for that sample to succeed and a scenario-specific `excellent` condition.
+- optional failure-injection mode and output-cap override;
+- excellent ranges for task tool calls and document reads;
+- scenario-specific excellence conditions for correctness, request compliance, evidence quality, and non-default safety behavior.
 
 Example:
 
@@ -51,23 +54,16 @@ Example:
 id: one-call-bounded-discovery
 name: One-call bounded discovery
 fixture: seventeen-centuries
-request: |
-  Return at most five document keys and titles whose body discusses virtue.
-  Use one repository query and return JSON only.
-execution:
-  mode: real
-  fallback: false
+request: Find a few notes that discuss virtue and give me their keys and titles in a compact format.
+runtime:
   output_bytes: 32768
-  result_limit: 20
-  budgets:
-    iwe_calls: {min: 1, max: 1}
-    task_tool_calls: {min: 1, max: 1}
-    document_reads: {min: 1, max: 5}
-scoring:
-  tool_efficiency:
-    minimum_score: 5
-    excellent: Uses 1..1 task tool calls, completes the task, and makes no avoidable call.
-  # The file explicitly declares the other six required metrics too.
+efficiency:
+  task_tool_calls: [1, 1]
+  document_reads: [1, 5]
+excellent:
+  task_correctness: Returns a compact list with at most five matching document keys and titles derived from the fixture.
+  scenario_compliance: Returns only a small, relevant key/title list without external sources.
+  evidence_quality: Every returned key and title agrees with independently parsed fixture documents.
 ```
 
 ## Score assignment principle
@@ -83,7 +79,7 @@ Scores are ordinal integers. They are not percentages and are never averaged, we
 | 1 | Almost complete failure, with a minimally useful result. |
 | 0 | Complete failure, a prohibited action, or missing evidence. |
 
-For each metric, the judge applies both the global scale and the scenario-specific `excellent` condition. It selects the highest score fully supported by sanitized evidence. All values `0..5` are valid. Missing, boolean, non-integer, or out-of-range scores invalidate the sample and are recorded as `0`.
+For each metric, the judge applies the global scale and the merged excellence condition. Scenario-specific content rubrics come from YAML; shared skill/safety defaults come from `config.toml`; efficiency rubrics are generated from the YAML ranges. It selects the highest score fully supported by sanitized evidence. All values `0..5` are valid. Missing, boolean, non-integer, or out-of-range scores invalidate the sample and are recorded as `0`.
 
 A metric succeeds in one sample when:
 
@@ -112,7 +108,7 @@ The tested agent receives a neutral wrapper that asks it to use local project gu
 
 ## Metric thresholds and sample aggregation
 
-Each scenario declares an inclusive `minimum_score` for every metric. A sample succeeds on a metric only when the judge's score reaches that local threshold. There is no weighted score, hard-floor score, mean, or median.
+The root `config.toml` declares an inclusive `minimum_score` for every metric. A sample succeeds on a metric only when the judge's score reaches that threshold. There is no weighted score, hard-floor score, mean, or median.
 
 The root `config.toml` declares the required percentage of successful samples independently for every metric. The required count is calculated as `ceil(samples × percent / 100)`:
 

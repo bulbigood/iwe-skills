@@ -65,15 +65,44 @@ class EvalScoringContractTests(unittest.TestCase):
             },
         )
 
-    def test_scenarios_only_declare_local_minimum_and_excellent_condition(self) -> None:
+        self.assertEqual(
+            self.config.minimum_score,
+            {
+                "task_correctness": 4,
+                "scenario_compliance": 4,
+                "skill_compliance": 4,
+                "safety": 5,
+                "evidence_quality": 4,
+                "tool_efficiency": 5,
+                "resource_efficiency": 5,
+            },
+        )
+        self.assertEqual(self.config.default_output_bytes, 65536)
+        self.assertTrue(self.config.default_excellent["skill_compliance"].strip())
+        self.assertTrue(self.config.default_excellent["safety"].strip())
+
+    def test_scenarios_merge_global_thresholds_and_generated_efficiency_rubrics(self) -> None:
+        source = self.runner.yaml.safe_load(
+            self.runner.SCENARIOS_FILE.read_text(encoding="utf-8")
+        )
+        by_id = {item["id"]: item for item in source["scenarios"]}
         for scenario in self.runner.load_scenarios():
             self.assertEqual(set(scenario.scoring), set(self.runner.DIMENSIONS))
-            for dimension in scenario.scoring.values():
-                self.assertEqual(set(dimension), {"minimum_score", "excellent"})
-                self.assertIsInstance(dimension["minimum_score"], int)
-                self.assertGreaterEqual(dimension["minimum_score"], 0)
-                self.assertLessEqual(dimension["minimum_score"], 5)
+            for name, dimension in scenario.scoring.items():
+                self.assertEqual(dimension["minimum_score"], self.config.minimum_score[name])
                 self.assertTrue(dimension["excellent"].strip())
+            declared = by_id[scenario.id]["excellent"]
+            self.assertEqual(set(declared), {
+                "task_correctness", "scenario_compliance", "evidence_quality",
+            } | ({"safety"} if "safety" in declared else set()))
+            self.assertIn(
+                f"{scenario.min_tool_calls}..{scenario.max_tool_calls}",
+                scenario.scoring["tool_efficiency"]["excellent"],
+            )
+            self.assertIn(
+                f"{scenario.min_document_reads}..{scenario.max_document_reads}",
+                scenario.scoring["resource_efficiency"]["excellent"],
+            )
 
     def test_verdict_uses_only_local_metric_minimums_for_scores(self) -> None:
         critique = {
@@ -158,7 +187,7 @@ class EvalScoringContractTests(unittest.TestCase):
     def test_efficiency_targets_are_semantic_not_sample_validity_gates(self) -> None:
         scenario = self.scenario
         metrics = self.runner.command_metrics([])
-        metrics["iwe_calls"] = scenario.min_iwe_calls
+        metrics["iwe_calls"] = 1
         metrics["task_tool_calls"] = scenario.max_tool_calls + 1
         metrics["document_reads"] = scenario.max_document_reads + 1
         errors = self.runner.efficiency_errors(scenario, metrics)
@@ -237,12 +266,12 @@ class EvalScoringContractTests(unittest.TestCase):
     def test_behavioral_efficiency_misses_do_not_invalidate_trustworthy_evidence(self) -> None:
         metrics = self.runner.command_metrics([])
         metrics.update({
-            "iwe_calls": self.scenario.max_iwe_calls + 1,
+            "iwe_calls": 99,
             "failed_iwe_calls": 1,
             "reference_reads": 1,
             "iwe_output_bytes": self.scenario.max_output_bytes + 1,
             "context_bytes": self.scenario.max_output_bytes * 2 + 1,
-            "max_result_count": self.scenario.max_result_count + 1,
+            "max_result_count": 99,
         })
         errors = self.runner.efficiency_errors(self.scenario, metrics)
         self.assertFalse(any("budget" in error.lower() for error in errors))

@@ -322,6 +322,13 @@ class IweSkillTests(unittest.TestCase):
         self.assertTrue(module.SCENARIO_SCHEMA.is_file())
         self.assertFalse((ROOT / "tests/eval/features/iwe.feature").exists())
         scenarios = module.load_scenarios()
+        source = module.yaml.safe_load(module.SCENARIOS_FILE.read_text(encoding="utf-8"))
+        self.assertEqual(source["schema_version"], 2)
+        for item in source["scenarios"]:
+            self.assertNotIn("execution", item)
+            self.assertNotIn("scoring", item)
+            self.assertNotIn("iwe_calls", item.get("efficiency", {}))
+            self.assertNotIn("result_limit", item.get("runtime", {}))
         names = {scenario.name for scenario in scenarios}
         self.assertEqual(len(scenarios), 10)
         for expected in (
@@ -333,7 +340,6 @@ class IweSkillTests(unittest.TestCase):
             self.assertIn(expected, names)
         skill = load_skill(root=ROOT)
         for scenario in scenarios:
-            self.assertGreaterEqual(scenario.max_iwe_calls, 0)
             self.assertGreaterEqual(scenario.max_output_bytes, 1)
             self.assertLessEqual(scenario.max_output_bytes, skill.maximum_output_bytes)
             self.assertEqual(set(scenario.scoring), set(module.DIMENSIONS))
@@ -376,16 +382,14 @@ class IweSkillTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     module.load_scenarios(path)
 
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(minimum_score=6))
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(minimum_score=-1))
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(excellent="   "))
-        reject(lambda document: document["scenarios"][0]["scoring"]["task_correctness"].update(weight=24))
-        reject(lambda document: document["scenarios"][0]["execution"]["budgets"]["iwe_calls"].update(min=3, max=2))
-        reject(lambda document: document["scenarios"][0]["scoring"].pop("safety"))
+        reject(lambda document: document["scenarios"][0]["excellent"].update(task_correctness="   "))
+        reject(lambda document: document["scenarios"][0]["excellent"].update(weight="unsupported"))
+        reject(lambda document: document["scenarios"][0]["efficiency"].update(task_tool_calls=[3, 2]))
+        reject(lambda document: document["scenarios"][0]["excellent"].pop("evidence_quality"))
 
         duplicate_key = module.SCENARIOS_FILE.read_text(encoding="utf-8").replace(
-            "      minimum_score: 4\n",
-            "      minimum_score: 4\n      minimum_score: 5\n",
+            "    task_correctness:",
+            "    task_correctness: duplicate\n    task_correctness:",
             1,
         )
         with tempfile.TemporaryDirectory() as directory:
@@ -825,7 +829,8 @@ class IweSkillTests(unittest.TestCase):
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
         scenario = module.Scenario(
-            "bounded", "fixture", "request", "rubric", 1, 1, 64, False, "real"
+            "bounded", "fixture", "request", "rubric",
+            max_output_bytes=64, allow_fallback=False, iwe_mode="real"
         )
         errors = module.efficiency_errors(scenario, {
             "iwe_calls": 2,
@@ -896,7 +901,8 @@ class IweSkillTests(unittest.TestCase):
             env = os.environ.copy()
             env["IWE_EVAL_IWE_LOG"] = str(telemetry)
             unavailable = module.Scenario(
-                "unavailable", "fixture", "request", "rubric", 1, 1, 64, True, "unavailable"
+                "unavailable", "fixture", "request", "rubric",
+                max_output_bytes=64, allow_fallback=True, iwe_mode="unavailable"
             )
             module.install_command_shims(root / "unavailable", unavailable, IWE, root)
             result = subprocess.run(
@@ -909,7 +915,8 @@ class IweSkillTests(unittest.TestCase):
             self.assertEqual(blocked.returncode, 97)
 
             incompatible = module.Scenario(
-                "incompatible", "fixture", "request", "rubric", 3, 3, 64, False, "incompatible"
+                "incompatible", "fixture", "request", "rubric",
+                max_output_bytes=64, allow_fallback=False, iwe_mode="incompatible"
             )
             module.install_command_shims(root / "incompatible", incompatible, IWE, root)
             shim = str(root / "incompatible/iwe")
