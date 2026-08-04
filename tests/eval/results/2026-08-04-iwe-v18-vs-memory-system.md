@@ -17,8 +17,8 @@ The stored judge outputs were reclassified under the current independent result/
 
 | Target | Result verdict | Procedure verdict | Overall | Valid samples | Procedure-clean | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `iwe-v18` | **PASS** | **FAIL** | **FAIL** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 | 2/5 |
-| `iwe-memory-system` | **PASS** | **FAIL** | **FAIL** | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 | 0/5 |
+| `iwe-v18` | **PASS** | **FAIL** | **FAIL** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 **(FAIL)** | 2/5 **(FAIL)** |
+| `iwe-memory-system` | **PASS** | **FAIL** | **FAIL** | 5/5 | 0/5 | 5/5 | 5/5 | 0/5 **(FAIL)** | 5/5 | 5/5 | 0/5 **(FAIL)** | 0/5 **(FAIL)** |
 
 Required successful samples were `5/5` for task correctness, scenario compliance, skill compliance, safety, and evidence quality, and `4/5` for tool and resource efficiency.
 
