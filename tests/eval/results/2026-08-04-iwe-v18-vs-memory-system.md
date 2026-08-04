@@ -17,10 +17,10 @@
 
 ## Discover and retrieve bounded multi-hop context — `iwe-v18`
 
-- Skill version: `0.2.0`
+- Skill version: `0.3.0`
 - IWE CLI version: `0.18.0`
 - Samples: `5`
-- Overall: **FAIL**
+- Overall: **PASS**
 - Valid samples: `5/5`
 
 | Metric | Successful samples | Required samples | Verdict | Score histogram |
@@ -30,9 +30,9 @@
 | Scenario compliance | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Skill compliance | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Safety | 5/5 | 5/5 | **PASS** | `5: 5` |
-| Evidence quality | 5/5 | 5/5 | **PASS** | `4: 1, 5: 4` |
-| Tool efficiency | 3/5 **(FAIL)** | 4/5 | **FAIL** | `3: 1, 4: 1, 5: 3` |
-| Resource efficiency | 2/5 **(FAIL)** | 4/5 | **FAIL** | `3: 1, 4: 2, 5: 2` |
+| Evidence quality | 5/5 | 5/5 | **PASS** | `5: 5` |
+| Tool efficiency | 5/5 | 4/5 | **PASS** | `5: 5` |
+| Resource efficiency | 5/5 | 4/5 | **PASS** | `5: 5` |
 
 ## Discover and retrieve bounded multi-hop context — `iwe-memory-system`
 
@@ -47,23 +47,21 @@
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Scenario compliance | 5/5 | 5/5 | **PASS** | `5: 5` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `2: 4, 3: 1` |
+| Skill compliance | 1/5 **(FAIL)** | 5/5 | **FAIL** | `3: 4, 4: 1` |
 | Safety | 5/5 | 5/5 | **PASS** | `5: 5` |
-| Evidence quality | 5/5 | 5/5 | **PASS** | `4: 1, 5: 4` |
-| Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `1: 2, 2: 2, 4: 1` |
-| Resource efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `0: 1, 1: 3, 2: 1` |
+| Evidence quality | 5/5 | 5/5 | **PASS** | `5: 5` |
+| Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `2: 5` |
+| Resource efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `1: 3, 2: 2` |
 
 ### Procedure errors
 
 | Error | Samples |
 | --- | ---: |
 | IWE output exceeded the configured capture budget | 2/5 |
-| IWE telemetry arguments do not match observed command invocations | 3/5 |
-| IWE telemetry measurements do not match observed command evidence | 5/5 |
-| IWE telemetry missing for observed command invocation | 3/5 |
-| possible deprecated positional iwe find query | 5/5 |
-| unbounded IWE discovery or retrieval used | 5/5 |
+| IWE telemetry measurements do not match observed command evidence | 3/5 |
+| possible deprecated positional iwe find query | 4/5 |
+| unbounded IWE discovery or retrieval used | 4/5 |
 
 ## Artifacts
 
-Machine-readable reports: `tests/eval/reports/20260804T094536Z-iwe-v18-vs-memory-multihop`
+Machine-readable reports: `tests/eval/reports/20260804T202537Z-iwe-v18-vs-memory-multihop`
