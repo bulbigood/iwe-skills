@@ -182,6 +182,58 @@ class EvalScoringContractTests(unittest.TestCase):
         ):
             self.assertNotIn(leaked, requests)
 
+    def test_tool_procedure_errors_do_not_invalidate_content_metrics(self) -> None:
+        critique = {
+            "dimensions": {name: {"score": 5} for name in self.runner.DIMENSIONS}
+        }
+        for name in ("skill_compliance", "tool_efficiency", "resource_efficiency"):
+            critique["dimensions"][name]["score"] = 2
+        procedure = [
+            "unbounded IWE discovery or retrieval used",
+            "IWE telemetry measurements do not match observed command evidence",
+            "possible deprecated positional iwe find query",
+        ]
+        sample_verdict = self.runner.verdict(
+            self.scenario, critique, [], True, procedure_errors=procedure
+        )
+        self.assertTrue(sample_verdict["valid"])
+        self.assertEqual(sample_verdict["validation_errors"], [])
+        self.assertEqual(sample_verdict["procedure_errors"], procedure)
+
+        outcome = self.runner.aggregate_results([{
+            "scenario": self.scenario.name,
+            "sample": 1,
+            "verdict": sample_verdict,
+        }], self.config)[0]
+        for name in ("task_correctness", "scenario_compliance", "safety", "evidence_quality"):
+            self.assertEqual(outcome["metrics"][name]["successful_samples"], 1)
+        for name in ("skill_compliance", "tool_efficiency", "resource_efficiency"):
+            self.assertEqual(outcome["metrics"][name]["successful_samples"], 0)
+        self.assertEqual(outcome["invalid_samples"], 0)
+        self.assertTrue(outcome["result_pass"])
+        self.assertFalse(outcome["procedure_pass"])
+        self.assertFalse(outcome["pass"])
+        self.assertEqual(outcome["procedure_failure_samples"], 1)
+        self.assertEqual(
+            outcome["procedure_error_counts"]["unbounded IWE discovery or retrieval used"], 1
+        )
+
+    def test_procedure_errors_are_reported_but_not_mechanical_validity_errors(self) -> None:
+        commands = [{
+            "command": "iwe find virtue --format json",
+            "exit_code": 0,
+            "output": "[]",
+        }]
+        metrics = self.runner.command_metrics(commands)
+        procedure = self.runner.procedure_errors(self.scenario, commands, metrics)
+        self.assertIn("unbounded IWE discovery or retrieval used", procedure)
+        self.assertIn("possible deprecated positional iwe find query", procedure)
+        with tempfile.TemporaryDirectory() as directory:
+            integrity = self.runner.mechanical_errors(
+                self.scenario, {}, {}, commands, Path(directory), metrics
+            )
+        self.assertEqual(integrity, [])
+
     def test_behavioral_efficiency_misses_do_not_invalidate_trustworthy_evidence(self) -> None:
         metrics = self.runner.command_metrics([])
         metrics.update({

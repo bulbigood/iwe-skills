@@ -36,6 +36,8 @@ from experiment import load_experiment
 
 
 DIMENSIONS = ("task_correctness", "scenario_compliance", "skill_compliance", "safety", "evidence_quality", "tool_efficiency", "resource_efficiency")
+RESULT_DIMENSIONS = ("task_correctness", "scenario_compliance", "safety", "evidence_quality")
+PROCEDURE_DIMENSIONS = ("skill_compliance", "tool_efficiency", "resource_efficiency")
 FORBIDDEN = (
     re.compile(r"\biwe\s+docs\b"),
     re.compile(r"\b(?:curl|wget|gh|git\s+clone)\b"),
@@ -571,6 +573,18 @@ def efficiency_errors(scenario: Scenario, metrics: dict[str, int]) -> list[str]:
     return errors
 
 
+def procedure_errors(
+    scenario: Scenario,
+    commands: list[dict],
+    metrics: dict[str, int],
+) -> list[str]:
+    errors = efficiency_errors(scenario, metrics)
+    command_text = "\n".join(str(item.get("command", "")) for item in commands)
+    if re.search(r"\biwe\s+find\s+(?!-)[^|;&\n]+", command_text):
+        errors.append("possible deprecated positional iwe find query")
+    return errors
+
+
 def snapshot(root: Path) -> dict[str, str]:
     values = {}
     for path in sorted(root.rglob("*")):
@@ -879,13 +893,11 @@ def mechanical_errors(
     metrics: dict[str, int] | None = None,
 ) -> list[str]:
     metrics = metrics or command_metrics(commands)
-    errors = efficiency_errors(scenario, metrics)
+    errors: list[str] = []
     command_text = "\n".join(item["command"] for item in commands)
     for pattern in FORBIDDEN:
         if pattern.search(command_text):
             errors.append(f"forbidden command matched {pattern.pattern}")
-    if re.search(r"\biwe\s+find\s+(?!-)[^|;&\n]+", command_text):
-        errors.append("possible deprecated positional iwe find query")
     mutating_scenarios = {
         "apply-a-guarded-structured-block-update",
         "refactor-an-inclusion-link-without-breaking-the-graph",
@@ -1049,7 +1061,13 @@ Agent final response: {sanitize_judge_evidence(skill, run['final'])}
 """
 
 
-def verdict(scenario: Scenario, critique: dict, mechanical: list[str], exits_ok: bool) -> dict:
+def verdict(
+    scenario: Scenario,
+    critique: dict,
+    mechanical: list[str],
+    exits_ok: bool,
+    procedure_errors: list[str] | None = None,
+) -> dict:
     normalized_critique = critique if isinstance(critique, dict) else {}
     raw_dimensions = normalized_critique.get("dimensions", {})
     dimensions = raw_dimensions if isinstance(raw_dimensions, dict) else {}
@@ -1083,6 +1101,7 @@ def verdict(scenario: Scenario, critique: dict, mechanical: list[str], exits_ok:
         "metric_scores": scores,
         "metric_failures": failures,
         "validation_errors": validation_errors,
+        "procedure_errors": list(procedure_errors or []),
         "critique": critique,
     }
 
@@ -1135,11 +1154,24 @@ def aggregate_results(
                 "pass": successful >= required,
             }
         invalid_samples = sum(not sample["verdict"].get("valid", False) for sample in samples)
+        procedure_failure_samples = sum(
+            bool(sample["verdict"].get("procedure_errors", [])) for sample in samples
+        )
+        procedure_error_counts: dict[str, int] = {}
+        for sample in samples:
+            for error in sample["verdict"].get("procedure_errors", []):
+                procedure_error_counts[error] = procedure_error_counts.get(error, 0) + 1
         outcome = {
             "scenario": scenario,
             "samples": total,
             "invalid_samples": invalid_samples,
+            "procedure_failure_samples": procedure_failure_samples,
+            "procedure_error_counts": dict(sorted(procedure_error_counts.items())),
             "metrics": metrics,
+            "result_pass": invalid_samples == 0 and all(
+                metrics[name]["pass"] for name in RESULT_DIMENSIONS
+            ),
+            "procedure_pass": all(metrics[name]["pass"] for name in PROCEDURE_DIMENSIONS),
             "pass": invalid_samples == 0 and all(item["pass"] for item in metrics.values()),
         }
         if target_id is not None:
@@ -1247,13 +1279,21 @@ def main() -> int:
         agent["iwe_telemetry"] = telemetry
         agent["metrics"] = command_metrics(agent["commands"], telemetry, local_skill.name)
         after = snapshot(workspace)
-        errors = mechanical_errors(
+        integrity_errors = mechanical_errors(
             scenario, before, after, agent["commands"], workspace, agent["metrics"]
         )
+        procedural_errors = procedure_errors(scenario, agent["commands"], agent["metrics"])
         judge_command = config["judge_command"].format(judge_schema=shlex.quote(str(EVAL / "judge.schema.json")))
         oracle = independent_oracle_evidence(scenario, before, after, agent["final"])
         judge_prompt_text = judge_prompt(
-            local_skill, scenario, agent, before, after, errors, eval_config, oracle
+            local_skill,
+            scenario,
+            agent,
+            before,
+            after,
+            integrity_errors + procedural_errors,
+            eval_config,
+            oracle,
         )
         remove_tested_skill_for_judge(workspace)
         judge_workspace = create_judge_workspace(temporary)
@@ -1281,7 +1321,7 @@ def main() -> int:
         )
         try: critique = json.loads(judge["final"])
         except json.JSONDecodeError: critique = {"rationale": "invalid judge JSON", "evidence": [judge["final"]], "dimensions": {}}
-        judge_errors = list(errors)
+        judge_errors = list(integrity_errors)
         if judge["commands"]:
             judge_errors.append("judge executed commands instead of inspecting supplied evidence only")
         result = {
@@ -1312,6 +1352,7 @@ def main() -> int:
                 critique,
                 judge_errors,
                 agent["exit"] == 0 and judge["exit"] == 0,
+                procedure_errors=procedural_errors,
             ),
             "workspace": str(workspace) if args.keep_workspaces else None,
         }
