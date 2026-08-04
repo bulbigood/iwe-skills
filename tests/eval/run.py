@@ -1136,6 +1136,20 @@ def agent_metadata(command: str) -> dict[str, str]:
     }
 
 
+def validate_shared_agent(config: dict, expected_agent: str) -> dict[str, dict[str, str]]:
+    agent_name = Path(shlex.split(config["agent_command"])[0]).name
+    judge_name = Path(shlex.split(config["judge_command"])[0]).name
+    if agent_name != expected_agent or judge_name != expected_agent:
+        raise ValueError(
+            "tested runs and judges must use the same configured agent "
+            f"{expected_agent!r}; got agent={agent_name!r}, judge={judge_name!r}"
+        )
+    return {
+        "agent": agent_metadata(config["agent_command"]),
+        "judge": agent_metadata(config["judge_command"]),
+    }
+
+
 def aggregate_results(
     results: list[dict], eval_config: EvalConfig | None = None, expected_samples: int | None = None
 ) -> list[dict]:
@@ -1213,6 +1227,7 @@ def main() -> int:
     parser.add_argument("--jobs", type=int)
     parser.add_argument("--samples", type=int)
     parser.add_argument("--markdown-report", type=Path)
+    parser.add_argument("--agent", choices=("codex",), default="codex")
     parser.add_argument("--keep-workspaces", action="store_true")
     args = parser.parse_args()
     if args.markdown_report and not args.experiment:
@@ -1240,6 +1255,7 @@ def main() -> int:
         return 0
     if not scenarios:
         parser.error("no scenarios selected")
+    shared_agent = validate_shared_agent(config, args.agent)
     if experiment and (args.jobs is not None or args.samples is not None):
         parser.error("experiment samples/jobs are authoritative; edit the manifest")
     if experiment:
@@ -1446,7 +1462,11 @@ def main() -> int:
             "scenarios": [scenario.id for scenario in scenarios],
             "samples": samples, "jobs": jobs,
             "agent_judge_config": experiment.agent_judge_config,
-            "agent": agent_metadata(config["agent_command"]),
+            "agent": shared_agent["agent"],
+            "judge": {
+                "model": shared_agent["judge"]["model"],
+                "reasoning": shared_agent["judge"]["reasoning"],
+            },
             "estimated_agent_calls": len(tasks), "estimated_judge_calls": len(tasks),
             "targets": [
                 {"id": target.id, "skill_path": str(target.path.relative_to(ROOT)),

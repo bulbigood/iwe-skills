@@ -8,6 +8,7 @@
 - Paired samples per target: `5`
 - Agent: Codex CLI `0.146.0`
 - AI model: `gpt-5.6-terra`; reasoning: `medium`
+- Judge AI model: `gpt-5.6-sol`; reasoning: `low`
 - Agent calls: `10`
 - Judge calls: `10`
 - Agent/judge configuration: `codex`

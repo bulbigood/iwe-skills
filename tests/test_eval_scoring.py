@@ -437,12 +437,17 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_ab_command_generates_the_linked_markdown_results(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_report")
         args = module.parse_args([])
-        command = module.build_command(Path("manifest.toml"), args.results_file)
+        self.assertEqual(args.agent, "codex")
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            module.parse_args(["--agent", "claude"])
+        command = module.build_command(Path("manifest.toml"), args.results_file, args.agent)
         self.assertEqual(
             args.results_file,
             Path("tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md"),
         )
-        self.assertEqual(command[-2:], ["--markdown-report", str(args.results_file)])
+        self.assertEqual(command[-4:], [
+            "--markdown-report", str(args.results_file), "--agent", "codex"
+        ])
 
         renderer = load_eval_module("report_markdown")
         runner = load_runner()
@@ -454,6 +459,16 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertTrue(metadata["version"])
         self.assertEqual(metadata["model"], "gpt-5.6-terra")
         self.assertEqual(metadata["reasoning"], "medium")
+        shared_agent = runner.validate_shared_agent(command_config, "codex")
+        self.assertEqual(shared_agent["agent"]["model"], "gpt-5.6-terra")
+        self.assertEqual(shared_agent["judge"]["model"], "gpt-5.6-sol")
+        with self.assertRaisesRegex(ValueError, "same configured agent"):
+            runner.validate_shared_agent({
+                **command_config,
+                "judge_command": command_config["judge_command"].replace(
+                    "codex exec", "claude exec"
+                ),
+            }, "codex")
         experiment = {
             "name": "ab",
             "scenarios": ["scenario"],
@@ -465,6 +480,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
                 "name": "Codex CLI", "version": "0.146.0",
                 "model": "gpt-5.6-terra", "reasoning": "medium",
             },
+            "judge": {"model": "gpt-5.6-sol", "reasoning": "low"},
             "targets": [{
                 "id": "a", "skill_version": "1.0.0", "runtime": {"version": "0.18.0"}
             }],
@@ -489,6 +505,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("Paired samples per target: `1`", markdown)
         self.assertIn("Agent: Codex CLI `0.146.0`", markdown)
         self.assertIn("AI model: `gpt-5.6-terra`; reasoning: `medium`", markdown)
+        self.assertIn("Judge AI model: `gpt-5.6-sol`; reasoning: `low`", markdown)
         self.assertIn("0/1 **(FAIL)**", markdown)
         self.assertIn("Machine-readable reports: `reports/run`", markdown)
 

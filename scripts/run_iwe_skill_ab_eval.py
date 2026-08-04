@@ -61,6 +61,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_RESULTS_FILE,
         help=f"generated Markdown report (default: {DEFAULT_RESULTS_FILE})",
     )
+    parser.add_argument(
+        "--agent",
+        choices=("codex",),
+        default="codex",
+        help="shared agent implementation for tested runs and judges (default: codex)",
+    )
     return parser.parse_args(argv)
 
 
@@ -149,7 +155,7 @@ def write_experiment(samples: int, root: Path = ROOT) -> Path:
     return path
 
 
-def build_command(manifest: Path, results_file: Path) -> list[str]:
+def build_command(manifest: Path, results_file: Path, agent: str = "codex") -> list[str]:
     return [
         sys.executable,
         str(ROOT / "tests/eval/run.py"),
@@ -157,13 +163,15 @@ def build_command(manifest: Path, results_file: Path) -> list[str]:
         str(manifest),
         "--markdown-report",
         str(results_file),
+        "--agent",
+        agent,
     ]
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     manifest = write_experiment(args.samples)
-    return subprocess.call(build_command(manifest, args.results_file), cwd=ROOT)
+    return subprocess.call(build_command(manifest, args.results_file, args.agent), cwd=ROOT)
 
 
 if __name__ == "__main__":
