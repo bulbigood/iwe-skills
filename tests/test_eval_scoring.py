@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
 import json
 import subprocess
 import sys
@@ -14,7 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def load_eval_module(name: str):
     path = ROOT / f"tests/eval/{name}.py"
-    spec = importlib.util.spec_from_file_location(f"iwe_eval_{name}", path)
+    return load_module(path, f"iwe_eval_{name}")
+
+
+def load_module(path: Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -345,6 +351,21 @@ class ExperimentManifestTests(unittest.TestCase):
         first = completed.stdout.splitlines()[0]
         self.assertFalse(first.startswith("discover-and-retrieve-"), first)
         self.assertRegex(first, r"^.+ \[[^]]+\]$")
+
+
+class ProductionEvalCommandTests(unittest.TestCase):
+    def test_production_command_runs_all_default_skill_scenarios_with_five_samples(self) -> None:
+        module = load_module(ROOT / "scripts/run_production_eval.py", "run_production_eval")
+        self.assertEqual(
+            module.build_command(5),
+            [sys.executable, str(ROOT / "tests/eval/run.py"), "--config", "codex", "--samples", "5"],
+        )
+
+    def test_production_command_allows_positive_sample_override(self) -> None:
+        module = load_module(ROOT / "scripts/run_production_eval.py", "run_production_eval_override")
+        self.assertEqual(module.parse_args(["--samples", "3"]).samples, 3)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            module.parse_args(["--samples", "0"])
 
 
 if __name__ == "__main__":

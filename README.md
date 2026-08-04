@@ -72,6 +72,20 @@ These constraints are intended to reduce tool calls, token usage, accidental wor
 
 ## Verification and evaluation
 
+Run the complete production behavioral evaluation for the `default_skill` declared in [`config.toml`](config.toml). It runs every scenario with five samples by default:
+
+```bash
+python3 scripts/run_production_eval.py
+```
+
+Override the sample count when needed:
+
+```bash
+python3 scripts/run_production_eval.py --samples 3
+```
+
+The production run uses the `codex` agent/judge configuration and invokes paid, nondeterministic model services. See the [behavioral evaluation guide](tests/eval/README.md) for runtime checks, scenarios, scoring, isolation, reports, and result interpretation.
+
 Install the development dependencies and run deterministic checks:
 
 ```bash
