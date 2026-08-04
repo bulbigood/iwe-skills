@@ -7,21 +7,20 @@ scenarios:
     mention the note keys behind the comparison.
   procedure:
     ideal:
-    - Obtain a bounded candidate set covering all three thinkers.
-    - Retrieve only missing full-content evidence needed for the comparison.
+    - Use one bounded retrieval that returns the authored three-way synthesis note and at most two additional relevant supporting
+      documents.
     - Answer once every material comparison claim has supporting note keys.
     acceptable_variations:
-    - Initial discovery may return metadata or bounded full content.
-    - An equivalent bounded route may omit a follow-up when sufficient evidence is already available.
+    - Any equivalent one-pass bounded retrieval is acceptable when its returned evidence covers all three thinkers.
     stop_when:
     - Available evidence supports the requested three-way comparison and its cited keys.
     avoid:
-    - Repeating discovery after suitable keys are known.
-    - Re-retrieving content already sufficient for the answer.
-    - Expanding context only to confirm already unambiguous evidence.
+    - A discovery call followed by another retrieval.
+    - Returning more than three documents or any document irrelevant to the comparison.
+    - Repeating or expanding context after sufficient evidence is available.
   efficiency:
-    task_tool_calls: [1, 2]
-    task_tool_output_bytes: [4000, 30000]
+    task_tool_calls: [1, 1]
+    task_tool_output_bytes: [4000, 26800]
   excellent:
     task_correctness: Accurately compares all three thinkers using relevant knowledge-base documents and cites every document
       key relied on.

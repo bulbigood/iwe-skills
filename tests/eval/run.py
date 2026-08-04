@@ -787,23 +787,41 @@ def independent_oracle_evidence(
     final_response: str,
 ) -> dict:
     """Build compact ground truth directly from Markdown snapshots, never from IWE."""
+    del final_response  # Tested-agent prose must not influence independent evidence selection.
     terms_by_scenario = {
         "discover-and-retrieve-bounded-multi-hop-context": ("marcus", "machiavelli", "nietzsche", "virtue"),
         "query-structured-metadata-without-scanning-files": ("power", "morality"),
         "one-call-bounded-discovery": ("virtue",),
         "ambiguous-discovery-with-one-follow-up": ("api",),
     }
+    authored_keys_by_scenario = {
+        "discover-and-retrieve-bounded-multi-hop-context": {
+            "virtue-across-centuries",
+            "meditations-009-043",
+            "meditations-010-016",
+            "meditations-010-033",
+            "meditations-011-017",
+            "prince-15",
+            "prince-16",
+            "prince-26",
+            "bge-041",
+            "bge-227",
+            "bge-228",
+        },
+    }
     terms = terms_by_scenario.get(scenario.id, ())
-    response_keys = set(re.findall(r"`([a-z0-9][a-z0-9/_-]*)`", final_response.casefold()))
-    response_keys.update(re.findall(r'"key"\s*:\s*"([^"]+)"', final_response.casefold()))
+    authored_keys = authored_keys_by_scenario.get(scenario.id)
     documents = []
     for path, text in sorted(after.items()):
         if not path.endswith(".md"):
             continue
         lowered = text.casefold()
-        if terms and not any(term in lowered for term in terms):
-            continue
         key = path.removeprefix("graph/").removesuffix(".md")
+        if authored_keys is not None:
+            if key not in authored_keys:
+                continue
+        elif terms and not any(term in lowered for term in terms):
+            continue
         frontmatter, _ = _parse_frontmatter(text)
         links = sorted(set(re.findall(r"\[\[([^\]|#]+)", text)))[:12]
         documents.append({
@@ -812,10 +830,9 @@ def independent_oracle_evidence(
             "frontmatter": frontmatter,
             "links": links,
             "source_excerpt": _source_excerpt(text, terms),
-            "named_in_response": key.casefold() in response_keys,
         })
 
-    documents.sort(key=lambda item: (not item["named_in_response"], item["key"]))
+    documents.sort(key=lambda item: item["key"])
     documents = documents[:20]
     authoritative_matches = (
         [
@@ -854,7 +871,6 @@ def independent_oracle_evidence(
             if scenario.id == "create-and-validate-a-schema-bound-document"
             else None
         ),
-        "response_for_comparison": final_response,
     }
 
 

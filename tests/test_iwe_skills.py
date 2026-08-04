@@ -469,7 +469,7 @@ class IweSkillTests(unittest.TestCase):
             for scenario in module.load_scenarios()
         }
         self.assertEqual(targets, {
-            "Discover and retrieve bounded multi-hop context": (1, 2, 4000, 30000),
+            "Discover and retrieve bounded multi-hop context": (1, 1, 4000, 26800),
             "Query structured metadata without scanning files": (1, 1, 1000, 20000),
             "Apply a guarded structured-block update": (4, 5, 1000, 12000),
             "Refactor an inclusion link without breaking the graph": (4, 6, 1000, 16000),

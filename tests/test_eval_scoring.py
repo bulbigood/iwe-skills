@@ -4,6 +4,8 @@ import contextlib
 import importlib.util
 import io
 import json
+import math
+
 import subprocess
 import sys
 import tempfile
@@ -129,6 +131,22 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertIn("metadata", procedure)
         self.assertIn("no content", procedure)
 
+    def test_multi_hop_excellence_requires_one_call_and_fixture_derived_token_ceiling(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "discover-and-retrieve-bounded-multi-hop-context"
+        )
+        self.assertEqual((scenario.min_tool_calls, scenario.max_tool_calls), (1, 1))
+        self.assertEqual(
+            (scenario.min_task_tool_output_bytes, scenario.max_task_tool_output_bytes),
+            (4000, 26800),
+        )
+        self.assertEqual(math.ceil(scenario.max_task_tool_output_bytes / 4), 6700)
+        ideal = " ".join((scenario.procedure or {})["ideal"]).casefold()
+        self.assertIn("one bounded retrieval", ideal)
+        self.assertIn("at most two", ideal)
+
     def test_high_confidence_efficiency_ranges_allow_equivalent_bounded_paths(self) -> None:
         scenarios = {item.id: item for item in self.runner.load_scenarios()}
         self.assertEqual(
@@ -136,7 +154,7 @@ class EvalScoringContractTests(unittest.TestCase):
                 scenarios["discover-and-retrieve-bounded-multi-hop-context"].min_tool_calls,
                 scenarios["discover-and-retrieve-bounded-multi-hop-context"].max_tool_calls,
             ),
-            (1, 2),
+            (1, 1),
         )
         self.assertEqual(
             scenarios["apply-a-guarded-structured-block-update"].min_task_tool_output_bytes,
@@ -598,6 +616,48 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertEqual(valid["schema_path"], ".iwe/schemas/meeting.yaml")
         self.assertFalse(invalid["valid"])
         self.assertIn("unexpected level-2 section: Extra", invalid["errors"])
+
+    def test_multi_hop_oracle_uses_authored_expected_keys_not_alphabetical_term_cap(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "discover-and-retrieve-bounded-multi-hop-context"
+        )
+        fixture = self.runner.snapshot(ROOT / "tests/eval/.cache/seventeen-centuries")
+        oracle = self.runner.independent_oracle_evidence(scenario, fixture, fixture, "")
+        keys = {item["key"] for item in oracle["matching_documents"]}
+        self.assertEqual(
+            keys,
+            {
+                "virtue-across-centuries",
+                "meditations-009-043",
+                "meditations-010-016",
+                "meditations-010-033",
+                "meditations-011-017",
+                "prince-15",
+                "prince-16",
+                "prince-26",
+                "bge-041",
+                "bge-227",
+                "bge-228",
+            },
+        )
+
+    def test_independent_oracle_never_echoes_tested_agent_response(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "discover-and-retrieve-bounded-multi-hop-context"
+        )
+        marker = "TESTED_AGENT_RESPONSE_MUST_NOT_BECOME_ORACLE_EVIDENCE"
+        oracle = self.runner.independent_oracle_evidence(
+            scenario,
+            {},
+            {"graph/virtue.md": "# Virtue\nMarcus Machiavelli Nietzsche virtue"},
+            marker,
+        )
+        self.assertNotIn("response_for_comparison", oracle)
+        self.assertNotIn(marker, json.dumps(oracle))
 
     def test_independent_oracle_reads_fixture_without_iwe_output(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
