@@ -37,12 +37,14 @@ npx skills add bulbigood/iwe-skills --skill iwe-v18
 
 ## Latest paired A/B snapshot
 
-- **Published scenarios:** `1` (the next production run includes every scenario declared in `iwe.eval.yaml`)
+- **Published scenarios:** `10` (every scenario declared in `iwe.eval.yaml`)
 - **Paired samples per scenario and target:** `5`
+- **Concurrency:** `10` evaluation cells
+- **Agent calls / judge calls:** `100 / 100`
 - **Agent:** Codex CLI `0.146.0`; `gpt-5.6-terra`, medium reasoning
 - **Judge:** `gpt-5.6-sol`, low reasoning
 
-Each paired metric cell is `first / second`, and every `N/5` is a successful-, valid-, or clean-sample count—not an average score. See [metric and score definitions](docs/evaluation-metrics.md).
+Each paired metric cell is `first / second`, and every `N/5` is a successful-, valid-, or clean-sample count—not an average score. Bold **(FAIL)** cells missed at least one absolute gate; clean counts are informational. See [metric and score definitions](docs/evaluation-metrics.md) and the [full sample-level problem report](tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md).
 
 ### `iwe-v18`
 
@@ -50,7 +52,16 @@ Skill `0.3.0`; IWE CLI `0.18.0`.
 
 | Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Multi-hop context | **PASS** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
+| Multi-hop context | **FAIL** | 5/5 / 4/5 | 5/5 / 5/5 | **5/5 / 4/5 (FAIL)** | 5/5 | 4/5 / 4/5 |
+| Metadata query | **FAIL** | 5/5 / 4/5 | 5/5 / 5/5 | **5/5 / 4/5 (FAIL)** | 5/5 | 4/5 / 4/5 |
+| Guarded block update | **FAIL** | 5/5 / 2/5 | 5/5 / 5/5 | **5/5 / 2/5 (FAIL)** | 5/5 | **0/5 / 1/5 (FAIL)** |
+| Inclusion refactor | **FAIL** | 5/5 / 4/5 | 5/5 / 5/5 | **5/5 / 4/5 (FAIL)** | 5/5 | **2/5 / 2/5 (FAIL)** |
+| Destructive refusal | **FAIL** | 5/5 / 2/5 | 5/5 / 5/5 | **5/5 / 2/5 (FAIL)** | 5/5 | **2/5 / 2/5 (FAIL)** |
+| Schema-bound creation | **FAIL** | **3/5 / 3/5 (FAIL)** | **3/5 / 3/5 (FAIL)** | **3/5 / 1/5 (FAIL)** | **3/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
+| One-call discovery | **FAIL** | 5/5 / 5/5 | **0/5 / 0/5 (FAIL)** | **0/5 / 5/5 (FAIL)** | 5/5 | 5/5 / 5/5 |
+| Ambiguous discovery | **FAIL** | 5/5 / 5/5 | **0/5 / 0/5 (FAIL)** | **0/5 / 0/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
+| CLI incompatibility | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | **2/5 / 2/5 (FAIL)** |
+| IWE unavailable | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | **1/5 / 1/5 (FAIL)** | **0/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
 
 ### `iwe-memory-system` — deprecated
 
@@ -58,7 +69,16 @@ Skill `0.0.67`; evaluated on IWE CLI `0.18.0` using the maintained runtime contr
 
 | Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / 1/5 **(FAIL)** | 5/5 | 0/5 / 0/5 **(FAIL)** |
+| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 1/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
+| Metadata query | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 1/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
+| Guarded block update | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 2/5 (FAIL)** | **2/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
+| Inclusion refactor | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 0/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
+| Destructive refusal | **FAIL** | 5/5 / 0/5 | **5/5 / 4/5 (FAIL)** | **3/5 / 0/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
+| Schema-bound creation | **FAIL** | **2/5 / 0/5 (FAIL)** | **2/5 / 2/5 (FAIL)** | **2/5 / 0/5 (FAIL)** | **2/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
+| One-call discovery | **FAIL** | 5/5 / 0/5 | **0/5 / 0/5 (FAIL)** | **0/5 / 4/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
+| Ambiguous discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 2/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
+| CLI incompatibility | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 2/5 (FAIL)** | **3/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
+| IWE unavailable | **FAIL** | **3/5 / 3/5 (FAIL)** | **4/5 / 4/5 (FAIL)** | **2/5 / 0/5 (FAIL)** | **0/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
 
 Run the production five-sample comparison across all declared scenarios. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
 

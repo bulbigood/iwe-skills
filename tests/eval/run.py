@@ -1426,11 +1426,15 @@ def aggregate_results(
     results: list[dict], eval_config: EvalConfig | None = None, expected_samples: int | None = None
 ) -> list[dict]:
     eval_config = eval_config or load_eval_config()
-    grouped: dict[tuple[str | None, str], list[dict]] = {}
+    grouped: dict[tuple[str | None, str, str], list[dict]] = {}
     for result in results:
-        grouped.setdefault((result.get("target_id"), result["scenario"]), []).append(result)
+        scenario = result["scenario"]
+        scenario_id = result.get("scenario_id", scenario)
+        grouped.setdefault(
+            (result.get("target_id"), scenario_id, scenario), []
+        ).append(result)
     outcomes = []
-    for (target_id, scenario), samples in grouped.items():
+    for (target_id, scenario_id, scenario), samples in grouped.items():
         total = len(samples)
         sample_ids = [sample["sample"] for sample in samples]
         if len(sample_ids) != len(set(sample_ids)):
@@ -1471,6 +1475,7 @@ def aggregate_results(
                 procedure_error_counts[error] = procedure_error_counts.get(error, 0) + 1
         outcome = {
             "scenario": scenario,
+            "scenario_id": scenario_id,
             "samples": total,
             "invalid_samples": invalid_samples,
             "procedure_failure_samples": procedure_failure_samples,
@@ -1774,7 +1779,7 @@ def main() -> int:
         markdown_path = args.markdown_report
         if not markdown_path.is_absolute():
             markdown_path = ROOT / markdown_path
-        write_markdown(markdown_path, snapshot_document, summary, report_dir.relative_to(ROOT))
+        write_markdown(markdown_path, snapshot_document, summary, report_dir)
     for outcome in outcomes:
         failed_metrics = [
             name for name, detail in outcome["metrics"].items() if not detail["pass"]

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 
@@ -21,7 +23,156 @@ def _cell(metric: dict) -> str:
     return value if metric["pass"] else f"{value} **(FAIL)**"
 
 
-def render_markdown(experiment: dict, summary: dict, report_dir: Path) -> str:
+def _one_line(value: object) -> str:
+    return " ".join(str(value).split())
+
+
+def _relative_link(target: Path, report_path: Path | None) -> str:
+    if report_path is None:
+        return target.as_posix()
+    return Path(os.path.relpath(target, report_path.parent)).as_posix()
+
+
+def _sample_reports(report_dir: Path, outcome: dict) -> list[tuple[Path, dict]]:
+    scenario_id = outcome.get("scenario_id")
+    if not scenario_id:
+        raise ValueError(f"scenario_id missing from outcome: {outcome.get('scenario')}")
+    reports = []
+    for sample in range(1, int(outcome["samples"]) + 1):
+        path = (
+            report_dir
+            / "targets"
+            / outcome["target_id"]
+            / f"{scenario_id}--{sample}.json"
+        )
+        if not path.is_file():
+            raise FileNotFoundError(f"expected sample telemetry report is missing: {path}")
+        report = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            report.get("target_id") != outcome["target_id"]
+            or report.get("scenario_id") != scenario_id
+            or report.get("sample") != sample
+        ):
+            raise ValueError(f"sample telemetry identity mismatch: {path}")
+        reports.append((path, report))
+    return reports
+
+
+def _outcomes_with_scenario_ids(outcomes: list[dict], report_dir: Path) -> list[dict]:
+    """Backfill IDs for reports produced by pre-ID aggregate runners."""
+    maps: dict[str, dict[str, str]] = {}
+    resolved = []
+    for outcome in outcomes:
+        if outcome.get("scenario_id"):
+            resolved.append(outcome)
+            continue
+        target_id = outcome["target_id"]
+        if target_id not in maps:
+            by_name: dict[str, str] = {}
+            for path in sorted((report_dir / "targets" / target_id).glob("*--1.json")):
+                report = json.loads(path.read_text(encoding="utf-8"))
+                name = report.get("scenario")
+                scenario_id = report.get("scenario_id")
+                if not isinstance(name, str) or not isinstance(scenario_id, str):
+                    continue
+                if name in by_name and by_name[name] != scenario_id:
+                    raise ValueError(f"ambiguous scenario name in telemetry: {name}")
+                by_name[name] = scenario_id
+            maps[target_id] = by_name
+        scenario_id = maps[target_id].get(outcome["scenario"])
+        if not scenario_id:
+            raise ValueError(
+                f"cannot resolve scenario_id from telemetry: {target_id} / {outcome['scenario']}"
+            )
+        resolved.append({**outcome, "scenario_id": scenario_id})
+    return resolved
+
+
+def _problem_lines(
+    reports: list[tuple[Path, dict]], report_path: Path | None
+) -> list[str]:
+    problems = []
+    for telemetry_path, report in reports:
+        verdict = report.get("verdict", {})
+        validation_errors = verdict.get("validation_errors", [])
+        procedure_errors = verdict.get("procedure_errors", [])
+        metric_failures = verdict.get("metric_failures", {})
+        if verdict.get("valid") and not validation_errors and not procedure_errors and not metric_failures:
+            continue
+        problems.append((
+            telemetry_path,
+            report,
+            verdict,
+            validation_errors,
+            procedure_errors,
+            metric_failures,
+        ))
+
+    lines = ["", "### Problem ledger", ""]
+    if not problems:
+        return [*lines, "No sample-level problems detected.", ""]
+
+    lines.extend([
+        "Every invalid sample, procedural violation, and failed metric is listed below. "
+        "The linked raw JSON contains the complete agent transcript, IWE telemetry, "
+        "independent oracle, judge output, and deterministic verdict.",
+        "",
+    ])
+    for (
+        telemetry_path,
+        report,
+        verdict,
+        validation_errors,
+        procedure_errors,
+        metric_failures,
+    ) in problems:
+        sample = report["sample"]
+        critique = verdict.get("critique") or {}
+        lines.extend([
+            f"#### Sample {sample}",
+            "",
+            f"- Telemetry: [raw sample JSON]({_relative_link(telemetry_path, report_path)})",
+            f"- Valid: **{'yes' if verdict.get('valid') else 'no'}**",
+        ])
+        rationale = critique.get("rationale")
+        if rationale:
+            lines.append(f"- Analysis: {_one_line(rationale)}")
+        else:
+            lines.append(
+                "- Analysis: No valid judge critique was available; the deterministic "
+                "validation and procedure diagnostics below are authoritative."
+            )
+        if validation_errors:
+            lines.append("- Validation problems:")
+            lines.extend(f"  - {_one_line(error)}" for error in validation_errors)
+        if procedure_errors:
+            lines.append("- Procedure problems:")
+            lines.extend(f"  - {_one_line(error)}" for error in procedure_errors)
+        if metric_failures:
+            lines.append("- Failed metrics:")
+            dimensions = critique.get("dimensions", {})
+            for name, failure in metric_failures.items():
+                detail = dimensions.get(name, {})
+                label = METRIC_LABELS.get(name, name)
+                score = failure.get("score", detail.get("score", "?"))
+                required = failure.get("required", "?")
+                lines.append(f"  - **{label}: {score}/5 (required {required}/5).**")
+                if detail.get("rationale"):
+                    lines.append(f"    - Analysis: {_one_line(detail['rationale'])}")
+                evidence = detail.get("evidence", [])
+                if evidence:
+                    lines.append("    - Evidence:")
+                    lines.extend(f"      - {_one_line(item)}" for item in evidence)
+        lines.append("")
+    return lines
+
+
+def render_markdown(
+    experiment: dict,
+    summary: dict,
+    report_dir: Path,
+    report_path: Path | None = None,
+) -> str:
     targets = {target["id"]: target for target in experiment["targets"]}
     lines = [
         "<!-- Generated by tests/eval/report_markdown.py; do not edit manually. -->",
@@ -42,7 +193,8 @@ def render_markdown(experiment: dict, summary: dict, report_dir: Path) -> str:
         "[Metric and score definitions](../../../docs/evaluation-metrics.md)",
         "",
     ]
-    for outcome in summary["scenarios"]:
+    outcomes = _outcomes_with_scenario_ids(summary["scenarios"], report_dir)
+    for outcome in outcomes:
         target = targets[outcome["target_id"]]
         runtime = target["runtime"]
         procedure_clean = outcome.get("samples", 0) - outcome.get("procedure_failure_samples", 0)
@@ -72,11 +224,11 @@ def render_markdown(experiment: dict, summary: dict, report_dir: Path) -> str:
         if errors:
             lines.extend(["", "### Procedure errors", "", "| Error | Samples |", "| --- | ---: |"])
             lines.extend(f"| {error} | {count}/{outcome['samples']} |" for error, count in errors.items())
-        lines.append("")
+        lines.extend(_problem_lines(_sample_reports(report_dir, outcome), report_path))
     lines.extend([
         "## Artifacts",
         "",
-        f"Machine-readable reports: `{report_dir}`",
+        f"[Machine-readable report directory]({_relative_link(report_dir, report_path)})",
         "",
     ])
     return "\n".join(lines)
@@ -85,5 +237,8 @@ def render_markdown(experiment: dict, summary: dict, report_dir: Path) -> str:
 def write_markdown(path: Path, experiment: dict, summary: dict, report_dir: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(render_markdown(experiment, summary, report_dir), encoding="utf-8")
+    temporary.write_text(
+        render_markdown(experiment, summary, report_dir, report_path=path),
+        encoding="utf-8",
+    )
     temporary.replace(path)
