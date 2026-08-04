@@ -394,6 +394,25 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertEqual(retry.returncode, 0)
         self.assertEqual(retry.stdout, "recovered\n")
 
+    def test_create_postcondition_accepts_typed_attendee_list_rendered_by_runtime(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "create-and-validate-a-schema-bound-document"
+        )
+        after = {
+            "graph/meetings/evaluation-sync.md": (
+                "---\ntype: meeting\ndraft: false\n---\n\n# Evaluation Sync\n\n"
+                "## Attendees\n\n[\"Ada\", \"Alan\"]\n\n"
+                "## Notes\n\nReview the graph."
+            )
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, {}, after, [], Path(directory)
+            )
+        self.assertEqual(errors, [])
+
     def test_extract_postcondition_accepts_runtime_heading_normalization_and_markdown_inclusion(self) -> None:
         scenario = next(
             item

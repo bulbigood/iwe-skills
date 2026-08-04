@@ -1006,13 +1006,28 @@ def mechanical_errors(
                     frontmatter = yaml.safe_load(raw) or {}
                 except yaml.YAMLError:
                     frontmatter = {}
+            attendees_valid = False
+            attendees_match = re.search(
+                r"^## Attendees\s*$\n(?P<value>.*?)(?=^##\s|\Z)",
+                body,
+                flags=re.MULTILINE | re.DOTALL,
+            )
+            if attendees_match:
+                attendee_text = attendees_match.group("value").strip()
+                try:
+                    attendee_value = yaml.safe_load(attendee_text)
+                except yaml.YAMLError:
+                    attendee_value = attendee_text
+                attendees_valid = attendee_value in (
+                    "Ada and Alan",
+                    ["Ada", "Alan"],
+                )
             valid = (
                 isinstance(frontmatter, dict)
                 and frontmatter.get("type") == "meeting"
                 and frontmatter.get("draft") is False
                 and "# Evaluation Sync" in body
-                and "## Attendees" in body
-                and "Ada and Alan" in body
+                and attendees_valid
                 and "## Notes" in body
                 and "Review the graph." in body
             )
