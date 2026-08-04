@@ -1114,6 +1114,28 @@ def required_successes(total: int, percent: int) -> int:
     return math.ceil(total * percent / 100)
 
 
+def agent_metadata(command: str) -> dict[str, str]:
+    tokens = shlex.split(command)
+    executable = shutil.which(tokens[0])
+    if not executable:
+        raise RuntimeError(f"configured agent executable is unavailable: {tokens[0]}")
+    version = subprocess.run(
+        [executable, "--version"], text=True, capture_output=True, check=True
+    ).stdout.strip()
+    model = tokens[tokens.index("-m") + 1] if "-m" in tokens else "unknown"
+    reasoning = "unknown"
+    for index, token in enumerate(tokens[:-1]):
+        if token == "-c" and tokens[index + 1].startswith("model_reasoning_effort="):
+            reasoning = tokens[index + 1].split("=", 1)[1].strip('"')
+            break
+    return {
+        "name": "Codex CLI" if Path(executable).name == "codex" else Path(executable).name,
+        "version": version.removeprefix("codex-cli "),
+        "model": model,
+        "reasoning": reasoning,
+    }
+
+
 def aggregate_results(
     results: list[dict], eval_config: EvalConfig | None = None, expected_samples: int | None = None
 ) -> list[dict]:
@@ -1424,6 +1446,7 @@ def main() -> int:
             "scenarios": [scenario.id for scenario in scenarios],
             "samples": samples, "jobs": jobs,
             "agent_judge_config": experiment.agent_judge_config,
+            "agent": agent_metadata(config["agent_command"]),
             "estimated_agent_calls": len(tasks), "estimated_judge_calls": len(tasks),
             "targets": [
                 {"id": target.id, "skill_path": str(target.path.relative_to(ROOT)),

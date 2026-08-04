@@ -6,6 +6,8 @@
 
 - Scenarios tested: `discover-and-retrieve-bounded-multi-hop-context`
 - Paired samples per target: `5`
+- Agent: Codex CLI `0.146.0`
+- AI model: `gpt-5.6-terra`; reasoning: `medium`
 - Agent calls: `10`
 - Judge calls: `10`
 - Agent/judge configuration: `codex`

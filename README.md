@@ -104,6 +104,8 @@ The harness also supports paired multi-target experiments in which every target 
 
 - **Scenarios tested:** `discover-and-retrieve-bounded-multi-hop-context`
 - **Paired samples per target:** `5`
+- **Agent:** Codex CLI `0.146.0`
+- **AI model:** `gpt-5.6-terra`; reasoning: `medium`
 
 | Target | Skill version | IWE CLI version | Overall | Valid samples | Procedure-clean | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
 | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

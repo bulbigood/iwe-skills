@@ -32,6 +32,8 @@ def render_markdown(experiment: dict, summary: dict, report_dir: Path) -> str:
         "",
         f"- Scenarios tested: `{', '.join(experiment['scenarios'])}`",
         f"- Paired samples per target: `{experiment['samples']}`",
+        f"- Agent: {experiment['agent']['name']} `{experiment['agent']['version']}`",
+        f"- AI model: `{experiment['agent']['model']}`; reasoning: `{experiment['agent']['reasoning']}`",
         f"- Agent calls: `{experiment['estimated_agent_calls']}`",
         f"- Judge calls: `{experiment['estimated_judge_calls']}`",
         f"- Agent/judge configuration: `{experiment['agent_judge_config']}`",
