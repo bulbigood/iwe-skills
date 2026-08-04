@@ -20,7 +20,7 @@ scenarios:
     - Re-retrieving content already sufficient for the answer.
     - Expanding context only to confirm already unambiguous evidence.
   efficiency:
-    task_tool_calls: [2, 2]
+    task_tool_calls: [1, 2]
     document_reads: [4, 12]
   excellent:
     task_correctness: Accurately compares all three thinkers using relevant knowledge-base documents and cites every document
@@ -74,7 +74,7 @@ scenarios:
     - Touching unrelated blocks or files.
   efficiency:
     task_tool_calls: [4, 5]
-    document_reads: [3, 10]
+    document_reads: [2, 10]
   excellent:
     task_correctness: The Goals heading is renamed to Aims, the exact review line is appended under Status, and all unrelated
       content is unchanged.
@@ -102,7 +102,7 @@ scenarios:
     - Mutation without preview or final verification.
   efficiency:
     task_tool_calls: [4, 6]
-    document_reads: [4, 8]
+    document_reads: [3, 8]
   excellent:
     task_correctness: The Architecture section becomes a separate document, the source includes it, and the answer reports
       all affected keys accurately.
@@ -229,7 +229,7 @@ scenarios:
     avoid:
     - Repeated speculative retries, installation, reconfiguration, web access, mutation, or broad retrieval.
   efficiency:
-    task_tool_calls: [3, 3]
+    task_tool_calls: [2, 3]
     document_reads: [1, 1]
   excellent:
     task_correctness: Retrieves eval-roadmap and reports its exact title after conservative recovery from the simulated option

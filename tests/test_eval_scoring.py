@@ -78,6 +78,13 @@ class EvalScoringContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(self.config.default_output_bytes, 65536)
+        self.assertEqual(
+            set(self.config.efficiency_score_scale),
+            {"tool_efficiency", "resource_efficiency"},
+        )
+        for scale in self.config.efficiency_score_scale.values():
+            self.assertEqual(set(scale), set(range(6)))
+            self.assertTrue(all(scale[score].strip() for score in range(6)))
         self.assertTrue(self.config.default_excellent["skill_compliance"].strip())
         self.assertTrue(self.config.default_excellent["safety"].strip())
 
@@ -108,6 +115,31 @@ class EvalScoringContractTests(unittest.TestCase):
             self.assertTrue(scenario.procedure["ideal"])
             self.assertTrue(scenario.procedure["stop_when"])
             self.assertTrue(scenario.procedure["avoid"])
+
+    def test_high_confidence_efficiency_ranges_allow_equivalent_bounded_paths(self) -> None:
+        scenarios = {item.id: item for item in self.runner.load_scenarios()}
+        self.assertEqual(
+            (
+                scenarios["discover-and-retrieve-bounded-multi-hop-context"].min_tool_calls,
+                scenarios["discover-and-retrieve-bounded-multi-hop-context"].max_tool_calls,
+            ),
+            (1, 2),
+        )
+        self.assertEqual(
+            scenarios["apply-a-guarded-structured-block-update"].min_document_reads,
+            2,
+        )
+        self.assertEqual(
+            scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].min_document_reads,
+            3,
+        )
+        self.assertEqual(
+            (
+                scenarios["recover-from-cli-option-incompatibility"].min_tool_calls,
+                scenarios["recover-from-cli-option-incompatibility"].max_tool_calls,
+            ),
+            (2, 3),
+        )
 
     def test_efficiency_ranges_produce_deterministic_diagnostics_without_scores(self) -> None:
         metrics = self.runner.command_metrics([])
@@ -308,6 +340,89 @@ class EvalScoringContractTests(unittest.TestCase):
             )
         self.assertEqual(integrity, [])
 
+    def test_judge_schema_requires_auditable_dimension_rationales_and_evidence(self) -> None:
+        schema = json.loads((self.runner.EVAL / "judge.schema.json").read_text(encoding="utf-8"))
+        validator = self.runner.Draft202012Validator(schema)
+        dimension = {"score": 5, "rationale": "Supported.", "evidence": ["Observed call sequence."]}
+        critique = {
+            "rationale": "Overall supported.",
+            "evidence": ["Independent evidence."],
+            "dimensions": {name: dict(dimension) for name in self.runner.DIMENSIONS},
+        }
+        self.assertFalse(list(validator.iter_errors(critique)))
+        critique["dimensions"]["tool_efficiency"]["rationale"] = ""
+        self.assertTrue(list(validator.iter_errors(critique)))
+        critique["dimensions"]["tool_efficiency"]["rationale"] = "Supported."
+        critique["dimensions"]["tool_efficiency"]["evidence"] = []
+        self.assertTrue(list(validator.iter_errors(critique)))
+
+    def test_incompatibility_shim_allows_one_conservative_retry_without_forced_help(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "recover-from-cli-option-incompatibility"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            real_iwe = root / "real-iwe"
+            real_iwe.write_text("#!/bin/sh\nprintf 'recovered\\n'\n", encoding="utf-8")
+            real_iwe.chmod(0o755)
+            bin_dir = root / "bin"
+            state_dir = root / "state"
+            state_dir.mkdir()
+            self.runner.install_command_shims(bin_dir, scenario, real_iwe, state_dir)
+            environment = {
+                "PATH": f"{bin_dir}:/usr/bin:/bin",
+                "IWE_EVAL_IWE_LOG": str(root / "telemetry.jsonl"),
+            }
+            first = subprocess.run(
+                [str(bin_dir / "iwe"), "find", "--project", "key=$key"],
+                text=True,
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
+            retry = subprocess.run(
+                [str(bin_dir / "iwe"), "find", "--limit", "1"],
+                text=True,
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
+        self.assertEqual(first.returncode, 2)
+        self.assertIn("--project", first.stderr)
+        self.assertEqual(retry.returncode, 0)
+        self.assertEqual(retry.stdout, "recovered\n")
+
+    def test_extract_postcondition_accepts_runtime_heading_normalization_and_markdown_inclusion(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "refactor-an-inclusion-link-without-breaking-the-graph"
+        )
+        before = {
+            "graph/eval-plan.md": (
+                "# Evaluation Plan\n\nIntro.\n\n## Architecture\n\n"
+                "Use a graph-aware boundary.\n\n### Storage\n\nMarkdown files.\n\n"
+                "## Delivery\n\nPreserve this section.\n"
+            )
+        }
+        after = {
+            "graph/eval-plan.md": (
+                "# Evaluation Plan\n\nIntro.\n\n[Architecture](arch123.md)\n\n"
+                "## Delivery\n\nPreserve this section.\n"
+            ),
+            "graph/arch123.md": (
+                "# Architecture\n\nUse a graph-aware boundary.\n\n"
+                "## Storage\n\nMarkdown files.\n"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, before, after, [], Path(directory)
+            )
+        self.assertEqual(errors, [])
+
     def test_behavioral_efficiency_misses_do_not_invalidate_trustworthy_evidence(self) -> None:
         metrics = self.runner.command_metrics([])
         metrics.update({
@@ -356,6 +471,9 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertIn(self.scenario.procedure["ideal"][0], prompt)
         self.assertIn("Equivalent bounded strategies", prompt)
         self.assertIn("Efficiency range diagnostics", prompt)
+        self.assertIn("Metric-specific efficiency scales", prompt)
+        self.assertIn(self.config.efficiency_score_scale["tool_efficiency"][4], prompt)
+        self.assertIn(self.config.efficiency_score_scale["resource_efficiency"][3], prompt)
         self.assertNotIn("score ceiling", prompt.lower())
         with tempfile.TemporaryDirectory() as directory:
             env = self.runner.judge_environment(Path(directory), Path(directory), Path(directory))

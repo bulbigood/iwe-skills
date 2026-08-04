@@ -77,6 +77,7 @@ StrictSafeLoader.add_constructor(
 @dataclass(frozen=True)
 class EvalConfig:
     score_scale: dict[int, str]
+    efficiency_score_scale: dict[str, dict[int, str]]
     required_success_percent: dict[str, int]
     minimum_score: dict[str, int]
     default_excellent: dict[str, str]
@@ -135,6 +136,7 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
     document = tomllib.loads(path.read_text(encoding="utf-8"))
     evaluation = document.get("eval", {})
     raw_scale = evaluation.get("score_scale", {})
+    raw_efficiency_scale = evaluation.get("efficiency_score_scale", {})
     raw_percent = evaluation.get("required_success_percent", {})
     raw_minimum = evaluation.get("minimum_score", {})
     raw_excellent = evaluation.get("default_excellent", {})
@@ -148,6 +150,22 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
         for description in scale.values()
     ):
         raise ValueError("eval.score_scale must declare non-empty descriptions for 0..5")
+    efficiency_scale: dict[str, dict[int, str]] = {}
+    if set(raw_efficiency_scale) != {"tool_efficiency", "resource_efficiency"}:
+        raise ValueError("eval.efficiency_score_scale must declare both efficiency metrics")
+    for metric, descriptions in raw_efficiency_scale.items():
+        try:
+            metric_scale = {int(score): description for score, description in descriptions.items()}
+        except (AttributeError, TypeError, ValueError) as exc:
+            raise ValueError(f"eval.efficiency_score_scale.{metric} keys must be integers 0..5") from exc
+        if set(metric_scale) != set(range(6)) or any(
+            not isinstance(description, str) or not description.strip()
+            for description in metric_scale.values()
+        ):
+            raise ValueError(
+                f"eval.efficiency_score_scale.{metric} must declare non-empty descriptions for 0..5"
+            )
+        efficiency_scale[metric] = metric_scale
     if set(raw_percent) != set(DIMENSIONS):
         raise ValueError("eval.required_success_percent must declare every metric")
     if any(
@@ -168,7 +186,7 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
     if not isinstance(output_bytes, int) or isinstance(output_bytes, bool) or output_bytes < 1:
         raise ValueError("eval.execution.output_bytes must be a positive integer")
     return EvalConfig(
-        scale, dict(raw_percent), dict(raw_minimum), dict(raw_excellent), output_bytes
+        scale, efficiency_scale, dict(raw_percent), dict(raw_minimum), dict(raw_excellent), output_bytes
     )
 
 
@@ -890,13 +908,9 @@ def install_command_shims(
         "    raise SystemExit(code)\n"
         "if MODE == 'unavailable':\n"
         "    finish(127, stderr=b'iwe: command not found\\n')\n"
-        "if MODE == 'incompatible' and not STATE.exists():\n"
+        "if MODE == 'incompatible' and not STATE.exists() and '--project' in ARGS:\n"
         "    STATE.touch()\n"
         "    finish(2, stderr=b\"error: unexpected argument '--project' found\\n\")\n"
-        "if MODE == 'incompatible' and '--help' in ARGS:\n"
-        "    STATE.write_text('helped', encoding='utf-8')\n"
-        "elif MODE == 'incompatible' and STATE.read_text(encoding='utf-8') != 'helped':\n"
-        "    finish(2, stderr=b'error: run command-specific --help before retrying\\n')\n"
         "completed = subprocess.run([REAL, *ARGS], capture_output=True)\n"
         "finish(completed.returncode, completed.stdout, completed.stderr)\n",
         encoding="utf-8",
@@ -959,14 +973,22 @@ def mechanical_errors(
             key for key, value in after.items()
             if key.startswith("graph/")
             and key != "graph/eval-plan.md"
+            and re.search(r"^#\s+Architecture\s*$", value, re.MULTILINE)
             and "Use a graph-aware boundary." in value
-            and "### Storage" in value
+            and re.search(r"^#{2,3}\s+Storage\s*$", value, re.MULTILINE)
             and "Markdown files." in value
         ]
         if len(extracted) != 1:
             errors.append("extracted document not found")
-        elif not re.search(rf"^\[\[{re.escape(extracted[0][6:-3])}(?:\|[^]]+)?\]\]$", source, re.MULTILINE):
-            errors.append("source does not contain an independent standalone inclusion link")
+        else:
+            target = extracted[0][6:-3]
+            standalone_link = re.compile(
+                rf"^(?:\[Architecture\]\({re.escape(target)}\.md\)|"
+                rf"\[\[{re.escape(target)}(?:\|Architecture)?\]\])$",
+                re.MULTILINE,
+            )
+            if not standalone_link.search(source):
+                errors.append("source does not contain an independent standalone inclusion link")
         if "## Delivery\n\nPreserve this section." not in source:
             errors.append("unrelated source section was not preserved")
     if scenario.id == "create-and-validate-a-schema-bound-document":
@@ -1082,7 +1104,8 @@ def judge_prompt(
 The independent oracle evidence was produced by directly parsing fixture snapshots without the tested CLI or skill. Use it as the source of truth for task correctness and artifact correctness. Runtime telemetry proves only what the tested runtime returned and how it was used; it is not independent proof that its result is factually correct. Use runtime telemetry for provenance, procedure compliance, boundedness, recovery behavior, and efficiency.
 
 Use this global scale: {json.dumps(eval_config.score_scale, ensure_ascii=False)}
-For each metric, apply both the global scale and its scenario-specific excellent condition. Select the highest score fully supported by the evidence. Scores 0 through 5 are all valid. Do not average or weight metric scores.
+Metric-specific efficiency scales: {json.dumps(eval_config.efficiency_score_scale, ensure_ascii=False)}
+For each metric, apply both the global scale and its scenario-specific excellent condition. For tool and resource efficiency, the metric-specific scale is authoritative when it is more precise than the global wording. Select the highest score fully supported by the evidence. Scores 0 through 5 are all valid. Do not average or weight metric scores.
 Minimum scores: {json.dumps(minimums)}
 Excellent efficiency targets: {json.dumps(expectations)}
 Efficiency range diagnostics: {json.dumps(diagnostics)}

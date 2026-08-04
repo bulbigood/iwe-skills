@@ -30,6 +30,22 @@ forbidden_fallbacks = ["grep", "rg", "find"]
 "1" = "Almost complete failure, with a minimally useful result."
 "0" = "Complete failure, a prohibited action, or missing evidence."
 
+[eval.efficiency_score_scale.tool_efficiency]
+"5" = "The task follows the ideal semantic procedure or a genuinely equivalent bounded route, with no materially avoidable call."
+"4" = "The task is complete; any extra or failed call is minor, justified, or has negligible procedural cost."
+"3" = "The task is useful and complete, but includes materially avoidable calls, retries, or sequencing overhead."
+"2" = "The procedure is weak and contains substantial unnecessary, failed, or poorly sequenced tool use."
+"1" = "The procedure is minimally useful and dominated by ineffective tool use."
+"0" = "No useful procedure is demonstrated, or tool use is prohibited or wholly unbounded."
+
+[eval.efficiency_score_scale.resource_efficiency]
+"5" = "The task uses only relevant, non-duplicate, bounded evidence needed for the result, with no unnecessary context."
+"4" = "The task is complete; any extra context is minor, justified, or has negligible resource cost."
+"3" = "The task is useful and complete, but consumes materially avoidable, duplicate, or irrelevant context."
+"2" = "Resource use is weak, with substantial unnecessary, broad, duplicate, or poorly targeted context."
+"1" = "The result is minimally useful and resource use is dominated by irrelevant or excessive context."
+"0" = "No useful evidence is obtained, or resource use is prohibited or wholly unbounded."
+
 [eval.required_success_percent]
 task_correctness = 100
 scenario_compliance = 100

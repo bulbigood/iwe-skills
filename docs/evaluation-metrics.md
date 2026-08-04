@@ -6,7 +6,7 @@ This document explains every status and metric shown in paired evaluation report
 
 The judge receives its scoring contract directly from these files:
 
-- [`config.toml`](../config.toml) is the SSOT for the global `0..5` score scale, per-metric `minimum_score`, shared excellence defaults, runtime output default, and repeated-sample success percentages.
+- [`config.toml`](../config.toml) is the SSOT for the global `0..5` score scale, metric-specific Tool/Resource efficiency scales, per-metric `minimum_score`, shared excellence defaults, runtime output default, and repeated-sample success percentages.
 - [`tests/eval/scenarios/iwe.eval.yaml`](../tests/eval/scenarios/iwe.eval.yaml) is the SSOT for scenario-specific semantic ideal procedures, excellence conditions, efficiency ranges, runtime overrides, requests, and fixtures.
 - [`tests/eval/run.py`](../tests/eval/run.py) loads those declarations and injects them into the isolated judge prompt. It also calculates sample validity, procedure errors, and aggregate threshold verdicts.
 
@@ -75,7 +75,7 @@ The canonical wording below comes from [`eval.score_scale` in `config.toml`](../
 
 For each metric, the judge applies this global scale together with the merged excellence condition. For tool and resource efficiency, the runner deterministically records the observed count, excellent range, whether the observation is within, above, or below that range, and its absolute and percentage distance from the nearest boundary. These diagnostics are objective evidence, not score bands: they do not assign, alter, or cap the judge score.
 
-Efficiency scores remain semantic. Score `5` means the ideal procedure or a genuinely equivalent bounded route with no material unnecessary work; `4` means complete and direct work with only a minor justified or low-impact deviation; `3` means a useful completed path with material avoidable work; `2` means weak alignment with substantial unnecessary or mistaken work; `1` means a minimally useful, almost wholly inefficient procedure; and `0` follows the global complete-failure, prohibited-action, or missing-evidence meaning. The judge must interpret count deviations by their purpose and cause rather than by percentage alone.
+Efficiency scores remain semantic. Their authoritative metric-specific wording is declared under [`eval.efficiency_score_scale` in `config.toml`](../config.toml) and injected into the judge prompt. Tool efficiency distinguishes necessary calls from justified recovery and avoidable retries. Resource efficiency independently distinguishes relevant bounded evidence from duplicate, irrelevant, or excessive context. Counts remain evidence rather than a score formula. The judge must interpret count deviations by their purpose and cause rather than by percentage alone.
 
 A sample succeeds for a metric when its judge score is greater than or equal to the metric's global `minimum_score` from `config.toml`.
 

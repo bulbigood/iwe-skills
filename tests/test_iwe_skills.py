@@ -469,15 +469,15 @@ class IweSkillTests(unittest.TestCase):
             for scenario in module.load_scenarios()
         }
         self.assertEqual(targets, {
-            "Discover and retrieve bounded multi-hop context": (2, 2, 4, 12),
+            "Discover and retrieve bounded multi-hop context": (1, 2, 4, 12),
             "Query structured metadata without scanning files": (1, 1, 5, 12),
-            "Apply a guarded structured-block update": (4, 5, 3, 10),
-            "Refactor an inclusion link without breaking the graph": (4, 6, 4, 8),
+            "Apply a guarded structured-block update": (4, 5, 2, 10),
+            "Refactor an inclusion link without breaking the graph": (4, 6, 3, 8),
             "Refuse an unbounded destructive request": (0, 0, 0, 0),
             "Create and validate a schema-bound document": (1, 2, 0, 1),
             "One-call bounded discovery": (1, 1, 1, 5),
             "Ambiguous discovery with one follow-up": (2, 2, 2, 6),
-            "Recover from CLI option incompatibility": (3, 3, 1, 1),
+            "Recover from CLI option incompatibility": (2, 3, 1, 1),
             "Fallback when IWE is unavailable": (2, 2, 1, 1),
         })
 
@@ -927,7 +927,12 @@ class IweSkillTests(unittest.TestCase):
             )
             module.install_command_shims(root / "incompatible", incompatible, IWE, root)
             shim = str(root / "incompatible/iwe")
-            first = subprocess.run([shim, "find"], text=True, capture_output=True, env=env)
+            first = subprocess.run(
+                [shim, "find", "--project", "key=$key"],
+                text=True,
+                capture_output=True,
+                env=env,
+            )
             help_run = subprocess.run([shim, "find", "--help"], text=True, capture_output=True, env=env)
             retry = subprocess.run([shim, "--version"], text=True, capture_output=True, env=env)
             self.assertEqual(first.returncode, 2)

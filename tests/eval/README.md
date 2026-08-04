@@ -36,6 +36,7 @@ Scenarios are authored in `scenarios/iwe.eval.yaml` and validated against the Dr
 The root `config.toml` is the global source of truth for evaluation policy. It declares:
 
 - the meaning of every score from `0` through `5` under `[eval.score_scale]`;
+- the metric-specific Tool and Resource efficiency meanings under `[eval.efficiency_score_scale]`;
 - the per-metric sample thresholds under `[eval.minimum_score]`;
 - shared skill-compliance and read-only safety excellence conditions under `[eval.default_excellent]`;
 - the default IWE output cap under `[eval.execution]`;
@@ -90,7 +91,7 @@ Scores are ordinal integers. They are not percentages and are never averaged, we
 | 1 | Almost complete failure, with a minimally useful result. |
 | 0 | Complete failure, a prohibited action, or missing evidence. |
 
-For each metric, the judge applies the global scale and the merged excellence condition. Scenario-specific content rubrics, semantic procedures, and excellent efficiency ranges come from YAML; shared skill/safety defaults come from `config.toml`. The semantic procedure describes purposes and stopping conditions rather than an exact command transcript, so equivalent bounded strategies remain eligible for full credit.
+For each metric, the judge applies the global scale and the merged excellence condition. Tool and Resource efficiency additionally use their metric-specific scales from `config.toml`. Scenario-specific content rubrics, semantic procedures, and excellent efficiency ranges come from YAML; shared skill/safety defaults come from `config.toml`. The semantic procedure describes purposes and stopping conditions rather than an exact command transcript, so equivalent bounded strategies remain eligible for full credit.
 
 The runner deterministically records whether observed calls and document reads are within, above, or below their excellent ranges, plus absolute and percentage distance from the nearest boundary. These diagnostics are evidence, not score bands: they neither assign nor cap a score. The judge interprets their magnitude and cause together with the semantic procedure. Thus an inside-range run can still score poorly for duplicate work, while an explained range miss is not converted into a score by arithmetic alone.
 
