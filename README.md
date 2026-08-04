@@ -100,6 +100,19 @@ Behavioral evaluations use pinned fixture repositories, isolated agent and judge
 
 The harness also supports paired multi-target experiments in which every target declares its own exact IWE runtime and skill payload. Results evaluate skill/runtime pairs while sharing fixtures, the independent oracle, judges, metrics, and rubrics. See [`tests/eval/experiments/README.md`](tests/eval/experiments/README.md).
 
+### Latest paired A/B snapshot
+
+On 2026-08-04, `iwe-v18` skill `0.2.0` and legacy `iwe-memory-system` skill `0.0.67` were evaluated with the same IWE CLI `0.18.0`, agent/judge configuration, pinned fixture, independent oracle, and five paired samples. The selected scenario was **Discover and retrieve bounded multi-hop context**: a common, demanding retrieval-and-synthesis task comparing three thinkers and citing the supporting note keys.
+
+| Target | Absolute verdict | Valid samples | Task correctness | Scenario compliance | Skill compliance | Safety | Evidence quality | Tool efficiency | Resource efficiency |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `iwe-v18` `0.2.0` + IWE `0.18.0` | **FAIL** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 | 2/5 |
+| `iwe-memory-system` `0.0.67` + IWE `0.18.0` | **FAIL (invalid)** | 0/5 | 0/5 valid | 0/5 valid | 0/5 valid | 0/5 valid | 0/5 valid | 0/5 valid | 0/5 valid |
+
+`iwe-v18` produced correct, safe, well-supported answers in every sample but missed the configured 80% acceptance thresholds for tool efficiency (3/5 successful samples) and resource efficiency (2/5). Every legacy-skill sample was invalidated fail-closed because the agent used unbounded/deprecated command forms and the resulting command evidence conflicted with or exceeded trusted telemetry limits. The judge still assigned raw task-correctness score `5` to all five legacy outputs, but invalid evidence cannot count toward acceptance. Consequently this run establishes a strong procedural and efficiency difference, but it does **not** support claiming that `iwe-v18` had more factually correct prose.
+
+Raw per-sample reports, agent events, commands, judge evidence, independent oracle snapshots, runtime provenance, and pairwise telemetry were retained locally in the gitignored temporary report directory `tests/eval/reports/20260804T094536Z-iwe-v18-vs-memory-multihop/`. See the [behavioral evaluation guide](tests/eval/README.md) for validity and threshold semantics.
+
 Agent and judge runs invoke paid, nondeterministic model services. Run them only with explicit operator authorization.
 
 ## Maintainer documentation
