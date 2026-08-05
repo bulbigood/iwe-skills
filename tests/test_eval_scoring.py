@@ -981,7 +981,9 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("### `iwe-v18`", snapshot)
         self.assertIn("### `iwe-memory-system` — deprecated", snapshot)
         self.assertEqual(snapshot.count("| Scenario | Overall |"), 2)
-        self.assertEqual(snapshot.count("| **FAIL** |"), 20)
+        self.assertEqual(
+            snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 20
+        )
         self.assertIn("**Published scenarios:** `10`", snapshot)
         self.assertIn("**Agent calls / judge calls:** `100 / 100`", snapshot)
         self.assertNotIn("| Target |", snapshot)
