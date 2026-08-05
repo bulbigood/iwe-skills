@@ -377,12 +377,13 @@ class IweSkillTests(unittest.TestCase):
             )
             self.assertTrue(all(item["procedure"].values()))
         names = {scenario.name for scenario in scenarios}
-        self.assertEqual(len(scenarios), 10)
+        self.assertEqual(len(scenarios), 11)
         for expected in (
             "One-call bounded discovery",
             "Ambiguous discovery with one follow-up",
             "Recover from CLI option incompatibility",
             "Fallback when IWE is unavailable",
+            "Fix code without activating IWE",
         ):
             self.assertIn(expected, names)
         skill = load_skill(root=ROOT)
@@ -521,6 +522,7 @@ class IweSkillTests(unittest.TestCase):
             "Ambiguous discovery with one follow-up": (1, 2, 0, 8000),
             "Recover from CLI option incompatibility": (2, 2, 0, 4000),
             "Fallback when IWE is unavailable": (2, 2, 0, 3200),
+            "Fix code without activating IWE": (2, 3, 0, 8000),
         })
 
         update = next(

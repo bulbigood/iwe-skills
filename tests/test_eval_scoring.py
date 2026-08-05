@@ -102,7 +102,8 @@ class EvalScoringContractTests(unittest.TestCase):
             declared = by_id[scenario.id]["excellent"]
             self.assertEqual(set(declared), {
                 "task_correctness", "scenario_compliance", "evidence_quality",
-            } | ({"safety"} if "safety" in declared else set()))
+            } | ({"safety"} if "safety" in declared else set())
+              | ({"skill_compliance"} if "skill_compliance" in declared else set()))
             self.assertNotIn(
                 f"{scenario.min_tool_calls}..{scenario.max_tool_calls}",
                 scenario.scoring["tool_efficiency"]["excellent"],
@@ -147,6 +148,7 @@ class EvalScoringContractTests(unittest.TestCase):
             "ambiguous-discovery-with-one-follow-up": ((1, 2), 2000),
             "recover-from-cli-option-incompatibility": ((2, 2), 1000),
             "fallback-when-iwe-is-unavailable": ((2, 2), 800),
+            "fix-code-without-activating-iwe": ((2, 3), 2000),
         }
         self.assertEqual(set(scenarios), set(expected))
         for scenario_id, (tool_calls, maximum_tokens) in expected.items():
@@ -395,6 +397,93 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertNotIn(".agents/", prompt)
         self.assertNotIn("skill", prompt.lower())
         self.assertNotIn("iwe", prompt.lower())
+
+    def test_out_of_scope_prompt_exposes_description_without_forcing_activation(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "fix-code-without-activating-iwe"
+        )
+        prompt = self.runner.agent_prompt(scenario)
+        self.assertEqual(scenario.skill_activation, "forbidden")
+        self.assertIn("Optional guidance is available", prompt)
+        self.assertIn("read it only if that description applies", prompt)
+        self.assertNotIn("First read", prompt)
+
+    def test_out_of_scope_skill_read_and_iwe_call_are_procedure_errors(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "fix-code-without-activating-iwe"
+        )
+        commands = [
+            {
+                "command": "cat .agents/guidance/SKILL.md",
+                "exit_code": 0,
+                "output": "skill body",
+            },
+            {
+                "command": "iwe find --lexical retry --limit 1",
+                "exit_code": 0,
+                "output": "[]",
+            },
+        ]
+        metrics = self.runner.command_metrics(
+            commands,
+            tested_skill="iwe-v18",
+            exclude_skill_activation=False,
+        )
+        self.assertEqual(metrics["task_tool_calls"], 2)
+        self.assertEqual(metrics["skill_read_calls"], 1)
+        errors = self.runner.procedure_errors(scenario, commands, metrics)
+        self.assertIn("IWE skill guidance read for an out-of-scope task", errors)
+        self.assertIn("IWE runtime invoked for an out-of-scope task", errors)
+
+    def test_out_of_scope_code_fixture_has_deterministic_postcondition(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "fix-code-without-activating-iwe"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            self.runner.prepare(workspace, scenario.fixture)
+            before = self.runner.snapshot(workspace)
+            (workspace / "src/retry.py").write_text(
+                "def retry_delays(attempts):\n"
+                "    return list(2 ** index for index in range(attempts))\n",
+                encoding="utf-8",
+            )
+            after = self.runner.snapshot(workspace)
+            self.assertEqual(
+                self.runner.mechanical_errors(
+                    scenario, before, after, [], workspace
+                ),
+                [],
+            )
+
+    def test_out_of_scope_code_scenario_allows_normal_filesystem_tools(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "fix-code-without-activating-iwe"
+        )
+        metrics = self.runner.command_metrics([
+            {
+                "command": "rg --files -g src/retry.py -g tests/test_retry.py",
+                "exit_code": 0,
+                "output": "src/retry.py\ntests/test_retry.py\n",
+            }
+        ])
+        self.assertNotIn(
+            "forbidden fallback tool used",
+            self.runner.efficiency_errors(scenario, metrics),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            bin_dir = Path(directory) / "bin"
+            state_dir = Path(directory) / "state"
+            state_dir.mkdir()
+            self.runner.install_command_shims(
+                bin_dir, scenario, Path("/usr/bin/false"), state_dir
+            )
+            for name in ("grep", "rg", "find"):
+                self.assertFalse((bin_dir / name).exists())
 
     def test_no_skill_installation_leaves_workspace_without_agent_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1139,7 +1228,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
         expected = tuple(item.id for item in load_runner().load_scenarios())
-        self.assertEqual(len(expected), 10)
+        self.assertEqual(len(expected), 11)
         self.assertEqual(module.load_scenario_ids(ROOT), expected)
         manifest_path = module.write_experiment(1, ROOT)
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))

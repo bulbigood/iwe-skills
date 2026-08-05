@@ -30,6 +30,7 @@
       "properties": {
         "task_correctness": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "scenario_compliance": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "skill_compliance": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "safety": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "evidence_quality": {"type": "string", "minLength": 1, "pattern": "\\S"}
       }
@@ -60,6 +61,7 @@
         "name": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "fixture": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "request": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "skill_activation": {"enum": ["required", "forbidden"]},
         "runtime": {
           "type": "object",
           "additionalProperties": false,

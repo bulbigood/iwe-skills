@@ -213,6 +213,7 @@ class Scenario:
     max_task_tool_output_bytes: int = 0
     scoring: dict[str, dict] | None = None
     procedure: dict[str, list[str]] | None = None
+    skill_activation: str = "required"
 
     @property
     def slug(self) -> str:
@@ -289,6 +290,7 @@ def load_scenarios(
                 name: [step.strip() for step in item["procedure"].get(name, [])]
                 for name in ("ideal", "acceptable_variations", "stop_when", "avoid")
             },
+            skill_activation=item.get("skill_activation", "required"),
         ))
     return result
 
@@ -487,12 +489,23 @@ def command_metrics(
     commands: list[dict],
     telemetry: list[dict] | None = None,
     tested_skill: str | None = None,
+    exclude_skill_activation: bool = True,
 ) -> dict[str, int]:
+    activation_calls = sum(_is_skill_activation(item, tested_skill) for item in commands)
+    skill_paths = (
+        (f".agents/skills/{tested_skill}/SKILL.md", ".agents/guidance/SKILL.md")
+        if tested_skill else ()
+    )
     metrics = {
         "raw_tool_calls": len(commands),
         "task_tool_calls": max(
-            len(commands) - int(any(_is_skill_activation(item, tested_skill) for item in commands)),
+            len(commands) - int(exclude_skill_activation and activation_calls > 0),
             0,
+        ),
+        "skill_activation_calls": activation_calls,
+        "skill_read_calls": sum(
+            any(path in str(item.get("command", "")) for path in skill_paths)
+            for item in commands
         ),
         "iwe_calls": 0,
         "help_calls": 0,
@@ -543,7 +556,7 @@ def command_metrics(
             and (".agents/skills/" in command or ".agents/guidance/" in command)
         )
         metrics["context_bytes"] += len(output.encode("utf-8"))
-        if not _is_skill_activation(item, tested_skill):
+        if not (exclude_skill_activation and _is_skill_activation(item, tested_skill)):
             output_bytes = len(output.encode("utf-8"))
             metrics["task_tool_output_bytes"] += output_bytes
             if iwe_calls:
@@ -665,8 +678,15 @@ def efficiency_errors(scenario: Scenario, metrics: dict[str, int]) -> list[str]:
         errors.append("IWE output exceeded the configured capture budget")
     if metrics["web_calls"] or metrics["docs_calls"]:
         errors.append("web or IWE documentation command used")
-    fallback_calls = metrics["forbidden_fallback_calls"] + metrics["broad_workspace_reads"]
-    if fallback_calls and not scenario.allow_fallback:
+    filesystem_tool_calls = metrics["forbidden_fallback_calls"]
+    broad_read_calls = metrics["broad_workspace_reads"]
+    if (
+        filesystem_tool_calls
+        and not scenario.allow_fallback
+        and scenario.skill_activation != "forbidden"
+    ):
+        errors.append("forbidden fallback tool used")
+    if broad_read_calls and not scenario.allow_fallback:
         errors.append("forbidden fallback tool used")
     if scenario.iwe_mode == "unavailable":
         if not scenario.allow_fallback:
@@ -681,6 +701,11 @@ def procedure_errors(
     telemetry: list[dict] | None = None,
 ) -> list[str]:
     errors = efficiency_errors(scenario, metrics)
+    if scenario.skill_activation == "forbidden":
+        if metrics.get("skill_read_calls", 0):
+            errors.append("IWE skill guidance read for an out-of-scope task")
+        if metrics.get("iwe_calls", 0):
+            errors.append("IWE runtime invoked for an out-of-scope task")
     command_text = "\n".join(str(item.get("command", "")) for item in commands)
     if re.search(r"\biwe\s+find\s+(?!-)[^|;&\n]+", command_text):
         errors.append("possible deprecated positional iwe find query")
@@ -717,7 +742,13 @@ def procedure_errors(
 def snapshot(root: Path) -> dict[str, str]:
     values = {}
     for path in sorted(root.rglob("*")):
-        if not path.is_file() or ".git" in path.parts or ".agents" in path.parts:
+        if (
+            not path.is_file()
+            or ".git" in path.parts
+            or ".agents" in path.parts
+            or "__pycache__" in path.parts
+            or path.suffix == ".pyc"
+        ):
             continue
         rel = str(path.relative_to(root))
         try:
@@ -729,11 +760,19 @@ def snapshot(root: Path) -> dict[str, str]:
 
 def agent_prompt(scenario: Scenario, *, skill_installed: bool = True) -> str:
     """Keep the tested request realistic without disclosing the eval mechanism."""
-    activation = (
-        "First read `.agents/guidance/SKILL.md` alone, without combining that read "
-        "with any other action. Then follow it using available tools. "
-        if skill_installed else ""
-    )
+    if skill_installed and scenario.skill_activation == "required":
+        activation = (
+            "First read `.agents/guidance/SKILL.md` alone, without combining that read "
+            "with any other action. Then follow it using available tools. "
+        )
+    elif skill_installed:
+        activation = (
+            "Optional guidance is available for IWE knowledge-graph retrieval and safe "
+            "Markdown refactors at `.agents/guidance/SKILL.md`; read it only if that "
+            "description applies to the request. "
+        )
+    else:
+        activation = ""
     return (
         "Complete the following request in the provided workspace. "
         f"{activation}Work offline.\n\nRequest:\n{scenario.request}"
@@ -952,7 +991,12 @@ def independent_oracle_evidence(
         diffs[path] = diff[:8000]
 
     prepared = {}
-    for path in ("graph/eval-roadmap.md", "graph/eval-plan.md"):
+    for path in (
+        "graph/eval-roadmap.md",
+        "graph/eval-plan.md",
+        "src/retry.py",
+        "tests/test_retry.py",
+    ):
         if path in after:
             prepared[path] = after[path][:8000]
     return {
@@ -1065,6 +1109,28 @@ sections:
     additionalSections: false
 additionalSections: false
 """, encoding="utf-8")
+    elif fixture == "pkm-demo-retry-code":
+        source = workspace / "src"
+        tests = workspace / "tests"
+        source.mkdir(exist_ok=True)
+        tests.mkdir(exist_ok=True)
+        (source / "__init__.py").write_text("", encoding="utf-8")
+        (source / "retry.py").write_text(
+            "def retry_delays(attempts):\n"
+            "    return [2 ** index for index in range(attempts + 1)]\n",
+            encoding="utf-8",
+        )
+        (tests / "test_retry.py").write_text(
+            "import unittest\n\n"
+            "from src.retry import retry_delays\n\n\n"
+            "class RetryDelaysTest(unittest.TestCase):\n"
+            "    def test_returns_one_delay_per_attempt(self):\n"
+            "        cases = {0: [], 1: [1], 3: [1, 2, 4]}\n"
+            "        for attempts, expected in cases.items():\n"
+            "            with self.subTest(attempts=attempts):\n"
+            "                self.assertEqual(retry_delays(attempts), expected)\n",
+            encoding="utf-8",
+        )
 
 
 def install_skill(workspace: Path, skill: SkillSpec | None) -> None:
@@ -1100,6 +1166,11 @@ def install_command_shims(
     bin_dir.mkdir(parents=True, exist_ok=True)
     for source in (EVAL / "shims").iterdir():
         if source.is_file():
+            if (
+                scenario.skill_activation == "forbidden"
+                and source.name in {"grep", "rg", "find"}
+            ):
+                continue
             target = bin_dir / source.name
             shutil.copy2(source, target)
             target.chmod(0o755)
@@ -1183,6 +1254,7 @@ def mechanical_errors(
         "apply-a-guarded-structured-block-update",
         "refactor-an-inclusion-link-without-breaking-the-graph",
         "create-and-validate-a-schema-bound-document",
+        "fix-code-without-activating-iwe",
     }
     if scenario.id not in mutating_scenarios:
         if before != after:
@@ -1278,6 +1350,22 @@ def mechanical_errors(
             )
         if not valid:
             errors.append("typed schema-bound meeting was not created")
+    if scenario.id == "fix-code-without-activating-iwe":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        if changed != {"src/retry.py"}:
+            errors.append(f"unexpected changed files: {sorted(changed)}")
+        check_environment = dict(os.environ)
+        check_environment["PYTHONDONTWRITEBYTECODE"] = "1"
+        focused = subprocess.run(
+            [sys.executable, "-m", "unittest", "tests/test_retry.py"],
+            cwd=workspace,
+            env=check_environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if focused.returncode != 0:
+            errors.append("focused retry test does not pass after the agent run")
     return errors
 
 
@@ -1756,6 +1844,7 @@ def main() -> int:
         agent["metrics"] = command_metrics(
             agent["commands"], telemetry,
             local_skill.name if local_skill is not None else None,
+            exclude_skill_activation=scenario.skill_activation == "required",
         )
         range_diagnostics = efficiency_diagnostics(scenario, agent["metrics"])
         after = snapshot(workspace)
