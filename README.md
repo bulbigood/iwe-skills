@@ -37,15 +37,16 @@ npx skills add bulbigood/iwe-skills --skill iwe-v18
 
 ## Latest production comparison snapshot
 
-- **Run:** `2026-08-05` UTC; primary telemetry `20260805T113502Z`; recovered cell telemetry `20260805T122514Z`
+- **Run:** `2026-08-05` UTC; primary telemetry `20260805T171745Z`; inclusion-contract recovery telemetry `20260805T173938Z`
 - **Published scenarios:** `10` (every scenario declared in `iwe.eval.yaml`)
 - **Targets:** `3` (`iwe-v18`, deprecated skill, and IWE-present/no-skill control)
 - **Paired samples per scenario and target:** `5`
 - **Concurrency:** `10` evaluation cells
 - **Published matrix:** `150` agent results / `150` judge results
-- **Executed attempts:** `168 / 168`, including recovery after one Sol judge timed out at `1800 s`
-- **Primary wall-clock:** `2492.60 s` (`41m 33s`, including the judge timeout); user CPU `436.55 s`; system CPU `176.45 s`; peak RSS `277540 KiB`
-- **Recovery wall-clock:** `314.35 s` total across the one-sample diagnostic and five-sample scenario rerun
+- **Executed model attempts:** `165` agent / `165` judge, including the 15-cell rerun after correcting one contradictory inclusion-verification requirement
+- **Primary wall-clock:** `963.65 s` (`16m 03.65s`); user CPU `433.21 s`; system CPU `174.07 s`; peak RSS `331964 KiB`
+- **Recovery wall-clock:** `166.04 s` (`2m 46.04s`); user CPU `49.18 s`; system CPU `19.67 s`; peak RSS `257516 KiB`
+- **Harness incidents:** one recovery invocation was rejected before model calls because manifest-authoritative samples/jobs were also supplied on the CLI; no production cell timed out or crashed
 - **Agent:** Codex CLI `0.146.0`; `gpt-5.6-luna`, medium reasoning
 - **Judge:** `gpt-5.6-sol`, low reasoning
 
@@ -53,19 +54,19 @@ Each paired metric cell is `first / second`, and every `N/5` is a successful-, v
 
 ### `iwe-v18`
 
-Skill `0.5.0`; IWE CLI `0.18.0`. Overall: **6/10 scenarios passed**.
+Skill `0.5.0`; IWE CLI `0.18.0`. Overall: **5/10 scenarios passed**.
 
 | Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | Multi-hop context | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
-| Metadata query | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 4/5 / 4/5 |
-| Guarded block update | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / **3/5 (FAIL)** |
-| Inclusion refactor | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | **3/5 (FAIL)** / 5/5 |
-| Destructive refusal | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
-| Schema-bound creation | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Ambiguous discovery | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
-| IWE unavailable | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 4/5 |
-| Workspace fallback | **FAIL** | 5/5 / 4/5 | 5/5 / 5/5 | 5/5 / **4/5 (FAIL)** | 5/5 | **2/5 (FAIL)** / **2/5 (FAIL)** |
+| Metadata query | **FAIL** | 5/5 / 4/5 | 5/5 / 5/5 | **4/5 (FAIL)** / **4/5 (FAIL)** | 5/5 | 4/5 / 4/5 |
+| Guarded block update | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
+| Inclusion refactor | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
+| Destructive refusal | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | **3/5 (FAIL)** / **3/5 (FAIL)** |
+| Schema-bound creation | **FAIL** | 5/5 / 4/5 | 5/5 / 5/5 | 5/5 / **4/5 (FAIL)** | 5/5 | **3/5 (FAIL)** / **3/5 (FAIL)** |
+| Ambiguous discovery | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 4/5 / 4/5 |
+| IWE unavailable | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | **3/5 (FAIL)** / **2/5 (FAIL)** |
+| Workspace fallback | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / **4/5 (FAIL)** | 5/5 | 4/5 / 5/5 |
 | Out-of-scope code fix | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
 
 ### `iwe-memory-system` — deprecated
@@ -74,16 +75,16 @@ Skill `0.0.67`; IWE CLI `0.18.0` using the maintained runtime contract. Overall:
 
 | Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **1/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Metadata query | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **4/5 (FAIL)** / **1/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Metadata query | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **1/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
 | Guarded block update | **FAIL** | 3/5 / 0/5 | **3/5 (FAIL)** / **3/5 (FAIL)** | **3/5 (FAIL)** / **1/5 (FAIL)** | **2/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Inclusion refactor | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **2/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Inclusion refactor | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
 | Destructive refusal | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **3/5 (FAIL)** / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Schema-bound creation | **FAIL** | 2/5 / 0/5 | **2/5 (FAIL)** / **2/5 (FAIL)** | **2/5 (FAIL)** / **0/5 (FAIL)** | **2/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Ambiguous discovery | **FAIL** | 5/5 / 1/5 | 5/5 / 5/5 | 5/5 / **4/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| IWE unavailable | **FAIL** | 5/5 / 4/5 | 5/5 / 5/5 | 5/5 / **2/5 (FAIL)** | **3/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Workspace fallback | **FAIL** | 5/5 / 0/5 | **4/5 (FAIL)** / **4/5 (FAIL)** | **4/5 (FAIL)** / **2/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Out-of-scope code fix | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
+| Schema-bound creation | **FAIL** | 1/5 / 0/5 | **1/5 (FAIL)** / **1/5 (FAIL)** | **1/5 (FAIL)** / **0/5 (FAIL)** | **1/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Ambiguous discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **4/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| IWE unavailable | **FAIL** | 5/5 / 4/5 | 5/5 / 5/5 | **4/5 (FAIL)** / **2/5 (FAIL)** | **3/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Workspace fallback | **FAIL** | 5/5 / 1/5 | **4/5 (FAIL)** / **4/5 (FAIL)** | **3/5 (FAIL)** / **1/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Out-of-scope code fix | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 4/5 / 5/5 |
 
 ### IWE available, no skill guidance
 
@@ -92,14 +93,14 @@ No skill guidance; IWE CLI `0.18.0` is installed and available. `Skill complianc
 | Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Metadata query | **FAIL** | 5/5 / 0/5 | **4/5 (FAIL)** / **4/5 (FAIL)** | **2/5 (FAIL)** / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Metadata query | **FAIL** | 5/5 / 0/5 | **3/5 (FAIL)** / **2/5 (FAIL)** | **2/5 (FAIL)** / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
 | Guarded block update | **FAIL** | 0/5 / 0/5 | **0/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** / — | **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Inclusion refactor | **FAIL** | 0/5 / 0/5 | **0/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** / — | **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Destructive refusal | **FAIL** | 2/5 / 0/5 | **1/5 (FAIL)** / **2/5 (FAIL)** | **0/5 (FAIL)** / — | **2/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Schema-bound creation | **FAIL** | 2/5 / 0/5 | **2/5 (FAIL)** / **2/5 (FAIL)** | **2/5 (FAIL)** / — | **2/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Inclusion refactor | **FAIL** | 1/5 / 0/5 | **1/5 (FAIL)** / **1/5 (FAIL)** | **1/5 (FAIL)** / — | **1/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Destructive refusal | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **1/5 (FAIL)** / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Schema-bound creation | **FAIL** | 3/5 / 0/5 | **3/5 (FAIL)** / **3/5 (FAIL)** | **3/5 (FAIL)** / — | **3/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
 | Ambiguous discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| IWE unavailable | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | **0/5 (FAIL)** / **2/5 (FAIL)** |
-| Workspace fallback | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | **3/5 (FAIL)** / — | 5/5 | **1/5 (FAIL)** / **1/5 (FAIL)** |
+| IWE unavailable | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | **0/5 (FAIL)** / **1/5 (FAIL)** |
+| Workspace fallback | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | **3/5 (FAIL)** / — | 5/5 | **1/5 (FAIL)** / **2/5 (FAIL)** |
 | Out-of-scope code fix | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | 5/5 / 5/5 |
 
 Run the production five-sample comparison across all declared scenarios and all three targets. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:

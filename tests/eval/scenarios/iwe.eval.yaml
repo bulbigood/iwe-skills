@@ -90,7 +90,7 @@ scenarios:
     - Inspect the source section and its graph context.
     - Preview extraction of only the Architecture section into a new note.
     - Apply the extraction so the source retains an inclusion link.
-    - Verify the new note, source inclusion, and affected keys unless guarded apply output already proves them.
+    - Verify source inclusion and affected keys unless guarded apply output already proves them.
     acceptable_variations:
     - Equivalent guarded extraction operations are acceptable when apply output or a focused verification proves graph preservation.
     stop_when:

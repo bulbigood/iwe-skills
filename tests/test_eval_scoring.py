@@ -241,6 +241,23 @@ class EvalScoringContractTests(unittest.TestCase):
             },
         )
 
+    def test_inclusion_refactor_procedure_matches_source_only_verification_contract(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "refactor-an-inclusion-link-without-breaking-the-graph"
+        )
+        procedure = " ".join(
+            text
+            for section in scenario.procedure.values()
+            for text in section
+        )
+        skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn("Verify source inclusion and affected keys", procedure)
+        self.assertNotIn("Verify the new note", procedure)
+        self.assertIn("never use relationship discovery for extract verification or retrieve the created target", skill)
+
     def test_resource_volume_counts_task_tool_output_bytes_not_result_records(self) -> None:
         activation = {
             "command": "cat .agents/skills/iwe-v18/SKILL.md",
