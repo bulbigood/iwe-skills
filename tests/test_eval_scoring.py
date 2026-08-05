@@ -146,6 +146,7 @@ class EvalScoringContractTests(unittest.TestCase):
             "create-and-validate-a-schema-bound-document": ((1, 1), 800),
             "ambiguous-discovery-with-one-follow-up": ((1, 2), 2000),
             "fallback-when-iwe-is-unavailable": ((2, 2), 800),
+            "find-workspace-information-after-iwe-miss": ((2, 8), 3000),
             "fix-code-without-activating-iwe": ((2, 5), 2000),
         }
         self.assertEqual(set(scenarios), set(expected))
@@ -500,6 +501,51 @@ class EvalScoringContractTests(unittest.TestCase):
             self.runner.install_command_shims(
                 bin_dir, scenario, Path("/usr/bin/false")
             )
+            for name in ("grep", "rg", "find"):
+                self.assertFalse((bin_dir / name).exists())
+
+    def test_workspace_fallback_caps_iwe_calls_and_allows_local_search(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "find-workspace-information-after-iwe-miss"
+        )
+        self.assertTrue(scenario.allow_fallback)
+        self.assertTrue(scenario.allow_broad_fallback)
+        self.assertEqual(scenario.max_iwe_calls, 2)
+        indexed_text = "\n".join(
+            path.read_text(encoding="utf-8", errors="ignore")
+            for path in (ROOT / "tests/eval/.cache/pkm-demo/graph").rglob("*.md")
+        ).casefold()
+        self.assertNotIn("background_sync", indexed_text)
+        self.assertNotIn("background synchronization", indexed_text)
+        metrics = self.runner.command_metrics([])
+        metrics["iwe_calls"] = 3
+        self.assertIn(
+            "IWE call limit exceeded: 3 > 2",
+            self.runner.efficiency_errors(scenario, metrics),
+        )
+        metrics["iwe_calls"] = 2
+        metrics["forbidden_fallback_calls"] = 1
+        metrics["broad_workspace_reads"] = 1
+        self.assertNotIn(
+            "forbidden fallback tool used",
+            self.runner.efficiency_errors(scenario, metrics),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "graph").mkdir()
+            (root / "graph/unrelated.md").write_text("# Unrelated\n", encoding="utf-8")
+            self.runner.prepare(root, scenario.fixture)
+            snapshot = self.runner.snapshot(root)
+            self.assertNotIn("timeout_seconds", snapshot["graph/unrelated.md"])
+            oracle = self.runner.independent_oracle_evidence(scenario, snapshot, snapshot, "")
+            self.assertEqual(oracle["workspace_fact"], {
+                "source_path": "config/background-sync.yaml",
+                "fact": "background_sync.timeout_seconds = 37",
+                "source_text": "background_sync:\n  timeout_seconds: 37\n",
+            })
+            bin_dir = root / "shims"
+            self.runner.install_command_shims(bin_dir, scenario, Path("/usr/bin/false"))
             for name in ("grep", "rg", "find"):
                 self.assertFalse((bin_dir / name).exists())
 
@@ -1171,11 +1217,11 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("verify only the source inclusion", skill)
         self.assertIn("Relationship synthesis: retrieve 3–5", skill)
         self.assertIn("iwe create --template <name> --vars-yaml", skill)
-        self.assertIn('say "IWE is unavailable"', skill)
+        self.assertIn('Say "IWE is unavailable" only', skill)
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
         expected = tuple(item.id for item in load_runner().load_scenarios())
-        self.assertEqual(len(expected), 9)
+        self.assertEqual(len(expected), 10)
         self.assertEqual(module.load_scenario_ids(ROOT), expected)
         manifest_path = module.write_experiment(1, ROOT)
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))

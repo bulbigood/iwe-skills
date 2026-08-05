@@ -67,7 +67,9 @@
           "additionalProperties": false,
           "properties": {
             "mode": {"enum": ["real", "unavailable"]},
-            "output_bytes": {"type": "integer", "minimum": 1}
+            "output_bytes": {"type": "integer", "minimum": 1},
+            "allow_filesystem_fallback": {"type": "boolean"},
+            "max_iwe_calls": {"type": "integer", "minimum": 1}
           }
         },
         "efficiency": {

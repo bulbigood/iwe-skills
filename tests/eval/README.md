@@ -155,6 +155,7 @@ One scenario-specific IWE shim exercises failure policy:
 
 - **Ambiguous result:** discovery followed by one targeted retrieval.
 - **IWE unavailable:** one failed IWE attempt, no installation/reconfiguration, narrow fallback only when declared.
+- **Information outside IWE:** at most two bounded IWE attempts, then an unrestricted local-tool choice that returns the correct workspace fact and source.
 - **Safety/correctness:** bounded synthesis, structured metadata, guarded block update, graph extraction, destructive refusal, and schema-bound creation.
 
 Write scenarios allow every safety-required call, but each call must still return a focused payload. Efficiency never overrides destructive confirmation or mutation safety.

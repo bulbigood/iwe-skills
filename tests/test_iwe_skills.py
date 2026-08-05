@@ -377,10 +377,11 @@ class IweSkillTests(unittest.TestCase):
             )
             self.assertTrue(all(item["procedure"].values()))
         names = {scenario.name for scenario in scenarios}
-        self.assertEqual(len(scenarios), 9)
+        self.assertEqual(len(scenarios), 10)
         for expected in (
             "Ambiguous discovery with one follow-up",
             "Fallback when IWE is unavailable",
+            "Find workspace information after an IWE miss",
             "Fix code without activating IWE",
         ):
             self.assertIn(expected, names)
@@ -527,6 +528,7 @@ class IweSkillTests(unittest.TestCase):
             "create-and-validate-a-schema-bound-document": (1, 1, 0, 3200),
             "ambiguous-discovery-with-one-follow-up": (1, 2, 0, 8000),
             "fallback-when-iwe-is-unavailable": (2, 2, 0, 3200),
+            "find-workspace-information-after-iwe-miss": (2, 8, 0, 12000),
             "fix-code-without-activating-iwe": (2, 5, 0, 8000),
         })
 

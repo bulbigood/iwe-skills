@@ -13,12 +13,12 @@ IWE is authoritative. Classify, choose the narrowest route, derive known paramet
 ## Hard execution rules
 
 - This file is the guidance; after activation, never search for AGENTS, skills, or workspace files.
-- Do not use web search, `grep`, `rg`, `find`, recursive lists, or broad reads. Do not run routine preflight.
+- Do not use web search, `grep`, `rg`, `find`, recursive lists, or broad reads before trying IWE. The failed-search fallback below is the only workspace-search exception. Do not run routine preflight.
 - Do not install, update, configure, or repair IWE.
 - Default result limit: 20. Use a smaller request-derived limit.
 - A stated class is a hard filter: “project note” requires `--filter '{ type: project }'`; never use untyped lexical top-1. For creation, a stated semantic class sets `type=<class>`.
 - Never pass 0 as a result, depth, distance, document, or token bound; 0 is unlimited.
-- Prefer one call. Use a second only for ambiguity, one bounded page, or one failed refinement. Do not run a second query after sufficient evidence.
+- For discovery and retrieval, prefer one call and never exceed two IWE lookup calls for one task. Use a second only for ambiguity, one bounded page, or one failed refinement. Do not run a second query after sufficient evidence. Safety-required mutation calls are separate.
 - Mutation safety: preview/apply edits and refactors; verify only when success cannot prove final state. Create/new are collision-guarded exceptions: never add `--dry-run`; use strict validation and collision policy.
 
 ## Route and compute parameters mentally
@@ -214,7 +214,7 @@ Triggers: missing executable; still-unknown command/option after direct correcti
 
 For a self-explanatory missing-executable error, skip the reference. Read `references/errors.md` only when classification is unclear: unknown syntax, invalid YAML, failed refinement, unsupported operation, truncation, permission/I/O, or schema/expectation failure.
 
-Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, or one refinement stays empty. Read only the user-named source; never scan. Explicitly say "IWE is unavailable" and disclose fallback.
+Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, or one refinement stays empty. If the operator explicitly limits the search to IWE, its notes, or its documentation, report that the information was not found and do not search elsewhere. Otherwise, for a workspace or project question, search local files after the IWE miss; a broad `rg` is allowed when no source path is known. Stay local, stop when the requested fact and source are found, and do not expose unrelated matches. For a named source, read only that source. Say "IWE is unavailable" only when execution itself failed; otherwise disclose that the information was found outside IWE.
 
 ## Completion
 

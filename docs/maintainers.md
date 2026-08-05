@@ -55,7 +55,7 @@ python3 tests/eval/run.py --skill iwe-v18 --scenario ambiguous-discovery-with-on
 python3 tests/eval/run.py --skill iwe-v18 --scenario fallback-when-iwe-is-unavailable --jobs 1 --samples 1
 ```
 
-The default complete run is nine scenarios, one agent plus one judge per scenario. Increase samples only when the expected cost and variance justify it.
+The default complete run is ten scenarios, one agent plus one judge per scenario. Increase samples only when the expected cost and variance justify it.
 
 ## Acceptance gates
 

@@ -226,6 +226,8 @@ class Scenario:
     scoring: dict[str, dict] | None = None
     procedure: dict[str, list[str]] | None = None
     skill_activation: str = "required"
+    max_iwe_calls: int | None = None
+    allow_broad_fallback: bool = False
 
     @property
     def slug(self) -> str:
@@ -291,7 +293,9 @@ def load_scenarios(
             request=item["request"].strip(),
             rubric=json.dumps(scoring, indent=2, ensure_ascii=False),
             max_output_bytes=runtime.get("output_bytes", eval_config.default_output_bytes),
-            allow_fallback=mode == "unavailable",
+            allow_fallback=(
+                mode == "unavailable" or runtime.get("allow_filesystem_fallback", False)
+            ),
             iwe_mode=mode,
             min_tool_calls=budgets["task_tool_calls"][0],
             max_tool_calls=budgets["task_tool_calls"][1],
@@ -303,6 +307,8 @@ def load_scenarios(
                 for name in ("ideal", "acceptable_variations", "stop_when", "avoid")
             },
             skill_activation=item.get("skill_activation", "required"),
+            max_iwe_calls=runtime.get("max_iwe_calls"),
+            allow_broad_fallback=runtime.get("allow_filesystem_fallback", False),
         ))
     return result
 
@@ -690,6 +696,8 @@ def efficiency_errors(scenario: Scenario, metrics: dict[str, int]) -> list[str]:
         errors.append("IWE output exceeded the configured capture budget")
     if metrics["web_calls"] or metrics["docs_calls"]:
         errors.append("web or IWE documentation command used")
+    if scenario.max_iwe_calls is not None and metrics["iwe_calls"] > scenario.max_iwe_calls:
+        errors.append(f"IWE call limit exceeded: {metrics['iwe_calls']} > {scenario.max_iwe_calls}")
     filesystem_tool_calls = metrics["forbidden_fallback_calls"]
     broad_read_calls = metrics["broad_workspace_reads"]
     if (
@@ -994,6 +1002,15 @@ def independent_oracle_evidence(
             if scenario.id == "create-and-validate-a-schema-bound-document"
             else None
         ),
+        "workspace_fact": (
+            {
+                "source_path": "config/background-sync.yaml",
+                "fact": "background_sync.timeout_seconds = 37",
+                "source_text": after.get("config/background-sync.yaml", ""),
+            }
+            if scenario.id == "find-workspace-information-after-iwe-miss"
+            else None
+        ),
     }
 
 
@@ -1092,6 +1109,13 @@ sections:
     additionalSections: false
 additionalSections: false
 """, encoding="utf-8")
+    elif fixture == "pkm-demo-workspace-fallback":
+        operations = workspace / "config"
+        operations.mkdir(exist_ok=True)
+        (operations / "background-sync.yaml").write_text(
+            "background_sync:\n  timeout_seconds: 37\n",
+            encoding="utf-8",
+        )
     elif fixture == "pkm-demo-retry-code":
         source = workspace / "src"
         tests = workspace / "tests"
@@ -1148,7 +1172,7 @@ def install_command_shims(bin_dir: Path, scenario: Scenario, real_iwe: Path) -> 
     for source in (EVAL / "shims").iterdir():
         if source.is_file():
             if (
-                scenario.skill_activation == "forbidden"
+                (scenario.skill_activation == "forbidden" or scenario.allow_broad_fallback)
                 and source.name in {"grep", "rg", "find"}
             ):
                 continue
@@ -1900,6 +1924,7 @@ def main() -> int:
                     scenario.min_task_tool_output_bytes,
                     scenario.max_task_tool_output_bytes,
                 ],
+                "max_iwe_calls": scenario.max_iwe_calls,
             },
             "agent": agent,
             "efficiency_diagnostics": range_diagnostics,
