@@ -1,6 +1,6 @@
 ---
 name: iwe-v18
-description: Use for IWE knowledge-graph retrieval and safe Markdown refactors. Route 95% of tasks from this file.
+description: Use IWE CLI to find, retrieve, analyze, create, update, or safely refactor an IWE Markdown knowledge graph.
 compatibility: Requires IWE CLI >=0.18.0.
 metadata:
   version: "0.5.0"
@@ -12,14 +12,14 @@ IWE is authoritative. Classify, choose the narrowest route, derive known paramet
 
 ## Hard execution rules
 
-- This file is the guidance; after activation, never search for AGENTS, skills, or workspace files.
+- After activation, treat this file as complete IWE guidance; do not search for competing agent instructions.
 - Do not use web search, `grep`, `rg`, `find`, recursive lists, or broad reads before trying IWE. The failed-search fallback below is the only workspace-search exception. Do not run routine preflight.
 - Do not install, update, configure, or repair IWE.
 - Default result limit: 20. Use a smaller request-derived limit.
 - A stated class is a hard filter: “project note” requires `--filter '{ type: project }'`; never use untyped lexical top-1. For creation, a stated semantic class sets `type=<class>`.
 - Never pass 0 as a result, depth, distance, document, or token bound; 0 is unlimited.
 - For discovery and retrieval, prefer one call and never exceed two IWE lookup calls for one task. Use a second only for ambiguity, one bounded page, or one failed refinement. Do not run a second query after sufficient evidence. Safety-required mutation calls are separate.
-- Mutation safety: preview/apply edits and refactors; verify only when success cannot prove final state. Create/new are collision-guarded exceptions: never add `--dry-run`; use strict validation and collision policy.
+- Mutation safety: resolve scope, preview, validate affected keys/counts, apply identical arguments, then verify only when success cannot prove final state. Create/new are collision-guarded exceptions: use strict validation and collision policy, never `--dry-run`.
 
 ## Route and compute parameters mentally
 
@@ -161,9 +161,9 @@ Preview and apply identical arguments. For extract, verify only the source inclu
 
 ## Cluster H — destructive and workspace-wide work
 
-- **H1 Delete one note:** exact key, expect 1, strict dry-run, affected keys, rollback when practical, then fresh, focused confirmation and apply.
-- **H2 Delete cohort:** if criterion or scope is undefined, refuse immediately and run no tools. Otherwise use a narrow user filter and expected count/range; never classify “obsolete”.
-- **H3 Normalize:** entire-library in-place rewrite with no preview; require explicit scope, established rollback, and fresh, focused confirmation.
+- **H1 Delete one note:** exact key, expect 1, strict dry-run, validate affected keys, establish rollback when practical, then fresh, focused confirmation and identical apply.
+- **H2 Delete cohort:** if criterion or scope is undefined, refuse without tools. Otherwise dry-run a narrow user filter and expected count/range, validate affected keys, confirm, and apply unchanged; never classify “obsolete”.
+- **H3 Normalize:** entire-library in-place rewrite with no preview; require explicit scope, established rollback, and fresh, focused confirmation; verify afterward.
 
 Safety calls are not waste. Refuse destructive work when scope or recovery is insufficient.
 
@@ -218,4 +218,4 @@ Fallback is allowed only when IWE cannot execute, lacks the operation, the sourc
 
 ## Completion
 
-Report used keys, truncation, mutation scope, and independent verification. Stop when claims are supported.
+Report `Result`, `Keys`, `Truncation`, and, for mutations, `Scope` and `Verification`. Stop when claims are supported.
