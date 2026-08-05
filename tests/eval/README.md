@@ -14,7 +14,7 @@ When `--skill` is omitted, the runner uses `default_skill` from root `config.tom
 
 ## Multi-target paired experiments
 
-Use a TOML manifest under `experiments/` to compare any `N >= 2` skill/runtime targets across selected scenarios and `X >= 1` paired samples. Every target independently declares its skill payload, contract, exact IWE version, and unambiguous runtime directory. The runner verifies all binaries before fixture preparation or paid processes, applies one global jobs limit, and keeps the existing `--skill` mode compatible. See [experiments/README.md](experiments/README.md) for the complete contract and two-/three-target examples.
+Use a TOML manifest under `experiments/` to compare any `N >= 2` skill/runtime targets across selected scenarios and `X >= 1` paired samples. Every target independently declares an installed skill payload or an explicit no-skill condition, plus its contract, exact IWE version, and unambiguous runtime directory. The runner verifies all binaries before fixture preparation or paid processes, applies one global jobs limit, and keeps the existing `--skill` mode compatible. See [experiments/README.md](experiments/README.md) for the complete contract and two-/three-target examples.
 
 All targets receive the same fixture preparation, operator request, independent Markdown-snapshot oracle, agent/judge configuration, metrics, rubric, score scale, and thresholds. Each target gets an independent absolute verdict. Pairwise threshold wins/ties/losses and valid-on-both efficiency deltas are evidence only: they cannot rescue an absolute failure. Invalid samples stay in denominators; missing and duplicate cells fail closed. Reports use raw score histograms and distributions—never ordinal means, medians, weighted scores, or rankings.
 
@@ -27,7 +27,7 @@ The runner pins and caches two upstream repositories by commit:
 - `iwe-org/seventeen-centuries` at `acc00aeabee4fd510c54e9e9033d6b9869aedc3d` for large retrieval and synthesis.
 - `iwe-org/pkm-demo` at `76007db0c64c3ee170e2a8869a88e7c61909d489` for focused query, mutation, schema, and failure-path scenarios.
 
-Each scenario receives a fresh non-git copy and only the selected repository-local skill under `.agents/skills/`.
+Each scenario receives a fresh non-git copy. Skill targets receive exactly one neutral `.agents/guidance/` tree; explicit no-skill targets receive no `.agents` tree.
 
 ## Declarative scenario contract
 

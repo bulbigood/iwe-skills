@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the production all-scenario iwe-v18 versus deprecated-skill evaluation."""
+"""Run the production all-scenario iwe-v18 versus both control conditions."""
 
 from __future__ import annotations
 
@@ -22,18 +22,19 @@ from skill_manifest import load_skills, verify_runtime_binary
 ROOT = Path(__file__).resolve().parents[1]
 DEPRECATED_SKILL = "iwe-memory-system"
 CURRENT_SKILL = "iwe-v18"
+NO_SKILL_TARGET = "iwe-no-skill"
 DEFAULT_SAMPLES = 5
 DEFAULT_JOBS = 10
 SCENARIOS_FILE = Path("tests/eval/scenarios/iwe.eval.yaml")
-CACHE = Path("tests/eval/.cache/iwe-v18-vs-memory-all-scenarios")
-DEFAULT_RESULTS_FILE = Path("tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md")
+CACHE = Path("tests/eval/.cache/iwe-v18-vs-controls-all-scenarios")
+DEFAULT_RESULTS_FILE = Path("tests/eval/results/2026-08-05-iwe-v18-vs-controls.md")
 
 
 @dataclass(frozen=True)
 class Target:
     skill_id: str
-    skill_path: Path
-    skill_version: str
+    skill_path: Path | None
+    skill_version: str | None
     iwe_version: str
     contract_file: Path
     runtime_skill_id: str
@@ -48,7 +49,7 @@ def positive_int(value: str) -> int:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run the paired default-skill versus deprecated IWE skill evaluation."
+        description="Run iwe-v18 against deprecated-skill and no-skill controls."
     )
     parser.add_argument(
         "--samples",
@@ -105,7 +106,7 @@ def load_scenario_ids(root: Path = ROOT) -> tuple[str, ...]:
     return tuple(ids)
 
 
-def load_targets(root: Path = ROOT) -> tuple[Target, Target]:
+def load_targets(root: Path = ROOT) -> tuple[Target, ...]:
     default_id, skills = load_skills(root)
     if CURRENT_SKILL not in skills:
         raise ValueError(f"{CURRENT_SKILL} is not configured in config.toml")
@@ -132,6 +133,14 @@ def load_targets(root: Path = ROOT) -> tuple[Target, Target]:
             default.contract_file,
             default.name,
         ),
+        Target(
+            NO_SKILL_TARGET,
+            None,
+            None,
+            default.tested_version,
+            default.contract_file,
+            default.name,
+        ),
     )
 
 
@@ -144,7 +153,7 @@ def write_experiment(
     cache = (root / CACHE).resolve()
     lines = [
         "schema_version = 1",
-        'name = "iwe-v18-vs-memory-all-scenarios"',
+        'name = "iwe-v18-vs-controls-all-scenarios"',
         'agent_judge_config = "codex"',
         f"scenarios = {json.dumps(scenario_ids)}",
         f"samples = {samples}",
@@ -163,8 +172,15 @@ def write_experiment(
             "",
             "[[targets]]",
             f"id = {json.dumps(target.skill_id)}",
-            f"skill_path = {json.dumps(str(target.skill_path.relative_to(root)))}",
-            f"skill_version = {json.dumps(target.skill_version)}",
+        ])
+        if target.skill_path is None:
+            lines.append('skill_mode = "none"')
+        else:
+            lines.extend([
+                f"skill_path = {json.dumps(str(target.skill_path.relative_to(root)))}",
+                f"skill_version = {json.dumps(target.skill_version)}",
+            ])
+        lines.extend([
             f"contract_file = {json.dumps(str(target.contract_file.relative_to(root)))}",
             "[targets.runtime]",
             f"cli = {json.dumps(runtime_spec.runtime_cli)}",

@@ -35,18 +35,19 @@ npx skills add bulbigood/iwe-skills --skill iwe-v18
 - **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.5.0`.
 - **`iwe-memory-system` [deprecated]** — legacy workflow retained only for compatibility and A/B comparison. Skill version: `0.0.67`.
 
-## Latest paired A/B snapshot
+## Latest production comparison snapshot
 
-- **Run:** `2026-08-05` UTC; telemetry `20260805T034508Z`
+- **Run:** `2026-08-05` UTC; telemetry `20260805T042605Z`
 - **Published scenarios:** `10` (every scenario declared in `iwe.eval.yaml`)
+- **Targets:** `3` (`iwe-v18`, deprecated skill, and IWE-present/no-skill control)
 - **Paired samples per scenario and target:** `5`
 - **Concurrency:** `10` evaluation cells
-- **Agent calls / judge calls:** `100 / 100`
-- **Wall-clock:** `580.00 s` (`9m 40s`)
+- **Agent calls / judge calls:** `150 / 150`
+- **Wall-clock:** `805.45 s` (`13m 25s`); user CPU `413.43 s`; system CPU `165.73 s`; peak RSS `268660 KiB`
 - **Agent:** Codex CLI `0.146.0`; `gpt-5.6-terra`, medium reasoning
 - **Judge:** `gpt-5.6-sol`, low reasoning
 
-Each paired metric cell is `first / second`, and every `N/5` is a successful-, valid-, or clean-sample count—not an average score. Bold **(FAIL)** cells missed at least one absolute gate; clean counts are informational. See [metric and score definitions](docs/evaluation-metrics.md) and the [full sample-level problem report](tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md).
+Each paired metric cell is `first / second`, and every `N/5` is a successful-, valid-, or clean-sample count—not an average score. Bold **(FAIL)** cells missed at least one absolute gate; clean counts are informational. The no-skill arm had the same IWE runtime, fixtures, requests, models, judges, samples, and gates, but no `.agents` guidance tree. See [metric and score definitions](docs/evaluation-metrics.md) and the [full sample-level production report](tests/eval/results/2026-08-05-iwe-v18-vs-controls.md).
 
 ### `iwe-v18`
 
@@ -55,40 +56,57 @@ Skill `0.5.0`; IWE CLI `0.18.0`.
 | Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | Multi-hop context | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
-| Metadata query | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
+| Metadata query | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 4/5 / 4/5 |
 | Guarded block update | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
 | Inclusion refactor | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 4/5 / 4/5 |
 | Destructive refusal | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
 | Schema-bound creation | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
 | One-call discovery | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
-| Ambiguous discovery | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 4/5 / 4/5 |
-| CLI incompatibility | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
-| IWE unavailable | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
+| Ambiguous discovery | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 5/5 |
+| CLI incompatibility | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | 5/5 / 4/5 |
+| IWE unavailable | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | **3/5 (FAIL)** / 5/5 |
 
 ### `iwe-memory-system` — deprecated
 
-Skill `0.0.67`; evaluated on IWE CLI `0.18.0` using the maintained runtime contract because the legacy skill declares no compatible CLI version.
+Skill `0.0.67`; IWE CLI `0.18.0` using the maintained runtime contract.
 
 | Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Multi-hop context | **FAIL** | 5/5 / 1/5 | 5/5 / 5/5 | **5/5 / 2/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
-| Metadata query | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 3/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
-| Guarded block update | **FAIL** | **4/5 / 0/5 (FAIL)** | **4/5 / 4/5 (FAIL)** | **4/5 / 2/5 (FAIL)** | **2/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
-| Inclusion refactor | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 2/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
-| Destructive refusal | **FAIL** | 5/5 / 0/5 | **4/5 / 5/5 (FAIL)** | **2/5 / 0/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
-| Schema-bound creation | **FAIL** | **1/5 / 0/5 (FAIL)** | **1/5 / 1/5 (FAIL)** | **1/5 / 0/5 (FAIL)** | **1/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
-| One-call discovery | **FAIL** | 5/5 / 1/5 | 5/5 / 5/5 | **5/5 / 4/5 (FAIL)** | 5/5 | **0/5 / 0/5 (FAIL)** |
-| Ambiguous discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | **0/5 / 0/5 (FAIL)** |
-| CLI incompatibility | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **5/5 / 1/5 (FAIL)** | **4/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
-| IWE unavailable | **FAIL** | 5/5 / 1/5 | 5/5 / 5/5 | **3/5 / 2/5 (FAIL)** | **3/5 (FAIL)** | **0/5 / 0/5 (FAIL)** |
+| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Metadata query | **FAIL** | 5/5 / 0/5 | 5/5 / **4/5 (FAIL)** | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Guarded block update | **FAIL** | 4/5 / 0/5 | **4/5 (FAIL)** / **4/5 (FAIL)** | **4/5 (FAIL)** / **2/5 (FAIL)** | **3/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Inclusion refactor | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **2/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Destructive refusal | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **1/5 (FAIL)** / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Schema-bound creation | **FAIL** | 1/5 / 0/5 | **1/5 (FAIL)** / **1/5 (FAIL)** | **1/5 (FAIL)** / **0/5 (FAIL)** | **1/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| One-call discovery | **FAIL** | 5/5 / 1/5 | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Ambiguous discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **4/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| CLI incompatibility | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **1/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| IWE unavailable | **FAIL** | 5/5 / 1/5 | 5/5 / 5/5 | 5/5 / **2/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
 
-Run the production five-sample comparison across all declared scenarios. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
+### IWE available, no skill guidance
+
+No skill guidance; IWE CLI `0.18.0` is installed and available.
+
+| Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Metadata query | **FAIL** | 5/5 / 0/5 | **4/5 (FAIL)** / **3/5 (FAIL)** | **4/5 (FAIL)** / **0/5 (FAIL)** | **4/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Guarded block update | **FAIL** | 1/5 / 0/5 | **1/5 (FAIL)** / **1/5 (FAIL)** | **1/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Inclusion refactor | **FAIL** | 0/5 / 0/5 | **0/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Destructive refusal | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **4/5 (FAIL)** / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Schema-bound creation | **FAIL** | 4/5 / 0/5 | **4/5 (FAIL)** / **4/5 (FAIL)** | **4/5 (FAIL)** / **0/5 (FAIL)** | **4/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| One-call discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Ambiguous discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| CLI incompatibility | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **1/5 (FAIL)** / **0/5 (FAIL)** | **1/5 (FAIL)** | **0/5 (FAIL)** / **1/5 (FAIL)** |
+| IWE unavailable | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / 5/5 |
+
+Run the production five-sample comparison across all declared scenarios and all three targets. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
 
 ```bash
 python3 scripts/run_iwe_skill_ab_eval.py
 ```
 
-[Full paired A/B results](tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md)
+[Full three-arm production results](tests/eval/results/2026-08-05-iwe-v18-vs-controls.md)
 
 ## Documentation
 

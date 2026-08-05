@@ -42,17 +42,21 @@ class RuntimeTarget:
 @dataclass(frozen=True)
 class EvalTarget:
     id: str
-    skill_path: Path
-    skill_version: str
+    skill_path: Path | None
+    skill_version: str | None
     contract_file: Path
     runtime: RuntimeTarget
 
     @property
-    def name(self) -> str:
-        return self.skill_path.name
+    def has_skill(self) -> bool:
+        return self.skill_path is not None
 
     @property
-    def path(self) -> Path:
+    def name(self) -> str:
+        return self.skill_path.name if self.skill_path is not None else self.id
+
+    @property
+    def path(self) -> Path | None:
         return self.skill_path
 
 
@@ -113,20 +117,25 @@ def load_experiment(path: Path, root: Path) -> Experiment:
 
     targets = []
     for raw in document["targets"]:
-        skill_path = _repo_path(root, raw["skill_path"], "skill_path", kind="directory")
+        has_skill = raw.get("skill_mode", "installed") == "installed"
+        skill_path = (
+            _repo_path(root, raw["skill_path"], "skill_path", kind="directory")
+            if has_skill else None
+        )
         contract_file = _repo_path(root, raw["contract_file"], "contract_file", kind="file")
-        declared = raw["skill_version"]
-        frontmatter = _frontmatter(skill_path / "SKILL.md")
-        if frontmatter.get("name") != skill_path.name:
-            raise ValueError(
-                f"skill name {frontmatter.get('name')!r} does not match directory {skill_path.name!r}"
-            )
-        metadata = frontmatter.get("metadata")
-        if not isinstance(metadata, dict):
-            raise ValueError(f"missing skill metadata in {skill_path / 'SKILL.md'}")
-        actual = metadata.get("version")
-        if actual != declared:
-            raise ValueError(f"skill_version {declared} does not match {actual}")
+        declared = raw.get("skill_version")
+        if skill_path is not None:
+            frontmatter = _frontmatter(skill_path / "SKILL.md")
+            if frontmatter.get("name") != skill_path.name:
+                raise ValueError(
+                    f"skill name {frontmatter.get('name')!r} does not match directory {skill_path.name!r}"
+                )
+            metadata = frontmatter.get("metadata")
+            if not isinstance(metadata, dict):
+                raise ValueError(f"missing skill metadata in {skill_path / 'SKILL.md'}")
+            actual = metadata.get("version")
+            if actual != declared:
+                raise ValueError(f"skill_version {declared} does not match {actual}")
         runtime_raw = raw["runtime"]
         version = runtime_raw["version"]
         if not EXACT_VERSION.fullmatch(version):

@@ -14,9 +14,10 @@
       "type": "array", "minItems": 2,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "skill_path", "skill_version", "contract_file", "runtime"],
+        "required": ["id", "contract_file", "runtime"],
         "properties": {
           "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+          "skill_mode": {"enum": ["installed", "none"]},
           "skill_path": {"type": "string", "minLength": 1},
           "skill_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
           "contract_file": {"type": "string", "minLength": 1},
@@ -31,7 +32,17 @@
             },
             "allOf": [{"if": {"properties": {"source": {"const": "directory"}}}, "then": {"required": ["directory"]}, "else": {"not": {"required": ["directory"]}}}]
           }
-        }
+        },
+        "allOf": [{
+          "if": {
+            "required": ["skill_mode"],
+            "properties": {"skill_mode": {"const": "none"}}
+          },
+          "then": {
+            "not": {"anyOf": [{"required": ["skill_path"]}, {"required": ["skill_version"]}]}
+          },
+          "else": {"required": ["skill_path", "skill_version"]}
+        }]
       }
     }
   }

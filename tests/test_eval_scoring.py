@@ -363,6 +363,20 @@ class EvalScoringContractTests(unittest.TestCase):
         ):
             self.assertNotIn(leaked, requests)
 
+    def test_no_skill_prompt_preserves_request_without_guidance_activation(self) -> None:
+        prompt = self.runner.agent_prompt(self.scenario, skill_installed=False)
+        self.assertIn(f"Request:\n{self.scenario.request}", prompt)
+        self.assertIn("Work offline.", prompt)
+        self.assertNotIn(".agents/", prompt)
+        self.assertNotIn("skill", prompt.lower())
+        self.assertNotIn("iwe", prompt.lower())
+
+    def test_no_skill_installation_leaves_workspace_without_agent_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            self.runner.install_skill(workspace, None)
+            self.assertFalse((workspace / ".agents").exists())
+
     def test_tool_procedure_errors_do_not_invalidate_content_metrics(self) -> None:
         critique = {
             "dimensions": {name: {"score": 5} for name in self.runner.DIMENSIONS}
@@ -869,6 +883,23 @@ class EvalScoringContractTests(unittest.TestCase):
             env = self.runner.judge_environment(Path(directory), Path(directory), Path(directory))
         self.assertNotIn("iwe", env["PATH"].lower())
 
+    def test_no_skill_judge_uses_same_oracle_and_rubric_without_skill_redaction(self) -> None:
+        run = {
+            "metrics": {},
+            "iwe_telemetry": [{"argv": ["find", "virtue"]}],
+            "commands": [{"command": "iwe find virtue", "output": "result"}],
+            "final": "answer",
+        }
+        prompt = self.runner.judge_prompt(None, self.scenario, run, {}, {}, [])
+        self.assertIn("no skill guidance was installed", prompt)
+        self.assertIn("Independent oracle evidence", prompt)
+        self.assertIn("Ideal semantic procedure", prompt)
+        self.assertIn("iwe find virtue", prompt)
+        self.assertEqual(
+            self.runner.sanitize_judge_evidence(None, {"value": "unchanged"}),
+            {"value": "unchanged"},
+        )
+
 
 class ExperimentManifestTests(unittest.TestCase):
     def test_loads_two_target_manifest_with_target_local_runtimes(self) -> None:
@@ -881,7 +912,33 @@ class ExperimentManifestTests(unittest.TestCase):
         self.assertEqual(experiment.targets[0].runtime.version, "0.18.0")
         self.assertEqual(experiment.targets[1].runtime.version, "0.18.1")
         self.assertEqual(experiment.targets[0].skill_path, experiment.targets[1].skill_path)
+        self.assertTrue(all(target.has_skill for target in experiment.targets))
         self.assertNotEqual(experiment.targets[0].id, experiment.targets[1].id)
+
+    def test_loads_runtime_only_target_without_a_skill_payload(self) -> None:
+        experiment_module = load_eval_module("experiment")
+        source = (ROOT / "tests/eval/experiments/example.toml").read_text(encoding="utf-8")
+        source += """
+
+[[targets]]
+id = "iwe-no-skill"
+skill_mode = "none"
+contract_file = "contracts/iwe-v18.json"
+[targets.runtime]
+cli = "iwe"
+source = "directory"
+directory = ".runtimes/iwe-0.18.0/bin"
+version = "0.18.0"
+"""
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            path = Path(directory) / "experiment.toml"
+            path.write_text(source, encoding="utf-8")
+            experiment = experiment_module.load_experiment(path, ROOT)
+        target = experiment.targets[-1]
+        self.assertEqual(target.id, "iwe-no-skill")
+        self.assertFalse(target.has_skill)
+        self.assertIsNone(target.skill_path)
+        self.assertIsNone(target.skill_version)
 
     def test_matrix_is_complete_paired_and_deterministic(self) -> None:
         runner = load_runner()
@@ -1037,22 +1094,36 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         manifest_path = module.write_experiment(1, ROOT)
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(tuple(manifest["scenarios"]), expected)
-        self.assertEqual(manifest["name"], "iwe-v18-vs-memory-all-scenarios")
+        self.assertEqual(manifest["name"], "iwe-v18-vs-controls-all-scenarios")
         self.assertEqual(manifest["jobs"], 10)
+        self.assertEqual(len(manifest["targets"]), 3)
+        no_skill = manifest["targets"][2]
+        self.assertEqual(no_skill["id"], "iwe-no-skill")
+        self.assertEqual(no_skill["skill_mode"], "none")
+        self.assertNotIn("skill_path", no_skill)
+        self.assertNotIn("skill_version", no_skill)
+        completed = subprocess.run(
+            [str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"),
+             "--experiment", str(manifest_path.relative_to(ROOT)), "--list"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("target iwe-no-skill: no skill @ IWE 0.18.0", completed.stdout)
 
     def test_readme_splits_compact_scenario_results_by_skill(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        snapshot = readme.split("## Latest paired A/B snapshot", 1)[1].split(
+        snapshot = readme.split("## Latest production comparison snapshot", 1)[1].split(
             "## Documentation", 1
         )[0]
         self.assertIn("### `iwe-v18`", snapshot)
         self.assertIn("### `iwe-memory-system` — deprecated", snapshot)
-        self.assertEqual(snapshot.count("| Scenario | Overall |"), 2)
+        self.assertIn("### IWE available, no skill guidance", snapshot)
+        self.assertEqual(snapshot.count("| Scenario | Overall |"), 3)
         self.assertEqual(
-            snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 20
+            snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 30
         )
         self.assertIn("**Published scenarios:** `10`", snapshot)
-        self.assertIn("**Agent calls / judge calls:** `100 / 100`", snapshot)
+        self.assertIn("**Agent calls / judge calls:** `150 / 150`", snapshot)
         self.assertNotIn("| Target |", snapshot)
         self.assertIn("Valid / Clean (info)", snapshot)
         self.assertIn("Tool / Resource", snapshot)
@@ -1069,6 +1140,12 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertEqual(targets[1].iwe_version, targets[0].iwe_version)
         self.assertEqual(targets[1].contract_file, targets[0].contract_file)
         self.assertEqual(targets[1].runtime_skill_id, "iwe-v18")
+        self.assertEqual(targets[2].skill_id, "iwe-no-skill")
+        self.assertIsNone(targets[2].skill_path)
+        self.assertIsNone(targets[2].skill_version)
+        self.assertEqual(targets[2].iwe_version, targets[0].iwe_version)
+        self.assertEqual(targets[2].contract_file, targets[0].contract_file)
+        self.assertEqual(targets[2].runtime_skill_id, "iwe-v18")
 
     def test_ab_command_generates_the_linked_markdown_results(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_report")
@@ -1079,13 +1156,17 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         command = module.build_command(Path("manifest.toml"), args.results_file, args.agent)
         self.assertEqual(
             args.results_file,
-            Path("tests/eval/results/2026-08-04-iwe-v18-vs-memory-system.md"),
+            Path("tests/eval/results/2026-08-05-iwe-v18-vs-controls.md"),
         )
         self.assertEqual(command[-4:], [
             "--markdown-report", str(args.results_file), "--agent", "codex"
         ])
 
         renderer = load_eval_module("report_markdown")
+        self.assertEqual(
+            renderer._skill_metadata_line({"skill_mode": "none", "skill_version": None}),
+            "- Skill guidance: `none` (control)",
+        )
         runner = load_runner()
         command_config = json.loads(
             (ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8")

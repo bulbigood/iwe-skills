@@ -27,6 +27,12 @@ def _one_line(value: object) -> str:
     return " ".join(str(value).split())
 
 
+def _skill_metadata_line(target: dict) -> str:
+    if target.get("skill_mode") == "none":
+        return "- Skill guidance: `none` (control)"
+    return f"- Skill version: `{target['skill_version']}`"
+
+
 def _relative_link(target: Path, report_path: Path | None) -> str:
     if report_path is None:
         return target.as_posix()
@@ -201,7 +207,7 @@ def render_markdown(
         lines.extend([
             f"## {outcome['scenario']} — `{outcome['target_id']}`",
             "",
-            f"- Skill version: `{target['skill_version']}`",
+            _skill_metadata_line(target),
             f"- IWE CLI version: `{runtime['version']}`",
             f"- Samples: `{outcome['samples']}`",
             f"- Overall: **{'PASS' if outcome['pass'] else 'FAIL'}**",
