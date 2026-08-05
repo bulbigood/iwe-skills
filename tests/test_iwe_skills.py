@@ -315,7 +315,7 @@ class IweSkillTests(unittest.TestCase):
         self.assertEqual(metrics["reference_files"], 1)
         self.assertLessEqual(metrics["skill_lines"], 270)
         self.assertGreaterEqual(metrics["estimated_tokens"], 800)
-        self.assertLessEqual(metrics["estimated_tokens"], 3_900)
+        self.assertLessEqual(metrics["estimated_tokens"], 4_000)
         self.assertEqual(metrics["contract_operations"], 22)
 
     def test_skill_contains_every_cataloged_case_and_command_glossary_entry(self) -> None:

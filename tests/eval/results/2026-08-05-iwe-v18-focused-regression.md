@@ -8,7 +8,7 @@ This target-only snapshot selects the latest five-sample result for each of the 
 - Samples: `5` per scenario
 - Workers: `5`
 - Selected matrix: `45` agent calls + `45` judge calls
-- Staged runs executed during diagnosis: `90` agent calls + `90` judge calls
+- Staged runs executed during diagnosis: `95` agent calls + `95` judge calls
 - Raw telemetry: `20260804T233926Z`, `20260804T235811Z`, `20260805T000914Z`
 
 | Scenario | Correct / Evidence | Request / Skill | Safety | Tool / Resource | Non-efficiency result |
