@@ -1,9 +1,9 @@
 ---
 name: iwe-v18
-description: Use for IWE knowledge-graph retrieval and safe Markdown refactors. Route 95% of tasks from this file alone.
+description: Use for IWE knowledge-graph retrieval and safe Markdown refactors. Route 95% of tasks from this file.
 compatibility: Requires IWE CLI >=0.18.0.
 metadata:
-  version: "0.4.0"
+  version: "0.5.0"
 ---
 
 # IWE problem-solving policy
@@ -16,10 +16,10 @@ IWE is authoritative. Classify, choose the narrowest route, derive known paramet
 - Do not use web search, `grep`, `rg`, `find`, recursive lists, or broad reads. Do not run routine preflight.
 - Do not install, update, configure, or repair IWE.
 - Default result limit: 20. Use a smaller request-derived limit.
-- A stated class is a hard filter: “project note” requires `--filter '{ type: project }'`; never use untyped lexical top-1.
+- A stated class is a hard filter: “project note” requires `--filter '{ type: project }'`; never use untyped lexical top-1. For creation, a stated semantic class sets `type=<class>`.
 - Never pass 0 as a result, depth, distance, document, or token bound; 0 is unlimited.
 - Prefer one call. Use a second only for ambiguity, one bounded page, or one failed refinement. Do not run a second query after sufficient evidence.
-- Mutation safety overrides efficiency: preview and guarded apply are mandatory; verify once only when success cannot prove final state.
+- Mutation safety: preview/apply edits and refactors; verify only when success cannot prove final state. Create/new are collision-guarded exceptions: never add `--dry-run`; use strict validation and collision policy.
 
 ## Route and compute parameters mentally
 
@@ -63,7 +63,7 @@ iwe find --lexical "<distinctive terms>" --limit 5 --project 'key=$key,title=$ti
 - **A5 Roots:** roots selector for flat entry-point list; use tree only when hierarchy is requested.
 - **A6 Inclusion neighborhood:** included-by for descendants, includes for containers; positive request-derived depth.
 - **A7 Reference neighborhood:** references for documents linking to an anchor, referenced-by for documents linking from it; positive distance.
-- **A8 Heading/block:** exact key plus one block predicate using header, within, text, paragraph, or references.
+- **A8 Unknown source plus known heading:** combine descriptor and heading in one lexical query, limit 1, project key/title, use `--blocks '{ $header: "<heading>" }'`. Never query the descriptor or heading alone; never project `$blocks`.
 - **A9 Matching lines:** exact key plus matches only for an actual literal/regex text-pattern request.
 - **A10 Ranked records:** filter/query plus known-field sort (`1` ascending, `-1` descending), projection, and limit.
 
@@ -117,12 +117,12 @@ Do not retrieve documents before an artifact command.
 ## Cluster E — create documents
 
 - **E1 Quick note:** `new` with title/body; suffix collision is acceptable unless explicit identity is required.
-- **E2 Known template:** `create` with all requested template variables, typed frontmatter sets, strict validation, and collision policy.
+- **E2 Known template:** `create` with variables, `type=<stated class>`, typed frontmatter, strict validation, and collision policy.
 - **E3 Exact complete document:** create explicit key with complete frontmatter/body content, strict, collision fail.
 - **E4 Idempotent optional creation:** skip only when already-existing is an acceptable success state.
 - **E5 Deliberate replacement:** override only with explicit overwrite intent; otherwise fail or suffix.
 
-Known template route: `iwe create --template <name> --vars-yaml '<all variables>' --set '<field>=<typed value>' --strict --if-exists fail`. Variables include `"body":"<text>"`. Keep every template variable; `--set` is only frontmatter. No help/docs/schema/retrieve first. Create has no `--format` flag.
+Known template route: `iwe create --template <name> --vars-yaml '<all variables>' --set 'type=<class>' --set '<field>=<typed value>' --strict --if-exists fail`. Preserve request field names exactly: rendered title/attendees/body are variables, including `"body":"<text>"`; document type/status/draft are typed `--set` frontmatter. Keep every template variable and never duplicate a field. This recipe is complete: no help/docs/schema/retrieve. Successful strict create proves schema and final key; stop. Create has no `--format` flag.
 
 ## Cluster F — atomic metadata and local body edits
 
@@ -157,7 +157,7 @@ iwe extract "<source-key>" --section "<known heading>" --dry-run --format keys
 - **G6 Attach:** attach one source to one or more already-known configured destinations in one preview/apply pair.
 - **G7 Attach-action inventory:** attach list only when available actions are the requested outcome.
 
-Preview, apply identical arguments, then verify affected keys only when output cannot prove the graph result.
+Preview and apply identical arguments. For extract, verify only the source inclusion when output cannot prove the graph result; do not retrieve the created target after successful apply.
 
 ## Cluster H — destructive and workspace-wide work
 
@@ -204,13 +204,13 @@ Safety calls are not waste. Refuse destructive work when scope or recovery is in
 
 Filters are one inline YAML mapping. Plain fields mean equality. Use `$and`, `$or`, or `$not` only when one mapping cannot express the condition; `$in` for alternatives; comparisons for numeric/time bounds; `$exists` for presence; `$regex` for an actual pattern. Keep finite `maxDepth`/`maxDistance` in nested graph predicates.
 
-Projection replaces defaults; additive fields retain them. Project content only with token caps. One block predicate selects header, text, within, paragraph, or references. Carry selectors and inline expect into mutation. Prefer relationship flags for one anchor.
+Projection replaces defaults; additive fields retain them. Built-ins use `$key`/`$title`; frontmatter fields use bare names. Project content only with token caps. One block predicate selects header, text, within, paragraph, or references. Carry selectors and inline expect into mutation. Prefer relationship flags for one anchor.
 
 ## Rare errors and fallback reference
 
-First correct one obvious quoting/YAML error, look up unknown syntax once, refine one empty query once, narrow after truncation, and stop on schema/expectation failure.
+Remove a rejected optional shaping flag and its value: corrected argv is the failed argv minus only that flag/value; preserve every other argument and retry immediately once. Do not read reference/help, substitute aliases, or repeat the rejected flag. A null or missing requested field is not evidence. Otherwise correct quoting/YAML once, look up still-unknown syntax once, refine one empty query once, narrow truncation, and stop on schema/expectation failure.
 
-Triggers: missing executable; still-unknown command/option; invalid YAML; empty result after refinement; unsupported operation; source outside index; unexplained truncation; permission/I/O failure; schema/expectation failure.
+Triggers: missing executable; still-unknown command/option after direct correction; invalid YAML; empty result after refinement; unsupported operation; source outside index; unexplained truncation; permission/I/O failure; schema/expectation failure.
 
 For a self-explanatory missing-executable error, skip the reference. Read `references/errors.md` only when classification is unclear: unknown syntax, invalid YAML, failed refinement, unsupported operation, truncation, permission/I/O, or schema/expectation failure.
 

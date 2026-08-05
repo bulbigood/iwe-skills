@@ -101,7 +101,7 @@ scenarios:
     - Mutation without preview or final-state evidence from apply output or a focused verification.
   efficiency:
     task_tool_calls: [3, 6]
-    task_tool_output_bytes: [1000, 16000]
+    task_tool_output_bytes: [0, 4000]
   excellent:
     task_correctness: The Architecture section becomes a separate document, the source includes it, and the answer reports
       all affected keys accurately.

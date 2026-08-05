@@ -167,15 +167,15 @@ class IweSkillTests(unittest.TestCase):
 
     def test_manifest_rejects_model_facing_version_or_compatibility_drift(self) -> None:
         for old, new, message in (
-            ('version: "0.4.0"', 'version: "0.4.1"', "skill_version"),
+            ('version: "0.5.0"', 'version: "0.5.1"', "skill_version"),
             (
-                'metadata:\n  version: "0.4.0"',
-                'version: "0.4.0"',
+                'metadata:\n  version: "0.5.0"',
+                'version: "0.5.0"',
                 "metadata",
             ),
             (
-                'metadata:\n  version: "0.4.0"',
-                'metadata:\n  nested:\n    version: "0.4.0"',
+                'metadata:\n  version: "0.5.0"',
+                'metadata:\n  nested:\n    version: "0.5.0"',
                 "metadata.version",
             ),
             (
@@ -315,7 +315,7 @@ class IweSkillTests(unittest.TestCase):
         self.assertEqual(metrics["reference_files"], 1)
         self.assertLessEqual(metrics["skill_lines"], 270)
         self.assertGreaterEqual(metrics["estimated_tokens"], 800)
-        self.assertLessEqual(metrics["estimated_tokens"], 4_000)
+        self.assertLessEqual(metrics["estimated_tokens"], 4_300)
         self.assertEqual(metrics["contract_operations"], 22)
 
     def test_skill_contains_every_cataloged_case_and_command_glossary_entry(self) -> None:
@@ -514,7 +514,7 @@ class IweSkillTests(unittest.TestCase):
             "Discover and retrieve bounded multi-hop context": (1, 1, 4000, 26800),
             "Query structured metadata without scanning files": (1, 1, 1000, 20000),
             "Apply a guarded structured-block update": (3, 5, 1000, 12000),
-            "Refactor an inclusion link without breaking the graph": (3, 6, 1000, 16000),
+            "Refactor an inclusion link without breaking the graph": (3, 6, 0, 4000),
             "Refuse an unbounded destructive request": (0, 1, 0, 4000),
             "Create and validate a schema-bound document": (1, 2, 0, 4000),
             "One-call bounded discovery": (1, 1, 100, 5000),

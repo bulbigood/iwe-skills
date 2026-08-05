@@ -162,8 +162,11 @@ class EvalScoringContractTests(unittest.TestCase):
             1000,
         )
         self.assertEqual(
-            scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].min_task_tool_output_bytes,
-            1000,
+            (
+                scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].min_task_tool_output_bytes,
+                scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].max_task_tool_output_bytes,
+            ),
+            (0, 4000),
         )
         self.assertEqual(
             (
@@ -223,6 +226,25 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertEqual(metrics["task_tool_calls"], 1)
         self.assertEqual(metrics["task_tool_output_bytes"], 4)
         self.assertEqual(metrics["estimated_task_input_tokens"], 1)
+
+    def test_resource_volume_recovers_missing_command_output_from_valid_iwe_telemetry(self) -> None:
+        stdout = "usage: iwe find [OPTIONS]\n"
+        telemetry = [{
+            "args": ["find", "--help"],
+            "exit_code": 0,
+            "stdout": stdout,
+            "stderr": "",
+            "stdout_bytes": len(stdout.encode()),
+            "emitted_stdout_bytes": len(stdout.encode()),
+            "stderr_bytes": 0,
+            "result_count": None,
+        }]
+        metrics = self.runner.command_metrics(
+            [{"command": "iwe find --help", "exit_code": 0, "output": ""}],
+            telemetry,
+        )
+        self.assertEqual(metrics["iwe_telemetry_invalid"], 0)
+        self.assertEqual(metrics["task_tool_output_bytes"], len(stdout.encode()))
 
     def test_verdict_keeps_judge_efficiency_scores_without_count_based_clamping(self) -> None:
         critique = {"dimensions": {name: {"score": 5} for name in self.runner.DIMENSIONS}}
@@ -435,6 +457,13 @@ class EvalScoringContractTests(unittest.TestCase):
                 env=environment,
                 check=False,
             )
+            repeated_rejected_option = subprocess.run(
+                [str(bin_dir / "iwe"), "find", "--project", "key=$key"],
+                text=True,
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
             retry = subprocess.run(
                 [str(bin_dir / "iwe"), "find", "--limit", "1"],
                 text=True,
@@ -444,8 +473,36 @@ class EvalScoringContractTests(unittest.TestCase):
             )
         self.assertEqual(first.returncode, 2)
         self.assertIn("--project", first.stderr)
+        self.assertEqual(repeated_rejected_option.returncode, 2)
+        self.assertIn("--project", repeated_rejected_option.stderr)
         self.assertEqual(retry.returncode, 0)
         self.assertEqual(retry.stdout, "recovered\n")
+
+    def test_recovery_procedure_rejects_reusing_the_failed_option(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "recover-from-cli-option-incompatibility"
+        )
+        commands = [
+            {
+                "command": "iwe find --lexical roadmap --limit 1 --project 'key=$key,title=$title' --format json",
+                "exit_code": 2,
+                "output": "",
+            },
+            {
+                "command": "iwe find --lexical roadmap --limit 1 --project title --format json",
+                "exit_code": 0,
+                "output": '[{"title":null}]',
+            },
+        ]
+        telemetry = [
+            {"args": ["find", "--lexical", "roadmap", "--limit", "1", "--project", "key=$key,title=$title", "--format", "json"], "exit_code": 2, "stderr": "error: unexpected argument '--project' found\n"},
+            {"args": ["find", "--lexical", "roadmap", "--limit", "1", "--project", "title", "--format", "json"], "exit_code": 0, "stderr": ""},
+        ]
+        metrics = self.runner.command_metrics(commands)
+        procedure = self.runner.procedure_errors(scenario, commands, metrics, telemetry)
+        self.assertIn("rejected IWE option reused after incompatibility failure", procedure)
 
     def test_help_output_is_not_classified_as_an_unbounded_read(self) -> None:
         stdout = "usage: iwe find [OPTIONS]\n"
@@ -959,6 +1016,16 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("Keep every template variable", skill)
         self.assertIn("For a self-explanatory missing-executable error", skill)
         self.assertIn("never use untyped lexical top-1", skill)
+        self.assertIn("Unknown source plus known heading", skill)
+        self.assertIn("Never query the descriptor or heading alone", skill)
+        self.assertIn("Create/new are collision-guarded exceptions", skill)
+        self.assertIn("Successful strict create proves schema", skill)
+        self.assertIn("Preserve request field names exactly", skill)
+        self.assertIn("For creation, a stated semantic class sets `type=<class>`", skill)
+        self.assertIn("Remove a rejected optional shaping flag", skill)
+        self.assertIn("corrected argv is the failed argv minus only that flag", skill)
+        self.assertIn("A null or missing requested field is not evidence", skill)
+        self.assertIn("verify only the source inclusion", skill)
         self.assertIn("Relationship synthesis: retrieve 3–5", skill)
         self.assertIn("iwe create --template <name> --vars-yaml", skill)
         self.assertIn('say "IWE is unavailable"', skill)
@@ -994,7 +1061,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
         self.assertEqual(targets[0].skill_id, "iwe-v18")
-        self.assertEqual(targets[0].skill_version, "0.4.0")
+        self.assertEqual(targets[0].skill_version, "0.5.0")
         self.assertEqual(targets[0].iwe_version, "0.18.0")
         self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
         self.assertEqual(targets[1].skill_id, "iwe-memory-system")

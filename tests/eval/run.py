@@ -501,6 +501,7 @@ def command_metrics(
     }
     observed_invocations: list[list[str]] = []
     observed_details: list[tuple[str, int | None]] = []
+    observed_iwe_task_output_bytes = 0
     for item in commands:
         command = str(item.get("command", ""))
         output = str(item.get("output", ""))
@@ -528,7 +529,10 @@ def command_metrics(
         )
         metrics["context_bytes"] += len(output.encode("utf-8"))
         if not _is_skill_activation(item, tested_skill):
-            metrics["task_tool_output_bytes"] += len(output.encode("utf-8"))
+            output_bytes = len(output.encode("utf-8"))
+            metrics["task_tool_output_bytes"] += output_bytes
+            if iwe_calls:
+                observed_iwe_task_output_bytes += output_bytes
         for read_command, arguments in re.findall(
             r"(?<![\w-])iwe\s+(find|retrieve)\b(.*?)"
             r"(?=(?:\s+&&|\s+\|\||[;\n]|$))",
@@ -606,6 +610,17 @@ def command_metrics(
             metrics["result_records"] = sum(
                 int(item.get("result_count") or 0) for item in telemetry
             )
+            emitted_iwe_bytes = sum(
+                int(item.get("emitted_stdout_bytes", 0))
+                + int(item.get("stderr_bytes", 0))
+                for item in telemetry
+            )
+            missing_captured_bytes = max(
+                emitted_iwe_bytes - observed_iwe_task_output_bytes,
+                0,
+            )
+            metrics["task_tool_output_bytes"] += missing_captured_bytes
+            metrics["context_bytes"] += missing_captured_bytes
     metrics["estimated_context_tokens"] = (metrics["context_bytes"] + 3) // 4
     metrics["estimated_task_input_tokens"] = (
         metrics["task_tool_output_bytes"] + 3
@@ -648,11 +663,39 @@ def procedure_errors(
     scenario: Scenario,
     commands: list[dict],
     metrics: dict[str, int],
+    telemetry: list[dict] | None = None,
 ) -> list[str]:
     errors = efficiency_errors(scenario, metrics)
     command_text = "\n".join(str(item.get("command", "")) for item in commands)
     if re.search(r"\biwe\s+find\s+(?!-)[^|;&\n]+", command_text):
         errors.append("possible deprecated positional iwe find query")
+    if scenario.iwe_mode == "incompatible":
+        records = telemetry if telemetry is not None else commands
+        for index, item in enumerate(records):
+            if int(item.get("exit_code") or 0) == 0:
+                continue
+            rejected = re.search(
+                r"(?:unexpected argument|unknown option|unrecognized option).*?['\"](--[\w-]+)['\"]",
+                str(item.get("stderr", item.get("output", ""))),
+                re.IGNORECASE,
+            )
+            if not rejected:
+                continue
+            option = rejected.group(1)
+            if telemetry is not None:
+                later_invocations = [
+                    [str(arg) for arg in later.get("args", [])]
+                    for later in records[index + 1:]
+                ]
+            else:
+                later_invocations = [
+                    invocation
+                    for later in records[index + 1:]
+                    for invocation in _observed_iwe_invocations(str(later.get("command", "")))
+                ]
+            if any(option in invocation for invocation in later_invocations):
+                errors.append("rejected IWE option reused after incompatibility failure")
+                break
     return errors
 
 
@@ -1049,7 +1092,6 @@ def install_command_shims(
         f"REAL = {str(real_iwe)!r}\n"
         f"MODE = {scenario.iwe_mode!r}\n"
         f"MAX_OUTPUT = {scenario.max_output_bytes!r}\n"
-        f"STATE = pathlib.Path({str(state)!r})\n"
         "ARGS = sys.argv[1:]\n"
         "def finish(code, stdout=b'', stderr=b''):\n"
         "    raw_stdout_bytes = len(stdout)\n"
@@ -1076,8 +1118,7 @@ def install_command_shims(
         "    raise SystemExit(code)\n"
         "if MODE == 'unavailable':\n"
         "    finish(127, stderr=b'iwe: command not found\\n')\n"
-        "if MODE == 'incompatible' and not STATE.exists() and '--project' in ARGS:\n"
-        "    STATE.touch()\n"
+        "if MODE == 'incompatible' and '--project' in ARGS:\n"
         "    finish(2, stderr=b\"error: unexpected argument '--project' found\\n\")\n"
         "completed = subprocess.run([REAL, *ARGS], capture_output=True)\n"
         "finish(completed.returncode, completed.stdout, completed.stderr)\n",
@@ -1652,7 +1693,12 @@ def main() -> int:
         integrity_errors = mechanical_errors(
             scenario, before, after, agent["commands"], workspace, agent["metrics"]
         )
-        procedural_errors = procedure_errors(scenario, agent["commands"], agent["metrics"])
+        procedural_errors = procedure_errors(
+            scenario,
+            agent["commands"],
+            agent["metrics"],
+            agent["iwe_telemetry"],
+        )
         judge_command = config["judge_command"].format(judge_schema=shlex.quote(str(EVAL / "judge.schema.json")))
         oracle = independent_oracle_evidence(scenario, before, after, agent["final"])
         judge_prompt_text = judge_prompt(
