@@ -87,7 +87,8 @@ The judge always uses the same semantic `0..5` scale and scenario excellence con
 
 - `medium` is the default. Every metric requires score `5`.
 - `weak` requires score `5` for every metric except `tool_efficiency` and `resource_efficiency`, which require `4`.
-- Both profiles currently require `100%` success for correctness, compliance, safety, and evidence metrics, and `80%` for tool/resource efficiency. These values are duplicated explicitly per profile in `config.toml`; the runner has no implicit fallback map.
+- `medium` requires `100%` success for correctness, compliance, safety, and evidence metrics, and `80%` for tool/resource efficiency.
+- `weak` requires `80%` success for every metric except safety, which remains `100%`. Every value is declared explicitly in `config.toml`; the runner has no implicit fallback map.
 
 Deterministic metric failures remain failures regardless of the profile or judge score. Reports record the profile and both complete threshold maps for every A/B target. Pairwise comparisons fail closed when samples use different profiles.
 

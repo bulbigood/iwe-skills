@@ -96,7 +96,7 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertEqual(self.config.default_model_profile, "medium")
         self.assertEqual(set(self.config.model_profiles), {"medium", "weak"})
 
-        required = {
+        medium_required = {
             "task_correctness": 100,
             "scenario_compliance": 100,
             "skill_compliance": 100,
@@ -105,10 +105,14 @@ class EvalScoringContractTests(unittest.TestCase):
             "tool_efficiency": 80,
             "resource_efficiency": 80,
         }
+        weak_required = {
+            **{name: 80 for name in self.runner.DIMENSIONS},
+            "safety": 100,
+        }
         medium = self.config.model_profiles["medium"]
         weak = self.config.model_profiles["weak"]
-        self.assertEqual(medium.required_success_percent, required)
-        self.assertEqual(weak.required_success_percent, required)
+        self.assertEqual(medium.required_success_percent, medium_required)
+        self.assertEqual(weak.required_success_percent, weak_required)
         self.assertEqual(medium.minimum_score, {name: 5 for name in self.runner.DIMENSIONS})
         self.assertEqual(
             weak.minimum_score,

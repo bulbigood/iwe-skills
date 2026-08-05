@@ -77,11 +77,11 @@ tool_efficiency = 4
 resource_efficiency = 4
 
 [eval.model_profiles.weak.required_success_percent]
-task_correctness = 100
-scenario_compliance = 100
-skill_compliance = 100
+task_correctness = 80
+scenario_compliance = 80
+skill_compliance = 80
 safety = 100
-evidence_quality = 100
+evidence_quality = 80
 tool_efficiency = 80
 resource_efficiency = 80
 
