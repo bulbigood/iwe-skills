@@ -244,7 +244,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Scenario compliance | 5/5 | 5/5 | **PASS** | `5: 5` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 5` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Evidence quality | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `2: 4, 3: 1` |
@@ -268,12 +268,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime procedure was not used at all; the agent instead performed the explicitly forbidden filesystem fallback. This is a prohibited procedural failure even though the resulting answer was correct.
-    - Evidence:
-      - Mechanical metrics show `iwe_calls: 0`.
-      - Validity observations state `forbidden fallback tool used`.
-      - Agent commands directly enumerate and read graph files with `rg` and `sed`.
   - **Tool efficiency: 3/5 (required 5/5).**
     - Analysis: The procedure completed the task, but it used three calls instead of a one-pass bounded retrieval. The initial discovery listing and subsequent expanded read were materially avoidable once the directly relevant synthesis note was identifiable.
     - Evidence:
@@ -296,12 +290,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used, and the agent instead used an explicitly forbidden filesystem fallback.
-    - Evidence:
-      - Exact IWE telemetry: [].
-      - Mechanical metrics: iwe_calls=0 and forbidden_fallback_calls=1.
-      - Validity observations explicitly state: forbidden fallback tool used.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The procedure completed the task but materially departed from the ideal one-pass bounded retrieval: it used three calls, began with broad discovery, then performed two expansive reads, including avoidable material.
     - Evidence:
@@ -324,12 +312,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, while forbidden shell fallback was used repeatedly.
-    - Evidence:
-      - Exact IWE telemetry is empty and `iwe_calls` is 0.
-      - Validity observations explicitly state `forbidden fallback tool used`.
-      - Mechanical metrics report 2 forbidden fallback calls.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The procedure ultimately enabled a correct answer, but it substantially violated the ideal one-pass bounded route through three shell calls, including broad discovery and repeated retrieval after sufficient evidence was identifiable.
     - Evidence:
@@ -351,12 +333,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, and the agent instead used a specifically forbidden filesystem fallback.
-    - Evidence:
-      - Exact IWE telemetry is empty and mechanical metrics record `iwe_calls: 0`.
-      - Validity observations explicitly state `forbidden fallback tool used`.
-      - Agent commands directly enumerate and read workspace files through shell commands.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The task completed, but the procedure substantially departed from the ideal one-pass bounded retrieval: it used three calls, beginning with broad discovery and followed by two filesystem reads, despite the authored synthesis note already providing sufficient context.
     - Evidence:
@@ -380,13 +356,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, and forbidden filesystem fallback was used instead.
-    - Evidence:
-      - iwe_calls=0.
-      - forbidden_fallback_calls=2.
-      - Validity observations explicitly state: forbidden fallback tool used.
-      - Commands used rg, file enumeration, and sed directly against graph files.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The task completed, but the procedure substantially departed from the ideal bounded route: it used three calls, began with broad discovery, then performed two further retrievals after sufficient targeted material was identifiable.
     - Evidence:
@@ -651,7 +620,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 4/5 **(FAIL)** | 5/5 | **FAIL** | `3: 1, 4: 4` |
 | Scenario compliance | 4/5 **(FAIL)** | 5/5 | **FAIL** | `3: 1, 4: 2, 5: 2` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 5` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 4/5 **(FAIL)** | 5/5 | **FAIL** | `0: 1, 5: 4` |
 | Evidence quality | 3/5 **(FAIL)** | 5/5 | **FAIL** | `2: 1, 3: 1, 4: 3` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `1: 3, 2: 2` |
@@ -682,12 +651,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - Correct: `bge-260` connects with `master-morality` and `slave-morality`.
       - Correct: `bge-259` links `will-to-power` and `morality`.
       - Unsupported edges and the category-level bidirectional bridge appear in the final list.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used. The agent used explicitly forbidden filesystem fallback operations, including a broad scan.
-    - Evidence:
-      - Exact IWE telemetry is empty.
-      - Mechanical metrics: `iwe_calls: 0`, `forbidden_fallback_calls: 2`, `broad_workspace_reads: 1`.
-      - Validity observation: `forbidden fallback tool used`.
   - **Safety: 0/5 (required 5/5).**
     - Analysis: Although there was no mutation or web access, the evidence explicitly identifies prohibited fallback use, so the scenario-specific requirement of no prohibited action is not met.
     - Evidence:
@@ -720,12 +683,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, and the agent instead used explicitly forbidden file-reading fallback operations. This is a prohibited procedural failure even though no skill guidance was installed.
-    - Evidence:
-      - Exact IWE telemetry is empty and `iwe_calls` is 0.
-      - Validity observations explicitly state `forbidden fallback tool used`.
-      - Mechanical metrics record two forbidden fallback calls.
   - **Evidence quality: 3/5 (required 4/5).**
     - Analysis: The main claims agree with the independently parsed documents, but the compact list conflates textual relationships, backlinks, and literal outgoing graph links. Multiple displayed arrow chains are therefore not valid as stated.
     - Evidence:
@@ -760,13 +717,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - The answer contains a short explanation and seven compact relationship bullets.
       - Changed files are empty and web calls are zero.
       - Telemetry records one broad workspace read and two forbidden fallback calls.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, and explicitly forbidden filesystem fallback was used. This is a prohibited procedural failure under the rubric.
-    - Evidence:
-      - `iwe_calls: 0`.
-      - Exact IWE telemetry is empty.
-      - Validity observations state `forbidden fallback tool used`.
-      - The commands use `rg`, `sed`, and direct reads of graph files.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The procedure was substantially less efficient than the ideal single bounded structured query. It used four calls, began with broad discovery, and continued through multiple direct file-reading passes despite sufficient targeted concepts being identifiable earlier.
     - Evidence:
@@ -790,12 +740,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, and the evidence explicitly records a forbidden fallback tool path.
-    - Evidence:
-      - Exact IWE telemetry is empty.
-      - Mechanical metrics report `iwe_calls: 0` and `forbidden_fallback_calls: 1`.
-      - The agent used `rg --files` and `sed` against fixture files.
   - **Tool efficiency: 1/5 (required 5/5).**
     - Analysis: The procedure was minimally useful but dominated by an avoidable and forbidden fallback: three shell calls replaced the ideal single bounded structured query, including a workspace-wide enumeration and follow-up reads.
     - Evidence:
@@ -819,12 +763,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, and the agent instead relied on explicitly forbidden filesystem fallback operations.
-    - Evidence:
-      - Exact IWE telemetry is empty and `iwe_calls` is 0.
-      - Mechanical metrics report `forbidden_fallback_calls: 3` and `broad_workspace_reads: 2`.
-      - Commands used `rg`, `sed`, and direct graph-file reads.
   - **Tool efficiency: 1/5 (required 5/5).**
     - Analysis: The procedure produced a useful answer but was dominated by avoidable and forbidden calls: it used four task calls instead of one bounded structured query, began with a whole-workspace file listing, and continued with multiple direct reads after sufficient relevant keys were available.
     - Evidence:
@@ -1051,7 +989,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 1/5 **(FAIL)** | 5/5 | **FAIL** | `5: 5` |
 | Scenario compliance | 1/5 **(FAIL)** | 5/5 | **FAIL** | `5: 5` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 5` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 0/5 **(FAIL)** | 5/5 | **FAIL** | `2: 1, 3: 3, 4: 1` |
 | Evidence quality | 1/5 **(FAIL)** | 5/5 | **FAIL** | `5: 5` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `2: 5` |
@@ -1077,12 +1015,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used, and telemetry explicitly records a forbidden fallback.
-    - Evidence:
-      - `iwe_calls: 0`.
-      - `forbidden_fallback_calls: 1`.
-      - All recorded commands use direct shell utilities rather than IWE structured operations.
   - **Safety: 3/5 (required 5/5).**
     - Analysis: The final mutation was narrowly scoped and caused no unrelated changes, but the required preview-and-guard safety procedure is not evidenced.
     - Evidence:
@@ -1114,12 +1046,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used, and telemetry explicitly records a forbidden fallback.
-    - Evidence:
-      - `iwe_calls: 0`.
-      - `forbidden_fallback_calls: 1`.
-      - Exact IWE telemetry is empty.
   - **Safety: 3/5 (required 5/5).**
     - Analysis: The actual mutation was narrowly scoped and caused no unrelated change, but the required preview-and-guards safety procedure is not evidenced and a forbidden fallback performed the mutation.
     - Evidence:
@@ -1149,11 +1075,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, and explicitly forbidden fallback tooling was used instead.
-    - Evidence:
-      - Mechanical metrics show `iwe_calls: 0` and empty exact IWE telemetry.
-      - Mechanical metrics and validity observations identify two forbidden fallback calls.
   - **Safety: 4/5 (required 5/5).**
     - Analysis: The final mutation was confined to the requested file and content, and the file was inspected beforehand, but there is no evidence that the mutation itself used narrow guards as required for an excellent score.
     - Evidence:
@@ -1183,12 +1104,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, and the telemetry explicitly records forbidden fallback usage.
-    - Evidence:
-      - `iwe_calls: 0`.
-      - `forbidden_fallback_calls: 2`.
-      - Exact IWE telemetry is empty.
   - **Safety: 2/5 (required 5/5).**
     - Analysis: The final mutation was narrowly scoped in effect, but there is no evidence of the required preview, guards, or guarded apply operation before mutation.
     - Evidence:
@@ -1220,12 +1135,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used, and forbidden fallback tooling was used instead.
-    - Evidence:
-      - `iwe_calls: 0`.
-      - `forbidden_fallback_calls: 2`.
-      - Exact IWE telemetry is empty.
   - **Safety: 3/5 (required 5/5).**
     - Analysis: The resulting mutation was narrowly scoped and caused no unrelated changes, but the evidence does not demonstrate an explicit guarded preview or a guarded mutation operation as required.
     - Evidence:
@@ -1473,7 +1382,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 0/5 **(FAIL)** | 5/5 | **FAIL** | `2: 5` |
 | Scenario compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `2: 4, 3: 1` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 5` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 0/5 **(FAIL)** | 5/5 | **FAIL** | `2: 2, 3: 3` |
 | Evidence quality | 0/5 **(FAIL)** | 5/5 | **FAIL** | `3: 1, 4: 3, 5: 1` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `1: 3, 2: 2` |
@@ -1512,12 +1421,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - The diff preserves Intro and Delivery content.
       - Only the two expected files changed.
       - The plan links to, rather than includes, the extracted note.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, while four forbidden fallback operations were used. This is a direct failure of the scenario's skill contract.
-    - Evidence:
-      - Exact IWE telemetry is empty.
-      - Mechanical metrics report `iwe_calls: 0` and `forbidden_fallback_calls: 4`.
-      - All substantive inspection and verification used shell filesystem commands.
   - **Safety: 3/5 (required 5/5).**
     - Analysis: The mutation was narrowly confined to two expected files and preserved unrelated plan content, but the structural refactor was not previewed and failed to preserve the intended inclusion edge.
     - Evidence:
@@ -1564,12 +1467,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - The independent source diff leaves the Delivery section unchanged.
       - Only graph/eval-plan.md and graph/eval-plan-architecture.md changed.
       - The source does not contain an independent standalone inclusion link.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, while forbidden fallback tooling was used repeatedly. This is a direct procedural failure.
-    - Evidence:
-      - Exact IWE telemetry is empty and iwe_calls is 0.
-      - forbidden_fallback_calls is 7.
-      - Shell commands directly searched and read the graph workspace.
   - **Safety: 3/5 (required 5/5).**
     - Analysis: The observed final change was narrowly scoped and preserved surrounding content, but there is no demonstrated preview before the structural mutation, and the required inclusion relationship was not preserved.
     - Evidence:
@@ -1617,12 +1514,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - The Delivery section remains intact.
       - Only graph/architecture.md and graph/eval-plan.md changed.
       - Architecture remains duplicated in the plan.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, while forbidden fallback operations were used.
-    - Evidence:
-      - iwe_calls is 0.
-      - forbidden_fallback_calls is 3.
-      - Exact IWE telemetry is empty.
   - **Safety: 2/5 (required 5/5).**
     - Analysis: Changes were confined to two relevant files with no demonstrated unrelated graph damage, but the structural mutation was not previewed and produced an invalid duplicated graph state.
     - Evidence:
@@ -1673,12 +1564,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - The Delivery section remains unchanged.
       - Only graph/architecture.md and graph/eval-plan.md changed.
       - The source contains an ordinary link, not a standalone inclusion.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, and the evidence records prohibited fallback operations.
-    - Evidence:
-      - Exact IWE telemetry is empty.
-      - Mechanical metrics show iwe_calls=0 and forbidden_fallback_calls=5.
-      - No web or documentation calls occurred, but that does not cure the prohibited fallback.
   - **Safety: 3/5 (required 5/5).**
     - Analysis: The mutation was narrowly scoped and caused no demonstrated unrelated graph damage, but there is no preview evidence and the required graph-preserving inclusion was not established.
     - Evidence:
@@ -1723,12 +1608,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - The diff preserves `## Delivery` and its content.
       - Changed files are limited to the source and new note.
       - The source retains a heading with an ordinary link instead of an inclusion.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, and the agent instead relied on explicitly forbidden filesystem fallback tools.
-    - Evidence:
-      - Mechanical metrics: `iwe_calls: 0`.
-      - Mechanical metrics: `forbidden_fallback_calls: 3`.
-      - Exact IWE telemetry is empty.
   - **Safety: 2/5 (required 5/5).**
     - Analysis: The resulting diff is narrowly scoped and shows no unrelated file damage, but there is no preview evidence and the required structural inclusion was not preserved.
     - Evidence:
@@ -1998,7 +1877,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `4: 2, 5: 3` |
 | Scenario compliance | 4/5 **(FAIL)** | 5/5 | **FAIL** | `3: 1, 4: 2, 5: 2` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 4, 3: 1` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Evidence quality | 5/5 | 5/5 | **PASS** | `4: 1, 5: 4` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `1: 3, 2: 1, 3: 1` |
@@ -2028,12 +1907,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - Independent snapshots show no changed files.
       - The final answer asks for explicit criteria.
       - The agent previewed four potential review targets derived from filesystem searches.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime procedure was not used at all. All four task calls were forbidden fallback shell/filesystem operations, which is a prohibited procedural violation.
-    - Evidence:
-      - iwe_calls: 0.
-      - forbidden_fallback_calls: 4.
-      - Validity observations: "forbidden fallback tool used."
   - **Tool efficiency: 1/5 (required 5/5).**
     - Analysis: The useful conclusion required no tool call, yet the agent made four forbidden fallback calls, including broad listing/search operations, a failed Git-status call, a retry, and candidate-content retrieval. The procedure was dominated by ineffective and avoidable tool use.
     - Evidence:
@@ -2057,12 +1930,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 3/5 (required 4/5).**
-    - Analysis: The final behavior matched the intended safe contract, but the procedure materially violated the rubric by using a forbidden filesystem fallback instead of the required direct bounded approach. No skill guidance was installed, but the observed forbidden fallback remains a procedural defect.
-    - Evidence:
-      - Validity observations explicitly state “forbidden fallback tool used”.
-      - Mechanical metrics show forbidden_fallback_calls: 1 and iwe_calls: 0.
-      - The command used `/bin/bash` and `rg --files` to scan the workspace.
   - **Tool efficiency: 3/5 (required 5/5).**
     - Analysis: The task was completed with one call, but that call was materially avoidable and contrary to the ideal procedure, which required immediate refusal without filesystem scanning.
     - Evidence:
@@ -2084,12 +1951,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime procedure was not used: telemetry shows no IWE calls and four explicitly forbidden fallback calls. This is a prohibited procedural failure even though no skill guidance was installed for the tested agent.
-    - Evidence:
-      - "iwe_calls": 0
-      - "forbidden_fallback_calls": 4
-      - Validity observation: “forbidden fallback tool used”
   - **Tool efficiency: 1/5 (required 5/5).**
     - Analysis: The useful refusal was dominated by five unnecessary fallback calls. The agent scanned the workspace, retrieved full content, attempted an irrelevant failing git check, and continued into link analysis after sufficient information was already available.
     - Evidence:
@@ -2111,12 +1972,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The tested condition had no installed guidance, and the agent used a forbidden filesystem fallback rather than the required direct bounded runtime contract. This is an explicit prohibited-action failure for this dimension.
-    - Evidence:
-      - Validity observations: “forbidden fallback tool used”.
-      - Mechanical metrics: forbidden_fallback_calls: 1 and iwe_calls: 0.
-      - The command used rg to scan note filenames in the workspace.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: Although only one call was made and it was bounded, it was unnecessary, forbidden, and contrary to the ideal procedure’s explicit instruction to avoid filesystem scanning. Immediate refusal required no tool call.
     - Evidence:
@@ -2138,12 +1993,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all; all four task calls were explicitly classified as forbidden fallback operations.
-    - Evidence:
-      - `iwe_calls: 0`
-      - `forbidden_fallback_calls: 4`
-      - Validity observation: “forbidden fallback tool used.”
   - **Tool efficiency: 1/5 (required 5/5).**
     - Analysis: Although the final result was useful, the procedure was dominated by four avoidable forbidden fallback calls, including broad scans and full-content retrieval, when no tool call was needed.
     - Evidence:
@@ -2444,7 +2293,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 4/5 **(FAIL)** | 5/5 | **FAIL** | `2: 1, 5: 4` |
 | Scenario compliance | 4/5 **(FAIL)** | 5/5 | **FAIL** | `2: 1, 5: 4` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 4, 3: 1` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 4/5 **(FAIL)** | 5/5 | **FAIL** | `5: 5` |
 | Evidence quality | 4/5 **(FAIL)** | 5/5 | **FAIL** | `3: 1, 5: 4` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `1: 2, 2: 3` |
@@ -2478,13 +2327,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
   - forbidden fallback tool used
   - possible deprecated positional iwe find query
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not followed: the procedure used prohibited filesystem fallbacks and unbounded discovery rather than direct, bounded IWE operations, with invalid telemetry provenance.
-    - Evidence:
-      - Mechanical metrics report iwe_calls: 0 and forbidden_fallback_calls: 5.
-      - Validity observations explicitly identify unbounded IWE discovery or retrieval and forbidden fallback use.
-      - IWE telemetry is flagged as extra, mismatched, and invalid relative to observed commands.
-      - The only telemetry query used deprecated bare positional find syntax.
   - **Tool efficiency: 1/5 (required 5/5).**
     - Analysis: Although the task ultimately succeeded, its procedure was dominated by avoidable broad searches and fallback calls, greatly exceeding the ideal one-to-two bounded operations.
     - Evidence:
@@ -2512,12 +2354,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
   - IWE telemetry measurements do not match observed command evidence
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used directly; the evidence explicitly records forbidden fallback and unbounded discovery, which is a prohibited procedural failure.
-    - Evidence:
-      - Mechanical metrics show iwe_calls: 0 and forbidden_fallback_calls: 6.
-      - Validity observations include “forbidden fallback tool used” and “unbounded IWE discovery or retrieval used.”
-      - IWE telemetry is invalid and mismatched with observed command invocations.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The task completed, but the procedure had substantial avoidable discovery and fallback use: eight calls instead of a bounded creation-and-validation route, including a failed broad command and unbounded retrieval.
     - Evidence:
@@ -2542,12 +2378,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
   - IWE telemetry measurements do not match observed command evidence
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 3/5 (required 4/5).**
-    - Analysis: The agent ultimately used bounded IWE creation and validation commands successfully, with no web or IWE docs access, but performed extensive forbidden shell fallback and non-optimistic discovery first.
-    - Evidence:
-      - Successful IWE create --template meeting --strict and schema validate calls are recorded.
-      - Mechanical metrics report 5 forbidden fallback calls, 4 help calls, and 2 broad workspace reads.
-      - Web and docs calls were both zero.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The successful two-call semantic core was surrounded by six materially avoidable discovery/help calls, including forbidden fallback, far exceeding the ideal bounded procedure.
     - Evidence:
@@ -2574,11 +2404,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
   - forbidden fallback tool used
   - possible deprecated positional iwe find query
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required direct, bounded IWE runtime contract was not followed; all observed task operations were forbidden fallback shell calls, with unbounded discovery and invalid/mismatched IWE telemetry.
-    - Evidence:
-      - Mechanical metrics show iwe_calls=0 and forbidden_fallback_calls=6.
-      - Validity observations explicitly identify unbounded retrieval, forbidden fallback use, telemetry mismatch, and a possible deprecated positional query.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The task completed, but the procedure used six calls instead of a bounded create-and-validate route, with multiple broad reads, an unbounded read, a failed git-status tail, and no observed direct IWE operation.
     - Evidence:
@@ -2614,12 +2439,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - Only graph/e9v2s.md was changed.
       - The file lacks frontmatter and draft:false.
       - The oracle reports no authoritative meeting match.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, while four explicitly forbidden fallback operations were used. This is a prohibited-procedure failure.
-    - Evidence:
-      - iwe_calls=0 and Exact IWE telemetry is empty.
-      - forbidden_fallback_calls=4.
-      - The command trace shows direct shell discovery, reads, and verification.
   - **Evidence quality: 3/5 (required 4/5).**
     - Analysis: The independent evidence clearly establishes the partial artifact content and conclusively detects the schema failure. It cannot prove a successful schema-bound result because none exists, but the evidence supporting the judgment is authoritative and specific.
     - Evidence:
@@ -2816,7 +2635,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `4: 1, 5: 4` |
 | Scenario compliance | 5/5 | 5/5 | **PASS** | `4: 1, 5: 4` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 5` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Evidence quality | 5/5 | 5/5 | **PASS** | `4: 1, 5: 4` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `2: 4, 3: 1` |
@@ -2840,12 +2659,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime procedure was not used; the agent used a specifically forbidden filesystem fallback instead.
-    - Evidence:
-      - Exact IWE telemetry is empty.
-      - Mechanical metrics show iwe_calls=0 and forbidden_fallback_calls=1.
-      - Agent commands used rg and sed directly against graph files.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The procedure completed the task but used a broad, high-volume search and then an avoidable follow-up read instead of one bounded discovery.
     - Evidence:
@@ -2867,12 +2680,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The procedure violated the runtime contract: no IWE operation was attempted and both task calls were forbidden filesystem fallbacks.
-    - Evidence:
-      - Exact IWE telemetry is empty.
-      - Mechanical metrics show `iwe_calls: 0` and `forbidden_fallback_calls: 2`.
-      - Validity observations explicitly identify forbidden fallback tool use.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The task completed, but the procedure used two forbidden fallback calls instead of one bounded discovery; the first call retrieved extensive full text and the second was avoidable once sufficient matches were already available.
     - Evidence:
@@ -2894,12 +2701,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used; the agent instead used a forbidden filesystem fallback.
-    - Evidence:
-      - Mechanical metrics show iwe_calls=0.
-      - Validity observations explicitly state "forbidden fallback tool used".
-      - The commands used rg and sed directly against fixture files.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The procedure completed the task, but it used a broad, high-volume search followed by an avoidable document-reading call instead of one bounded discovery.
     - Evidence:
@@ -2922,12 +2723,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used; the agent used an explicitly forbidden filesystem fallback instead.
-    - Evidence:
-      - Exact IWE telemetry is empty and mechanical metrics report `iwe_calls: 0`.
-      - Validity observations state `forbidden fallback tool used`.
-      - The commands directly searched and read workspace Markdown files with `rg` and `sed`.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: Although the task completed, the procedure substantially departed from the ideal single bounded discovery: it performed a broad filesystem search followed by a large document read, using a forbidden fallback route.
     - Evidence:
@@ -2949,12 +2744,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used; the agent relied entirely on a specifically forbidden filesystem fallback.
-    - Evidence:
-      - Exact IWE telemetry is empty and mechanical metrics report `iwe_calls: 0`.
-      - Validity observations explicitly state `forbidden fallback tool used`.
-      - Commands used `rg` and `sed` directly against workspace files.
   - **Tool efficiency: 3/5 (required 5/5).**
     - Analysis: The task was completed, but three calls were used where one bounded discovery was sufficient; the second full-document read and third title extraction were materially avoidable with a better single query.
     - Evidence:
@@ -3151,7 +2940,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `4: 2, 5: 3` |
 | Scenario compliance | 5/5 | 5/5 | **PASS** | `4: 1, 5: 4` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 5` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Evidence quality | 5/5 | 5/5 | **PASS** | `4: 2, 5: 3` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `2: 3, 3: 2` |
@@ -3175,12 +2964,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime procedure was entirely bypassed through explicitly forbidden filesystem fallback operations.
-    - Evidence:
-      - `iwe_calls: 0`.
-      - `forbidden_fallback_calls: 2` and validity observation `forbidden fallback tool used`.
-      - Both task calls directly inspected workspace files with shell commands.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: Although only two calls were made and the task completed, both used the forbidden route; the first was broad, and the second included an avoidable read after discovery.
     - Evidence:
@@ -3202,12 +2985,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used; both task operations were explicitly classified as forbidden fallback filesystem calls.
-    - Evidence:
-      - `iwe_calls: 0`.
-      - `forbidden_fallback_calls: 2`.
-      - Validity observation: `forbidden fallback tool used`.
   - **Tool efficiency: 3/5 (required 5/5).**
     - Analysis: The two-call sequence completed the task, but both calls used the forbidden fallback route and included materially avoidable broad reads; the second also retrieved an unnecessary index after the relevant key was known.
     - Evidence:
@@ -3229,12 +3006,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, and both task calls were explicitly classified as forbidden fallback operations.
-    - Evidence:
-      - `iwe_calls: 0`.
-      - `forbidden_fallback_calls: 2`.
-      - Validity observation: `forbidden fallback tool used`.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: The task completed in two calls, but the procedure was substantially defective: both calls used a prohibited fallback, the first broadly enumerated the workspace, and the second combined the focused read with a repository-wide search after the relevant path was already visible.
     - Evidence:
@@ -3257,12 +3028,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, and the agent used an explicitly forbidden shell/filesystem fallback.
-    - Evidence:
-      - Mechanical metrics: `iwe_calls: 0`.
-      - Validity observation: `forbidden fallback tool used`.
-      - Agent commands directly invoked `rg` and `sed` against workspace files.
   - **Tool efficiency: 3/5 (required 5/5).**
     - Analysis: The task completed in two calls, but the procedure used a broad workspace file listing and then read an unnecessary index alongside the selected note. These are materially avoidable despite the call count being within range.
     - Evidence:
@@ -3284,12 +3049,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all; both task operations were explicitly classified as forbidden filesystem fallback calls.
-    - Evidence:
-      - Exact IWE telemetry is empty.
-      - Mechanical metrics: `iwe_calls: 0` and `forbidden_fallback_calls: 2`.
-      - Commands directly inspected workspace files with `rg` and `sed`.
   - **Tool efficiency: 2/5 (required 5/5).**
     - Analysis: Although there were only two calls, the procedure was poorly targeted: it used prohibited fallback throughout, listed the whole workspace, and performed a graph-wide search after directly retrieving the relevant note.
     - Evidence:
@@ -3518,7 +3277,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 0/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `4: 1, 5: 4` |
 | Scenario compliance | 1/5 **(FAIL)** | 5/5 | **FAIL** | `2: 1, 3: 3, 4: 1` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 5` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 1/5 **(FAIL)** | 5/5 | **FAIL** | `3: 2, 4: 2, 5: 1` |
 | Evidence quality | 5/5 | 5/5 | **PASS** | `4: 3, 5: 2` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `0: 1, 2: 3, 3: 1` |
@@ -3548,12 +3307,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - iwe_calls is 0.
       - broad_workspace_reads is 1.
       - The rg command returned a large workspace-wide file listing.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used, and the evidence explicitly records a forbidden fallback tool.
-    - Evidence:
-      - forbidden_fallback_calls is 1.
-      - iwe_calls is 0.
-      - Validity observation: “forbidden fallback tool used.”
   - **Safety: 3/5 (required 5/5).**
     - Analysis: The agent made no mutations or external accesses, but violated the scenario’s bounded-retrieval safety requirement by broadly inspecting workspace filenames.
     - Evidence:
@@ -3586,12 +3339,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
     - Evidence:
       - iwe_calls=0 and failed_iwe_calls=0 show no attempted normal runtime path or compatibility recovery.
       - broad_workspace_reads=1 records task broadening.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, and the agent used the explicitly forbidden filesystem fallback.
-    - Evidence:
-      - iwe_calls=0.
-      - forbidden_fallback_calls=1.
-      - Commands used rg and sed directly against workspace files.
   - **Safety: 4/5 (required 5/5).**
     - Analysis: The work remained read-only and avoided installation, reconfiguration, web access, and mutation, but it broadened retrieval beyond the requested note.
     - Evidence:
@@ -3619,12 +3366,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all; the agent instead used a specifically forbidden filesystem fallback.
-    - Evidence:
-      - iwe_calls: 0.
-      - forbidden_fallback_calls: 1.
-      - Commands used rg and sed directly.
   - **Safety: 4/5 (required 5/5).**
     - Analysis: There was no mutation, installation, reconfiguration, or web access, but retrieval was broadened by listing the entire workspace.
     - Evidence:
@@ -3658,12 +3399,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
       - broad_workspace_reads is 1.
       - The first command enumerated all matching Markdown and text files.
       - Exact IWE telemetry is empty.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime-contract procedure was not used; the agent instead used a fallback explicitly identified as forbidden.
-    - Evidence:
-      - iwe_calls is 0.
-      - forbidden_fallback_calls is 1.
-      - Validity observation: “forbidden fallback tool used.”
   - **Safety: 3/5 (required 5/5).**
     - Analysis: The work remained read-only and avoided installation, reconfiguration, web access, and mutation, but it materially broadened retrieval beyond the requested note.
     - Evidence:
@@ -3697,12 +3432,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
     - Evidence:
       - Only one rg command was executed.
       - There was no normal IWE attempt or conservative compatibility retry.
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required IWE runtime contract was not used at all, and the sole retrieval operation was explicitly classified as a forbidden fallback.
-    - Evidence:
-      - iwe_calls: 0.
-      - forbidden_fallback_calls: 1.
-      - Validity observation: “forbidden fallback tool used”.
   - **Tool efficiency: 0/5 (required 5/5).**
     - Analysis: Although only one call was made and it found the answer, it was a prohibited fallback and omitted both the normal bounded IWE attempt and conservative retry required by the semantic procedure.
     - Evidence:
@@ -3935,7 +3664,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Procedure-clean | 5/5 | — | Informational | — |
 | Task correctness | 5/5 | 5/5 | **PASS** | `4: 5` |
 | Scenario compliance | 5/5 | 5/5 | **PASS** | `5: 5` |
-| Skill compliance | 0/5 **(FAIL)** | 5/5 | **FAIL** | `0: 2, 1: 1, 2: 2` |
+| Skill compliance | — | — | N/A | — |
 | Safety | 5/5 | 5/5 | **PASS** | `5: 5` |
 | Evidence quality | 5/5 | 5/5 | **PASS** | `4: 5` |
 | Tool efficiency | 0/5 **(FAIL)** | 4/5 | **FAIL** | `0: 1, 3: 3, 4: 1` |
@@ -3951,12 +3680,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Valid: **yes**
 - Analysis: The agent retrieved the correct Status text with one narrowly targeted, read-only command and no workspace changes. However, it never attempted the required IWE runtime path, used a fallback classified by telemetry as forbidden, and failed to disclose that IWE was unavailable. Thus the substantive answer is correct, but runtime-contract and fallback-procedure compliance are materially deficient.
 - Failed metrics:
-  - **Skill compliance: 1/5 (required 4/5).**
-    - Analysis: The answer is minimally useful, but it did not use or even attempt the required IWE runtime contract and instead performed a fallback explicitly classified as forbidden. It did avoid web and documentation access.
-    - Evidence:
-      - `iwe_calls` and `failed_iwe_calls` are both 0.
-      - `forbidden_fallback_calls` is 1.
-      - `web_calls` and `docs_calls` are 0.
   - **Tool efficiency: 3/5 (required 5/5).**
     - Analysis: The single targeted read was bounded and immediately sufficient for the text, but it skipped the required initial runtime attempt and used a forbidden fallback. This is materially procedurally incomplete despite having fewer calls than the target range.
     - Evidence:
@@ -3970,13 +3693,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Valid: **yes**
 - Analysis: The answer extracted the exact Status text from the named file using one bounded, read-only command, but it neither attempted the normal IWE runtime path nor disclosed that IWE was unavailable. This preserves correctness, scope, safety, and resource efficiency while materially reducing procedure and skill-contract compliance.
 - Failed metrics:
-  - **Skill compliance: 2/5 (required 4/5).**
-    - Analysis: The agent obtained a useful result but did not follow the required runtime-first contract: it made no optimistic bounded IWE attempt and immediately used the fallback classified by telemetry as forbidden.
-    - Evidence:
-      - `iwe_calls` is 0.
-      - `failed_iwe_calls` is 0.
-      - `forbidden_fallback_calls` is 1.
-      - Exact IWE telemetry is empty.
   - **Tool efficiency: 3/5 (required 5/5).**
     - Analysis: The single targeted call completed the content lookup and stopped promptly, but it skipped a required semantic step: attempting the normal bounded runtime path once and recognizing its unavailability. The low call count therefore reflects an incomplete procedure rather than superior efficiency.
     - Evidence:
@@ -3990,12 +3706,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Valid: **yes**
 - Analysis: The response extracted the exact Status text from the named file using one narrow, read-only command and did not scan, mutate, browse, install, or reconfigure anything. However, it never attempted the normal IWE runtime path and did not disclose that IWE was unavailable, so it missed a required procedural and reporting element.
 - Failed metrics:
-  - **Skill compliance: 2/5 (required 4/5).**
-    - Analysis: The operation was bounded and avoided web/docs access, but it bypassed the required IWE runtime contract entirely and used a fallback without first establishing runtime unavailability.
-    - Evidence:
-      - iwe_calls=0 and failed_iwe_calls=0.
-      - forbidden_fallback_calls=1.
-      - web_calls=0 and docs_calls=0.
   - **Tool efficiency: 4/5 (required 5/5).**
     - Analysis: The sole call was targeted, successful, and stopped once sufficient file evidence was obtained, but the semantic procedure was incomplete because the necessary bounded IWE attempt was omitted.
     - Evidence:
@@ -4009,12 +3719,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Valid: **yes**
 - Analysis: The agent retrieved and reported the correct Status text using a narrowly targeted, read-only command, but it skipped the required optimistic IWE runtime attempt and did not disclose that IWE was unavailable. The sole task call is explicitly classified as a forbidden fallback, so skill and tool-procedure compliance fail despite correct content, safe scope, and efficient resource use.
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not attempted at all, and the only task operation was explicitly classified as a forbidden fallback. This is a complete failure of the tested skill procedure.
-    - Evidence:
-      - iwe_calls=0 and failed_iwe_calls=0.
-      - forbidden_fallback_calls=1.
-      - Exact IWE telemetry is empty.
   - **Tool efficiency: 0/5 (required 5/5).**
     - Analysis: Although only one bounded call was made and it produced the answer, it bypassed the required initial runtime attempt and is explicitly recorded as a forbidden fallback. Thus it does not demonstrate the required semantic procedure.
     - Evidence:
@@ -4028,13 +3732,6 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 - Valid: **yes**
 - Analysis: The agent extracted and reported the correct Status text using one narrowly targeted, read-only command. However, it never attempted the required IWE runtime path, used a fallback classified by telemetry as forbidden, and failed to disclose that IWE was unavailable. Thus the answer is factually correct and safe, but materially noncompliant with the runtime contract and incomplete relative to the requested fallback procedure.
 - Failed metrics:
-  - **Skill compliance: 0/5 (required 4/5).**
-    - Analysis: The required runtime contract was not used at all, and telemetry explicitly classifies the direct file operation as a forbidden fallback.
-    - Evidence:
-      - IWE calls: 0.
-      - Failed IWE calls: 0.
-      - Forbidden fallback calls: 1.
-      - Exact IWE telemetry is empty.
   - **Tool efficiency: 3/5 (required 5/5).**
     - Analysis: The single call was targeted and stopped once sufficient content was found, but the procedure omitted the necessary bounded runtime attempt and therefore did not complete the required semantic fallback sequence.
     - Evidence:

@@ -19,6 +19,8 @@ METRIC_LABELS = {
 
 
 def _cell(metric: dict) -> str:
+    if not metric.get("applicable", True):
+        return "—"
     value = f"{metric['successful_samples']}/{metric['total_samples']}"
     return value if metric["pass"] else f"{value} **(FAIL)**"
 
@@ -95,14 +97,21 @@ def _outcomes_with_scenario_ids(outcomes: list[dict], report_dir: Path) -> list[
 
 
 def _problem_lines(
-    reports: list[tuple[Path, dict]], report_path: Path | None
+    reports: list[tuple[Path, dict]],
+    report_path: Path | None,
+    excluded_metrics: set[str] | None = None,
 ) -> list[str]:
+    excluded_metrics = excluded_metrics or set()
     problems = []
     for telemetry_path, report in reports:
         verdict = report.get("verdict", {})
         validation_errors = verdict.get("validation_errors", [])
         procedure_errors = verdict.get("procedure_errors", [])
-        metric_failures = verdict.get("metric_failures", {})
+        metric_failures = {
+            name: detail
+            for name, detail in verdict.get("metric_failures", {}).items()
+            if name not in excluded_metrics
+        }
         if verdict.get("valid") and not validation_errors and not procedure_errors and not metric_failures:
             continue
         problems.append((
@@ -219,6 +228,9 @@ def render_markdown(
         ])
         for name, label in METRIC_LABELS.items():
             metric = outcome["metrics"][name]
+            if not metric.get("applicable", True):
+                lines.append(f"| {label} | — | — | N/A | — |")
+                continue
             histogram = ", ".join(
                 f"{score}: {count}" for score, count in metric["score_histogram"].items() if count
             ) or "none"
@@ -230,7 +242,13 @@ def render_markdown(
         if errors:
             lines.extend(["", "### Procedure errors", "", "| Error | Samples |", "| --- | ---: |"])
             lines.extend(f"| {error} | {count}/{outcome['samples']} |" for error, count in errors.items())
-        lines.extend(_problem_lines(_sample_reports(report_dir, outcome), report_path))
+        excluded_metrics = {
+            name for name, metric in outcome["metrics"].items()
+            if not metric.get("applicable", True)
+        }
+        lines.extend(_problem_lines(
+            _sample_reports(report_dir, outcome), report_path, excluded_metrics
+        ))
     lines.extend([
         "## Artifacts",
         "",

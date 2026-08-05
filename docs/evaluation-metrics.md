@@ -10,7 +10,7 @@ The judge receives its scoring contract directly from these files:
 - [`tests/eval/scenarios/iwe.eval.yaml`](../tests/eval/scenarios/iwe.eval.yaml) is the SSOT for scenario-specific semantic ideal procedures, excellence conditions, efficiency ranges, runtime overrides, requests, and fixtures.
 - [`tests/eval/run.py`](../tests/eval/run.py) loads those declarations and injects them into the isolated judge prompt. It also calculates sample validity, procedure errors, and aggregate threshold verdicts.
 
-No weighted score, average, or median is used. Metrics are independent gates: success on one cannot compensate for failure on another.
+No weighted score, average, or median is used. Metrics are independent gates: success on one cannot compensate for failure on another. A metric that is not applicable to a target is reported as `—`/`N/A` and is excluded from that target's aggregate gate and from pairwise comparisons; it is never counted as either a success or a failure.
 
 ## Report statuses
 

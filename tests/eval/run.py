@@ -1356,7 +1356,17 @@ def judge_prompt(
         "one tested skill guidance payload was installed for the tested agent"
         if skill is not None else "no skill guidance was installed for the tested agent"
     )
-    return f"""You are an independent read-only judge for an AI skill evaluation. Inspect only the supplied sanitized evidence. The target condition is that {guidance_condition}. You run in a separate empty workspace and separate HOME/CODEX_HOME, with no access to the tested agent workspace or any tested guidance. Do not invoke IWE, load any IWE skill, or use IWE output as an independent correctness oracle. Score each required dimension on the integer 0..5 scale and return only schema-valid JSON.
+    applicability_instruction = (
+        ""
+        if skill is not None
+        else (
+            "For this explicit no-skill control, skill_compliance is not applicable and will be "
+            "discarded from aggregation and publication. The output schema still requires an integer: "
+            "return 0 with a concise N/A rationale, do not describe it as a substantive failure, and "
+            "it must not affect any other dimension or the overall analysis. "
+        )
+    )
+    return f"""You are an independent read-only judge for an AI skill evaluation. Inspect only the supplied sanitized evidence. The target condition is that {guidance_condition}. {applicability_instruction}You run in a separate empty workspace and separate HOME/CODEX_HOME, with no access to the tested agent workspace or any tested guidance. Do not invoke IWE, load any IWE skill, or use IWE output as an independent correctness oracle. Score each required dimension on the integer 0..5 scale and return only schema-valid JSON.
 
 The independent oracle evidence was produced by directly parsing fixture snapshots without the tested CLI or skill. Use it as the source of truth for task correctness and artifact correctness. Runtime telemetry proves only what the tested runtime returned and how it was used; it is not independent proof that its result is factually correct. Use runtime telemetry for provenance, procedure compliance, boundedness, recovery behavior, and efficiency.
 
@@ -1529,9 +1539,13 @@ def validate_shared_agent(config: dict, expected_agent: str) -> dict[str, dict[s
 
 
 def aggregate_results(
-    results: list[dict], eval_config: EvalConfig | None = None, expected_samples: int | None = None
+    results: list[dict],
+    eval_config: EvalConfig | None = None,
+    expected_samples: int | None = None,
+    excluded_dimensions_by_target: dict[str, set[str]] | None = None,
 ) -> list[dict]:
     eval_config = eval_config or load_eval_config()
+    excluded_dimensions_by_target = excluded_dimensions_by_target or {}
     grouped: dict[tuple[str | None, str, str], list[dict]] = {}
     for result in results:
         scenario = result["scenario"]
@@ -1549,6 +1563,18 @@ def aggregate_results(
             raise ValueError(f"incomplete samples for {target_id or 'single'} / {scenario}")
         metrics = {}
         for dimension in DIMENSIONS:
+            if dimension in excluded_dimensions_by_target.get(target_id or "", set()):
+                metrics[dimension] = {
+                    "applicable": False,
+                    "successful_samples": None,
+                    "total_samples": total,
+                    "success_percent": None,
+                    "required_success_percent": None,
+                    "required_successes": None,
+                    "score_histogram": None,
+                    "pass": True,
+                }
+                continue
             successful = sum(
                 sample["verdict"].get("valid", False)
                 and dimension not in sample["verdict"].get("metric_failures", {})
@@ -1557,6 +1583,7 @@ def aggregate_results(
             percent = eval_config.required_success_percent[dimension]
             required = required_successes(total, percent)
             metrics[dimension] = {
+                "applicable": True,
                 "successful_samples": successful,
                 "total_samples": total,
                 "success_percent": successful * 100 / total,
@@ -1839,7 +1866,16 @@ def main() -> int:
     ]
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, len(tasks))) as executor:
         results = list(executor.map(execute, tasks))
-    outcomes = aggregate_results(results, eval_config, expected_samples=samples)
+    excluded_dimensions_by_target = {
+        target.id: ({"skill_compliance"} if not target.has_skill else set())
+        for target in experiment.targets
+    } if experiment else {}
+    outcomes = aggregate_results(
+        results,
+        eval_config,
+        expected_samples=samples,
+        excluded_dimensions_by_target=excluded_dimensions_by_target,
+    )
     summary = {
         "configuration": config["name"],
         "skill": skill.name if skill else None,
@@ -1865,6 +1901,7 @@ def main() -> int:
             tuple(target.id for target in experiment.targets),
             DIMENSIONS,
             expected_pairs,
+            excluded_dimensions_by_target=excluded_dimensions_by_target,
         )
         summary["comparisons"] = comparisons
         snapshot_document = {

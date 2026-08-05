@@ -15,7 +15,9 @@ def compare_results(
     target_ids: tuple[str, ...],
     dimensions: tuple[str, ...],
     expected_pairs: dict[tuple[str, int], str] | None = None,
+    excluded_dimensions_by_target: dict[str, set[str]] | None = None,
 ) -> list[dict]:
+    excluded_dimensions_by_target = excluded_dimensions_by_target or {}
     by_target = {target: {} for target in target_ids}
     for row in results:
         target = row["target_id"]
@@ -52,9 +54,16 @@ def compare_results(
             right_rows = [by_target[right][key] for key in keys]
             metrics = {}
             for metric in dimensions:
+                if (
+                    metric in excluded_dimensions_by_target.get(left, set())
+                    or metric in excluded_dimensions_by_target.get(right, set())
+                ):
+                    metrics[metric] = {"applicable": False}
+                    continue
                 left_success = [row["verdict"].get("valid", False) and metric not in row["verdict"].get("metric_failures", {}) for row in left_rows]
                 right_success = [row["verdict"].get("valid", False) and metric not in row["verdict"].get("metric_failures", {}) for row in right_rows]
                 metrics[metric] = {
+                    "applicable": True,
                     "left_wins": sum(a and not b for a, b in zip(left_success, right_success)),
                     "ties": sum(a == b for a, b in zip(left_success, right_success)),
                     "left_losses": sum(not a and b for a, b in zip(left_success, right_success)),

@@ -309,6 +309,34 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertFalse(outcome["pass"])
         self.assertEqual(outcome["metrics"]["task_correctness"]["required_successes"], 5)
 
+    def test_no_skill_aggregate_marks_skill_compliance_not_applicable(self) -> None:
+        scores = {name: 5 for name in self.runner.DIMENSIONS}
+        scores["skill_compliance"] = 0
+        rows = [{
+            "target_id": "iwe-no-skill",
+            "scenario": "S",
+            "scenario_id": "s",
+            "sample": sample,
+            "verdict": {
+                "valid": True,
+                "metric_scores": scores,
+                "metric_failures": {"skill_compliance": {"score": 0, "required": 4}},
+                "validation_errors": [],
+                "procedure_errors": [],
+            },
+        } for sample in range(1, 6)]
+        outcome = self.runner.aggregate_results(
+            rows,
+            self.config,
+            expected_samples=5,
+            excluded_dimensions_by_target={"iwe-no-skill": {"skill_compliance"}},
+        )[0]
+        metric = outcome["metrics"]["skill_compliance"]
+        self.assertFalse(metric["applicable"])
+        self.assertIsNone(metric["successful_samples"])
+        self.assertIsNone(metric["required_successes"])
+        self.assertTrue(outcome["pass"])
+
     def test_success_count_rounds_up_and_invalid_samples_fail_closed(self) -> None:
         self.assertEqual(self.runner.required_successes(5, 80), 4)
         self.assertEqual(self.runner.required_successes(4, 80), 4)
@@ -892,6 +920,8 @@ class EvalScoringContractTests(unittest.TestCase):
         }
         prompt = self.runner.judge_prompt(None, self.scenario, run, {}, {}, [])
         self.assertIn("no skill guidance was installed", prompt)
+        self.assertIn("skill_compliance is not applicable", prompt)
+        self.assertIn("must not affect any other dimension", prompt)
         self.assertIn("Independent oracle evidence", prompt)
         self.assertIn("Ideal semantic procedure", prompt)
         self.assertIn("iwe find virtue", prompt)
@@ -973,6 +1003,29 @@ version = "0.18.0"
         self.assertEqual(comparison["invalid_cells"], {"a": 1, "b": 0})
         self.assertNotIn("mean", json.dumps(comparison).lower())
         self.assertNotIn("weighted", json.dumps(comparison).lower())
+
+    def test_pairwise_comparison_marks_excluded_target_metric_not_applicable(self) -> None:
+        compare = load_eval_module("compare")
+        rows = [{
+            "target_id": target,
+            "scenario_id": "s",
+            "sample": 1,
+            "pair_id": "pair-1",
+            "verdict": {
+                "valid": True,
+                "metric_scores": {"skill_compliance": 5 if target == "skill" else 0},
+                "metric_failures": {} if target == "skill" else {"skill_compliance": {}},
+            },
+            "agent": {"metrics": {}},
+        } for target in ("skill", "no-skill")]
+        result = compare.compare_results(
+            rows,
+            ("skill", "no-skill"),
+            ("skill_compliance",),
+            {("s", 1): "pair-1"},
+            excluded_dimensions_by_target={"no-skill": {"skill_compliance"}},
+        )[0]
+        self.assertEqual(result["metrics"]["skill_compliance"], {"applicable": False})
 
     def test_experiment_list_mode_shows_pairs_without_resolving_binaries(self) -> None:
         completed = subprocess.run([
@@ -1167,6 +1220,22 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             renderer._skill_metadata_line({"skill_mode": "none", "skill_version": None}),
             "- Skill guidance: `none` (control)",
         )
+        self.assertEqual(renderer._cell({"applicable": False}), "—")
+        no_skill_raw = {
+            "scenario": "S",
+            "sample": 1,
+            "verdict": {
+                "valid": True,
+                "validation_errors": [],
+                "procedure_errors": [],
+                "metric_failures": {"skill_compliance": {"score": 0, "required": 4}},
+            },
+        }
+        problem_lines = renderer._problem_lines(
+            [(Path("raw.json"), no_skill_raw)], None, {"skill_compliance"}
+        )
+        self.assertIn("No sample-level problems detected.", problem_lines)
+        self.assertNotIn("Skill compliance", "\n".join(problem_lines))
         runner = load_runner()
         command_config = json.loads(
             (ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8")

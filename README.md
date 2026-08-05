@@ -47,7 +47,7 @@ npx skills add bulbigood/iwe-skills --skill iwe-v18
 - **Agent:** Codex CLI `0.146.0`; `gpt-5.6-terra`, medium reasoning
 - **Judge:** `gpt-5.6-sol`, low reasoning
 
-Each paired metric cell is `first / second`, and every `N/5` is a successful-, valid-, or clean-sample count—not an average score. Bold **(FAIL)** cells missed at least one absolute gate; clean counts are informational. The no-skill arm had the same IWE runtime, fixtures, requests, models, judges, samples, and gates, but no `.agents` guidance tree. See [metric and score definitions](docs/evaluation-metrics.md) and the [full sample-level production report](tests/eval/results/2026-08-05-iwe-v18-vs-controls.md).
+Each paired metric cell is `first / second`, and every `N/5` is a successful-, valid-, or clean-sample count—not an average score. Bold **(FAIL)** cells missed at least one absolute gate; clean counts are informational. A `—` means the metric is not applicable and is excluded from that target’s aggregate and pairwise comparisons. The no-skill arm had the same IWE runtime, fixtures, requests, models, judges, samples, and non-skill gates, but no `.agents` guidance tree; therefore `skill_compliance` is N/A. See [metric and score definitions](docs/evaluation-metrics.md) and the [full sample-level production report](tests/eval/results/2026-08-05-iwe-v18-vs-controls.md).
 
 ### `iwe-v18`
 
@@ -85,20 +85,20 @@ Skill `0.0.67`; IWE CLI `0.18.0` using the maintained runtime contract.
 
 ### IWE available, no skill guidance
 
-No skill guidance; IWE CLI `0.18.0` is installed and available.
+No skill guidance; IWE CLI `0.18.0` is installed and available. `Skill compliance` is not applicable.
 
 | Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Metadata query | **FAIL** | 5/5 / 0/5 | **4/5 (FAIL)** / **3/5 (FAIL)** | **4/5 (FAIL)** / **0/5 (FAIL)** | **4/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Guarded block update | **FAIL** | 1/5 / 0/5 | **1/5 (FAIL)** / **1/5 (FAIL)** | **1/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Inclusion refactor | **FAIL** | 0/5 / 0/5 | **0/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Destructive refusal | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **4/5 (FAIL)** / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Schema-bound creation | **FAIL** | 4/5 / 0/5 | **4/5 (FAIL)** / **4/5 (FAIL)** | **4/5 (FAIL)** / **0/5 (FAIL)** | **4/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| One-call discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| Ambiguous discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
-| CLI incompatibility | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **1/5 (FAIL)** / **0/5 (FAIL)** | **1/5 (FAIL)** | **0/5 (FAIL)** / **1/5 (FAIL)** |
-| IWE unavailable | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / **0/5 (FAIL)** | 5/5 | **0/5 (FAIL)** / 5/5 |
+| Multi-hop context | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Metadata query | **FAIL** | 5/5 / 0/5 | **4/5 (FAIL)** / **3/5 (FAIL)** | **4/5 (FAIL)** / — | **4/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Guarded block update | **FAIL** | 1/5 / 0/5 | **1/5 (FAIL)** / **1/5 (FAIL)** | **1/5 (FAIL)** / — | **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Inclusion refactor | **FAIL** | 0/5 / 0/5 | **0/5 (FAIL)** / **0/5 (FAIL)** | **0/5 (FAIL)** / — | **0/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Destructive refusal | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **4/5 (FAIL)** / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Schema-bound creation | **FAIL** | 4/5 / 0/5 | **4/5 (FAIL)** / **4/5 (FAIL)** | **4/5 (FAIL)** / — | **4/5 (FAIL)** | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| One-call discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| Ambiguous discovery | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | **0/5 (FAIL)** / **0/5 (FAIL)** |
+| CLI incompatibility | **FAIL** | 5/5 / 0/5 | 5/5 / 5/5 | **1/5 (FAIL)** / — | **1/5 (FAIL)** | **0/5 (FAIL)** / **1/5 (FAIL)** |
+| IWE unavailable | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | **0/5 (FAIL)** / 5/5 |
 
 Run the production five-sample comparison across all declared scenarios and all three targets. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
 
