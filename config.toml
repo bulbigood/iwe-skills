@@ -3,7 +3,7 @@ default_skill = "iwe-v18"
 
 [skills.iwe-v18]
 path = "skills/iwe-v18"
-skill_version = "0.3.0"
+skill_version = "0.4.0"
 
 [skills.iwe-v18.runtime]
 cli = "iwe"

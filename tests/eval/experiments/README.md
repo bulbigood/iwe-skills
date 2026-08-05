@@ -13,7 +13,7 @@ agent_judge_config = "codex"
 [[targets]]
 id = "candidate-a"
 skill_path = "skills/iwe-v18"
-skill_version = "0.3.0"
+skill_version = "0.4.0"
 contract_file = "contracts/iwe-v18.json"
 [targets.runtime]
 cli = "iwe"

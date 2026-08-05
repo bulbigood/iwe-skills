@@ -3,22 +3,22 @@ name: iwe-v18
 description: Use for IWE knowledge-graph retrieval and safe Markdown refactors. Route 95% of tasks from this file alone.
 compatibility: Requires IWE CLI >=0.18.0.
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
 ---
 
 # IWE problem-solving policy
 
-IWE is authoritative in an IWE Markdown workspace. Classify the outcome, choose the narrowest route, derive parameters from known context, and stop when it succeeds.
+IWE is authoritative. Classify, choose the narrowest route, derive known parameters, and stop on success.
 
 ## Hard execution rules
 
-- Do not run routine preflight such as version, status, schema, configuration, or command-help checks.
-- Do not use web search, `grep`, `rg`, `find`, recursive listing, or broad file reads to duplicate IWE.
+- This file is the guidance; after activation, never search for AGENTS, skills, or workspace files.
+- Do not use web search, `grep`, `rg`, `find`, recursive lists, or broad reads. Do not run routine preflight.
 - Do not install, update, configure, or repair IWE.
 - Default result limit: 20. Use a smaller request-derived limit.
-- Request JSON and only the fields or content needed for reasoning.
+- A stated class is a hard filter: “project note” requires `--filter '{ type: project }'`; never use untyped lexical top-1.
 - Never pass 0 as a result, depth, distance, document, or token bound; 0 is unlimited.
-- Prefer one call. A normal read gets a second only for ambiguity, one bounded page, or one failed refinement. Do not run a second query when the first result supports the answer.
+- Prefer one call. Use a second only for ambiguity, one bounded page, or one failed refinement. Do not run a second query after sufficient evidence.
 - Mutation safety overrides efficiency: preview and guarded apply are mandatory; verify once only when success cannot prove final state.
 
 ## Route and compute parameters mentally
@@ -38,7 +38,7 @@ Use only the request, conversation, and prior IWE output; do not read other sour
 | Key, section, inclusion, attachment refactor | `rename`, `extract`, `inline`, `attach` | affected keys |
 | Document removal / global normalization | `delete` / `normalize` | destructive guarded result |
 
-1. **Selector:** exact key → `--key`; typed field → `--filter`; known graph anchor → relationship flag; incomplete title/key → `--fuzzy`; body concepts → `--lexical`.
+1. **Selector:** exact key → `--key`; typed field/entity class → `--filter`; known graph anchor → relationship flag; incomplete identity → `--fuzzy`; body concepts → `--lexical`.
 2. **Search phrase:** keep distinctive names, nouns, quoted terms, and shared topic; comparisons include every entity plus their relation/topic.
 3. **Count:** exact note/synthesis = 1; explicit N = N; “a few” = 5; otherwise requested facets, capped at 20.
 4. **Shape:** identities → keys; fields → projection; sections/lines → blocks/matches; prose → retrieve. No bodies for lists/counts.
@@ -46,7 +46,7 @@ Use only the request, conversation, and prior IWE output; do not read other sour
 6. **Token bounds:** fact = 800/document; summary = 1200; detail = 2000; authored synthesis = 4500. Total = per-document × documents, normally ≤8000.
 7. **Typed values:** preserve booleans, numbers, lists, and maps in YAML/JSON. Quote numeric-looking or boolean-looking strings.
 8. **Guards:** exact mutation uses document `--expect 1`; batch uses a user-derived count/range; every block operator gets inline `expect`. Explicit new keys default to collision policy `fail`.
-9. **Stop:** enough evidence means no confirmation query. For synthesis, cite the synthesis key as primary evidence; cite underlying keys only when the returned content explicitly identifies them and they materially support the answer.
+9. **Stop:** no confirmation query after enough evidence. Cite a synthesis key first; cite returned source keys only when material.
 
 ## Cluster A — identify, list, and inspect without full bodies
 
@@ -59,7 +59,7 @@ iwe find --lexical "<distinctive terms>" --limit 5 --project 'key=$key,title=$ti
 - **A1 Exact identity:** key selector, limit 1, key/title projection.
 - **A2 Partial identity:** fuzzy distinctive title/key fragment, limit 1–5.
 - **A3 Body concept:** lexical content nouns and compact projection.
-- **A4 Typed cohort:** filter copied from stated frontmatter criteria; project requested fields.
+- **A4 Typed cohort:** Semantic entity class (project/task/person/meeting) means `type`; combine its filter with lexical terms.
 - **A5 Roots:** roots selector for flat entry-point list; use tree only when hierarchy is requested.
 - **A6 Inclusion neighborhood:** included-by for descendants, includes for containers; positive request-derived depth.
 - **A7 Reference neighborhood:** references for documents linking to an anchor, referenced-by for documents linking from it; positive distance.
@@ -82,10 +82,10 @@ iwe retrieve --lexical "<all named entities> <shared topic>" --limit 1 --max-doc
 - **B3 Named comparison:** all entities plus shared topic; use the template's 1 document, 4500 document tokens, and 5000 total. Never derive 3 documents from 3 entities or use the 2000 detail budget. Stop if that synthesis covers all entities.
 - **B4 Children bodies:** expand includes only to requested positive depth; use child-edge metadata instead when identities suffice.
 - **B5 Parent context:** expand included-by, normally one level.
-- **B6 Cited sources:** expand references only when source bodies are required; otherwise use returned edges.
+- **B6 Relationship synthesis: retrieve 3–5** bounded documents; cite only edges present in returned references/includes. Expand source bodies only when requested.
 - **B7 Backlinks/reception:** expand referenced-by; suppress unneeded backlink metadata when appropriate.
 - **B8 Mixed context:** combine only requested expansion directions; cap to the maximum answerable cited set.
-- **B9 Ambiguous winner:** projected find of 2–5 candidates, then one exact-key retrieve.
+- **B9 Ambiguous winner:** honor A4; typed retrieve may answer in one call, otherwise find 2–5 typed candidates then retrieve the winner.
 - **B10 Bounded next page:** one second retrieval excluding already returned keys; never re-read old results or raise limits reflexively.
 
 If a synthesis facet is absent, Refine the IWE query once with that facet and shared topic.
@@ -117,12 +117,12 @@ Do not retrieve documents before an artifact command.
 ## Cluster E — create documents
 
 - **E1 Quick note:** `new` with title/body; suffix collision is acceptable unless explicit identity is required.
-- **E2 Known template:** `create` with typed JSON/YAML variables, repeated typed frontmatter sets, strict validation, explicit collision policy.
+- **E2 Known template:** `create` with all requested template variables, typed frontmatter sets, strict validation, and collision policy.
 - **E3 Exact complete document:** create explicit key with complete frontmatter/body content, strict, collision fail.
 - **E4 Idempotent optional creation:** skip only when already-existing is an acceptable success state.
 - **E5 Deliberate replacement:** override only with explicit overwrite intent; otherwise fail or suffix.
 
-Use `new` for simple title/body work; `create` for exact keys, complete/template/schema-bound documents, or typed values. Conventional variables are `title` and `body`; include `"body":"<text>"`. Put variables in typed JSON/YAML and frontmatter in repeated sets. Create has no `--format` flag. Strict success needs no validation/update call.
+Known template route: `iwe create --template <name> --vars-yaml '<all variables>' --set '<field>=<typed value>' --strict --if-exists fail`. Variables include `"body":"<text>"`. Keep every template variable; `--set` is only frontmatter. No help/docs/schema/retrieve first. Create has no `--format` flag.
 
 ## Cluster F — atomic metadata and local body edits
 
@@ -162,7 +162,7 @@ Preview, apply identical arguments, then verify affected keys only when output c
 ## Cluster H — destructive and workspace-wide work
 
 - **H1 Delete one note:** exact key, expect 1, strict dry-run, affected keys, rollback when practical, then fresh, focused confirmation and apply.
-- **H2 Delete cohort:** narrow user-defined filter and expected count/range; never classify “obsolete” speculatively or use an empty workspace-wide filter.
+- **H2 Delete cohort:** if criterion or scope is undefined, refuse immediately and run no tools. Otherwise use a narrow user filter and expected count/range; never classify “obsolete”.
 - **H3 Normalize:** entire-library in-place rewrite with no preview; require explicit scope, established rollback, and fresh, focused confirmation.
 
 Safety calls are not waste. Refuse destructive work when scope or recovery is insufficient.
@@ -204,16 +204,18 @@ Safety calls are not waste. Refuse destructive work when scope or recovery is in
 
 Filters are one inline YAML mapping. Plain fields mean equality. Use `$and`, `$or`, or `$not` only when one mapping cannot express the condition; `$in` for alternatives; comparisons for numeric/time bounds; `$exists` for presence; `$regex` for an actual pattern. Keep finite `maxDepth`/`maxDistance` in nested graph predicates.
 
-Projection replaces defaults; additive fields retain them. Project content only when needed and pair it with token caps. One block predicate may select header, text, within, paragraph, or references. Carry the exact selector into mutation and add inline expect. Relationship flags are preferred for one anchor; nested predicates are for boolean combinations.
+Projection replaces defaults; additive fields retain them. Project content only with token caps. One block predicate selects header, text, within, paragraph, or references. Carry selectors and inline expect into mutation. Prefer relationship flags for one anchor.
 
 ## Rare errors and fallback reference
 
 First correct one obvious quoting/YAML error, look up unknown syntax once, refine one empty query once, narrow after truncation, and stop on schema/expectation failure.
 
-Read `references/errors.md` only for: missing executable; still-unknown command/option; unexplained invalid YAML; empty result after refinement; unsupported operation; source outside index; unexplained truncation; permission/I/O failure; or unclear schema/expectation failure. It defines one response, fallback eligibility, reporting class, and retry ceiling—no normal task cases.
+Triggers: missing executable; still-unknown command/option; invalid YAML; empty result after refinement; unsupported operation; source outside index; unexplained truncation; permission/I/O failure; schema/expectation failure.
 
-Fallback is allowed only when IWE cannot execute, reports unsupported operation, the source is outside the index, or one refinement stays empty. State why, read one known source narrowly, disclose it, and never scan/duplicate output.
+For a self-explanatory missing-executable error, skip the reference. Read `references/errors.md` only when classification is unclear: unknown syntax, invalid YAML, failed refinement, unsupported operation, truncation, permission/I/O, or schema/expectation failure.
+
+Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, or one refinement stays empty. Read only the user-named source; never scan. Explicitly say "IWE is unavailable" and disclose fallback.
 
 ## Completion
 
-Report keys actually used, meaningful truncation, mutation preview scope, and any independent verification. Finish when every requested claim is supported and no redundant discovery, retrieval, or verification call remains.
+Report used keys, truncation, mutation scope, and independent verification. Stop when claims are supported.

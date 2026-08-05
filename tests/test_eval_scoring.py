@@ -325,7 +325,9 @@ class EvalScoringContractTests(unittest.TestCase):
     def test_agent_prompts_are_neutral_and_scenarios_do_not_leak_test_strategy(self) -> None:
         prompt = self.runner.agent_prompt(self.scenario)
         lowered = prompt.lower()
-        for leaked in ("iwe", "cli", "skill", "non-git", "repository query"):
+        self.assertIn(".agents/guidance/SKILL.md", prompt)
+        self.assertIn("without combining that read with any other action", prompt)
+        for leaked in ("iwe", "cli", "non-git", "repository query"):
             self.assertNotIn(leaked, lowered)
 
         requests = "\n".join(item.request.lower() for item in self.runner.load_scenarios())
@@ -632,9 +634,11 @@ class EvalScoringContractTests(unittest.TestCase):
             {
                 "virtue-across-centuries",
                 "meditations-009-043",
+                "meditations-010-001",
                 "meditations-010-016",
                 "meditations-010-033",
                 "meditations-011-017",
+                "meditations-011-043",
                 "prince-15",
                 "prince-16",
                 "prince-26",
@@ -643,6 +647,113 @@ class EvalScoringContractTests(unittest.TestCase):
                 "bge-228",
             },
         )
+
+    def test_one_call_oracle_keeps_every_fixture_match_available_for_membership(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "one-call-bounded-discovery"
+        )
+        fixture = self.runner.snapshot(ROOT / "tests/eval/.cache/seventeen-centuries")
+        oracle = self.runner.independent_oracle_evidence(scenario, fixture, fixture, "")
+        by_key = {item["key"]: item for item in oracle["matching_documents"]}
+        expected = {
+            "virtues", "virtue", "virtue-across-centuries",
+            "meditations-008-041", "bge-214",
+        }
+        self.assertTrue(expected <= by_key.keys())
+        for key in expected:
+            _, body = self.runner._parse_frontmatter(fixture[f"graph/{key}.md"])
+            self.assertIn("virtue", body.casefold())
+
+    def test_metadata_oracle_parses_markdown_and_wiki_relationships(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "query-structured-metadata-without-scanning-files"
+        )
+        fixture = {
+            "graph/power.md": "# Power\n\n[Morality](morality.md) and [[moral-systems|systems]].\n",
+            "graph/morality.md": "# Morality\n\nPower changes values.\n",
+        }
+        oracle = self.runner.independent_oracle_evidence(scenario, fixture, fixture, "")
+        power = next(item for item in oracle["matching_documents"] if item["key"] == "power")
+        self.assertEqual(power["links"], ["moral-systems", "morality"])
+
+    def test_update_postcondition_requires_exact_section_scoped_transformation(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "apply-a-guarded-structured-block-update"
+        )
+        before = {"graph/eval-roadmap.md": (
+            "# Evaluation Roadmap\n\n## Goals\n\nShip safely.\n\n"
+            "## Status\n\nIn review.\n\n## Unrelated\n\nPreserve this exact paragraph.\n"
+        )}
+        after = {"graph/eval-roadmap.md": (
+            "# Evaluation Roadmap\n\n## Goals\n\nShip safely.\n\n"
+            "## Aims\n\nShip safely.\n\n## Status\n\nIn review.\n\n"
+            "## Unrelated\n\nPreserve this exact paragraph.\nReviewed by the evaluation agent.\n"
+        )}
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, before, after, [], Path(directory), {"iwe_calls": 1}
+            )
+        self.assertIn("roadmap does not equal the exact requested transformation", errors)
+
+    def test_refactor_postcondition_rejects_unrelated_file_changes(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "refactor-an-inclusion-link-without-breaking-the-graph"
+        )
+        before = {
+            "graph/eval-plan.md": (
+                "# Evaluation Plan\n\nIntro.\n\n## Architecture\n\nUse a graph-aware boundary.\n\n"
+                "### Storage\n\nMarkdown files.\n\n## Delivery\n\nPreserve this section.\n"
+            ),
+            "graph/unrelated.md": "# Unrelated\n\nKeep me.\n",
+        }
+        after = {
+            "graph/eval-plan.md": (
+                "# Evaluation Plan\n\nIntro.\n\n[Architecture](arch123.md)\n\n"
+                "## Delivery\n\nPreserve this section.\n"
+            ),
+            "graph/arch123.md": (
+                "# Architecture\n\nUse a graph-aware boundary.\n\n## Storage\n\nMarkdown files.\n"
+            ),
+            "graph/unrelated.md": "# Unrelated\n\nChanged.\n",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, before, after, [], Path(directory), {"iwe_calls": 1}
+            )
+        self.assertIn("refactor changed files outside the source and one new note", errors)
+
+    def test_create_postcondition_accepts_typed_attendees_in_frontmatter(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "create-and-validate-a-schema-bound-document"
+        )
+        after = {"graph/meetings/evaluation-sync.md": (
+            "---\ntype: meeting\ndraft: false\nattendees: [Ada, Alan]\n---\n\n"
+            "# Evaluation Sync\n\n## Attendees\n\n## Notes\n\nReview the graph.\n"
+        )}
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, {}, after, [], Path(directory), {"iwe_calls": 1}
+            )
+        self.assertEqual(errors, [])
+
+    def test_conditional_verification_and_recovery_ranges_match_supported_routes(self) -> None:
+        scenarios = {item.id: item for item in self.runner.load_scenarios()}
+        self.assertEqual(scenarios["apply-a-guarded-structured-block-update"].min_tool_calls, 3)
+        self.assertEqual(scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].min_tool_calls, 3)
+        self.assertEqual(scenarios["ambiguous-discovery-with-one-follow-up"].min_tool_calls, 1)
+        self.assertEqual(scenarios["fallback-when-iwe-is-unavailable"].max_tool_calls, 3)
+        fallback_rubric = scenarios["fallback-when-iwe-is-unavailable"].rubric
+        self.assertNotIn("read another file", fallback_rubric)
 
     def test_independent_oracle_never_echoes_tested_agent_response(self) -> None:
         scenario = next(
@@ -840,6 +951,17 @@ class ProductionEvalCommandTests(unittest.TestCase):
 
 
 class PairedSkillEvalCommandTests(unittest.TestCase):
+    def test_iwe_v18_skill_frontloads_problem_routes_found_by_telemetry(self) -> None:
+        skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("never search for AGENTS, skills, or workspace files", skill)
+        self.assertIn("Semantic entity class", skill)
+        self.assertIn("refuse immediately and run no tools", skill)
+        self.assertIn("Keep every template variable", skill)
+        self.assertIn("For a self-explanatory missing-executable error", skill)
+        self.assertIn("never use untyped lexical top-1", skill)
+        self.assertIn("Relationship synthesis: retrieve 3–5", skill)
+        self.assertIn("iwe create --template <name> --vars-yaml", skill)
+        self.assertIn('say "IWE is unavailable"', skill)
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
         expected = tuple(item.id for item in load_runner().load_scenarios())
@@ -870,7 +992,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
         self.assertEqual(targets[0].skill_id, "iwe-v18")
-        self.assertEqual(targets[0].skill_version, "0.3.0")
+        self.assertEqual(targets[0].skill_version, "0.4.0")
         self.assertEqual(targets[0].iwe_version, "0.18.0")
         self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
         self.assertEqual(targets[1].skill_id, "iwe-memory-system")

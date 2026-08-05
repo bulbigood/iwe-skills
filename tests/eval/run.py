@@ -438,10 +438,13 @@ def _is_skill_activation(item: dict, tested_skill: str | None) -> bool:
             return False
         if not tokens:
             return False
-    skill_path = f".agents/skills/{tested_skill}/SKILL.md"
+    skill_paths = {
+        f".agents/skills/{tested_skill}/SKILL.md",
+        ".agents/guidance/SKILL.md",
+    }
 
     def is_skill_path(value: str) -> bool:
-        return value == skill_path
+        return value in skill_paths
 
     reader = Path(tokens[0]).name
     if reader == "cat":
@@ -520,7 +523,8 @@ def command_metrics(
         metrics["forbidden_fallback_calls"] += len(FALLBACK_TOOL.findall(command))
         metrics["broad_workspace_reads"] += len(BROAD_WORKSPACE_READ.findall(command))
         metrics["reference_reads"] += int(
-            ".agents/skills/" in command and "/references/" in command
+            "/references/" in command
+            and (".agents/skills/" in command or ".agents/guidance/" in command)
         )
         metrics["context_bytes"] += len(output.encode("utf-8"))
         if not _is_skill_activation(item, tested_skill):
@@ -669,7 +673,8 @@ def agent_prompt(scenario: Scenario) -> str:
     """Keep the tested request realistic without disclosing the eval mechanism."""
     return (
         "Complete the following request in the provided workspace. "
-        "Use the local project guidance and available tools. Work offline.\n\n"
+        "First read `.agents/guidance/SKILL.md` alone, without combining that read "
+        "with any other action. Then follow it using available tools. Work offline.\n\n"
         f"Request:\n{scenario.request}"
     )
 
@@ -695,6 +700,20 @@ def _source_excerpt(text: str, terms: tuple[str, ...], limit: int = 420) -> str:
     positions = [position for position in positions if position >= 0]
     start = max(0, min(positions, default=0) - 100)
     return compact[start:start + limit]
+
+
+def _document_links(text: str) -> list[str]:
+    links = set(re.findall(r"\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]", text))
+    for target in re.findall(r"(?<!!)\[[^\]]+\]\(([^)]+)\)", text):
+        target = target.strip().split(maxsplit=1)[0].strip("<>")
+        if re.match(r"^[a-z][a-z0-9+.-]*://", target, re.IGNORECASE):
+            continue
+        target = target.split("#", 1)[0].split("?", 1)[0]
+        target = re.sub(r"^(?:\./)?(?:graph/)?", "", target)
+        target = re.sub(r"\.md$", "", target, flags=re.IGNORECASE)
+        if target:
+            links.add(target)
+    return sorted(links)
 
 
 def _parse_frontmatter(text: str) -> tuple[dict, str]:
@@ -798,9 +817,11 @@ def independent_oracle_evidence(
         "discover-and-retrieve-bounded-multi-hop-context": {
             "virtue-across-centuries",
             "meditations-009-043",
+            "meditations-010-001",
             "meditations-010-016",
             "meditations-010-033",
             "meditations-011-017",
+            "meditations-011-043",
             "prince-15",
             "prince-16",
             "prince-26",
@@ -823,7 +844,7 @@ def independent_oracle_evidence(
         elif terms and not any(term in lowered for term in terms):
             continue
         frontmatter, _ = _parse_frontmatter(text)
-        links = sorted(set(re.findall(r"\[\[([^\]|#]+)", text)))[:12]
+        links = _document_links(text)[:12]
         documents.append({
             "key": key,
             "title": _document_title(text, Path(key).name),
@@ -832,8 +853,22 @@ def independent_oracle_evidence(
             "source_excerpt": _source_excerpt(text, terms),
         })
 
-    documents.sort(key=lambda item: item["key"])
-    documents = documents[:20]
+    if scenario.id == "query-structured-metadata-without-scanning-files":
+        direct_keys = {"power", "morality"}
+        documents.sort(
+            key=lambda item: (
+                0 if item["key"] in direct_keys else
+                1 if direct_keys.intersection(item["links"]) else
+                2 if all(term in item["source_excerpt"].casefold() for term in direct_keys) else
+                3,
+                item["key"],
+            )
+        )
+        documents = documents[:20]
+    else:
+        documents.sort(key=lambda item: item["key"])
+        if scenario.id != "one-call-bounded-discovery":
+            documents = documents[:20]
     authoritative_matches = (
         [
             item for item in documents
@@ -972,7 +1007,7 @@ additionalSections: false
 
 
 def install_skill(workspace: Path, skill: SkillSpec) -> None:
-    destination = workspace / ".agents/skills" / skill.name
+    destination = workspace / ".agents/guidance"
     shutil.copytree(skill.path, destination)
 
 
@@ -1095,10 +1130,22 @@ def mechanical_errors(
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
         if changed != {"graph/eval-roadmap.md"}:
             errors.append(f"unexpected changed files: {sorted(changed)}")
+        before_body = before.get("graph/eval-roadmap.md", "")
         body = after.get("graph/eval-roadmap.md", "")
-        if body.count("## Aims") != 1 or "Reviewed by the evaluation agent." not in body or "Preserve this exact paragraph." not in body:
-            errors.append("roadmap postcondition failed")
+        expected_body = before_body.replace("## Goals", "## Aims", 1)
+        status_marker = "## Status\n\nIn review."
+        expected_body = expected_body.replace(
+            status_marker,
+            status_marker + "\n\nReviewed by the evaluation agent.",
+            1,
+        )
+        if not before_body or body != expected_body:
+            errors.append("roadmap does not equal the exact requested transformation")
     if scenario.id == "refactor-an-inclusion-link-without-breaking-the-graph":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        created = after.keys() - before.keys()
+        if len(created) != 1 or changed != {"graph/eval-plan.md", *created}:
+            errors.append("refactor changed files outside the source and one new note")
         source = after.get("graph/eval-plan.md", "")
         if "## Architecture" in source or "Use a graph-aware boundary." in source:
             errors.append("architecture section was not extracted")
@@ -1155,6 +1202,10 @@ def mechanical_errors(
                     "Ada and Alan",
                     ["Ada", "Alan"],
                 )
+            attendees_valid = attendees_valid or frontmatter.get("attendees") in (
+                "Ada and Alan",
+                ["Ada", "Alan"],
+            )
             valid = (
                 isinstance(frontmatter, dict)
                 and frontmatter.get("type") == "meeting"
@@ -1215,13 +1266,13 @@ def sanitize_judge_evidence(skill: SkillSpec, value):
 
 
 def judge_command_evidence(skill: SkillSpec, commands: list[dict]) -> list[dict]:
-    tested_root = f".agents/skills/{skill.name}"
+    tested_roots = (f".agents/skills/{skill.name}", ".agents/guidance")
     evidence = []
     for item in commands:
         redacted = sanitize_judge_evidence(skill, dict(item))
         if not isinstance(redacted, dict):
             raise TypeError("sanitized command evidence must remain an object")
-        if tested_root in str(item.get("command", "")):
+        if any(root in str(item.get("command", "")) for root in tested_roots):
             redacted["output"] = "[TESTED_SKILL_OUTPUT_REDACTED]"
         evidence.append(redacted)
     return evidence

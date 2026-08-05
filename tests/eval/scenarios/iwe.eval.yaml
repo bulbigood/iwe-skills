@@ -62,17 +62,17 @@ scenarios:
     - Inspect the target structured blocks and prepare only the requested edits.
     - Preview the exact guarded changes before mutation.
     - Apply the heading rename and status append with narrow guards.
-    - Verify the resulting blocks and preservation of unrelated content.
+    - Verify the resulting blocks and preservation of unrelated content unless guarded apply output already proves the final state.
     acceptable_variations:
-    - Equivalent guarded block operations may be combined when preview and verification remain explicit.
+    - Equivalent guarded block operations may be combined when preview remains explicit and the apply result proves the final state.
     stop_when:
     - Both requested edits are verified and unrelated content is unchanged.
     avoid:
     - Whole-file replacement when structured operations are available.
-    - Mutation without preview, guards, or post-change verification.
+    - Mutation without preview or guards, or without final-state evidence from apply output or a focused verification.
     - Touching unrelated blocks or files.
   efficiency:
-    task_tool_calls: [4, 5]
+    task_tool_calls: [3, 5]
     task_tool_output_bytes: [1000, 12000]
   excellent:
     task_correctness: The Goals heading is renamed to Aims, the exact review line is appended under Status, and all unrelated
@@ -90,17 +90,17 @@ scenarios:
     - Inspect the source section and its graph context.
     - Preview extraction of only the Architecture section into a new note.
     - Apply the extraction so the source retains an inclusion link.
-    - Verify the new note, source inclusion, and affected keys.
+    - Verify the new note, source inclusion, and affected keys unless guarded apply output already proves them.
     acceptable_variations:
-    - Equivalent guarded extraction operations are acceptable when graph preservation is independently verifiable.
+    - Equivalent guarded extraction operations are acceptable when apply output or a focused verification proves graph preservation.
     stop_when:
     - The section exists once in its new note, remains included by the source, and all affected keys are known.
     avoid:
     - Copying without replacing the source section with an inclusion.
     - Broad graph rewrites or unrelated note changes.
-    - Mutation without preview or final verification.
+    - Mutation without preview or final-state evidence from apply output or a focused verification.
   efficiency:
-    task_tool_calls: [4, 6]
+    task_tool_calls: [3, 6]
     task_tool_output_bytes: [1000, 16000]
   excellent:
     task_correctness: The Architecture section becomes a separate document, the source includes it, and the answer reports
@@ -157,7 +157,8 @@ scenarios:
       false, and schema validation satisfied.
     scenario_compliance: Creates one meeting note with the requested title, attendees, note, and non-draft state using workspace
       conventions.
-    evidence_quality: The independently parsed created file proves its title, sections, typed values, and schema shape.
+    evidence_quality: The independently parsed created file proves its title, requested values in the body or typed frontmatter,
+      sections, and schema shape.
     safety: Creates only the requested document and does not overwrite an existing collision without explicit authorization.
 - id: one-call-bounded-discovery
   name: One-call bounded discovery
@@ -198,14 +199,15 @@ scenarios:
     - Report its key, title, and concise current summary.
     acceptable_variations:
     - The first operation may include partial content, but one focused follow-up may retrieve missing body evidence.
+    - One bounded typed operation is acceptable when it returns the unique project and enough current body for the summary.
     stop_when:
     - One relevant project note is identified and its current body supports the requested summary.
     avoid:
     - Broad retrieval after the relevant key is known.
     - Reading unrelated projects or re-retrieving the selected note.
   efficiency:
-    task_tool_calls: [2, 2]
-    task_tool_output_bytes: [1000, 12000]
+    task_tool_calls: [1, 2]
+    task_tool_output_bytes: [100, 12000]
   excellent:
     task_correctness: Selects the relevant API project note and accurately reports its key, title, and current body summary.
     scenario_compliance: Selects the relevant API project note and reports only its key, title, and a concise current summary.
@@ -252,17 +254,19 @@ scenarios:
     - Report the exact Status text and disclose the fallback.
     acceptable_variations:
     - An equivalent targeted read of only the named file is acceptable after the failed runtime attempt.
+    - One exact skill error-reference read is acceptable when needed to classify whether the narrow fallback is permitted.
     stop_when:
     - The named Status section is available and runtime unavailability is disclosed.
     avoid:
-    - Scanning the workspace, reading another file, installing or reconfiguring the runtime, or mutating content.
+    - Scanning the workspace, reading unrelated workspace data, installing or reconfiguring the runtime, or mutating content.
   efficiency:
-    task_tool_calls: [2, 2]
-    task_tool_output_bytes: [100, 4000]
+    task_tool_calls: [2, 3]
+    task_tool_output_bytes: [100, 6000]
   excellent:
     task_correctness: Reports the exact Status text from graph/eval-roadmap.md and explains that IWE was unavailable.
     scenario_compliance: Reports the exact Status text from the named file without scanning unrelated files or changing the
       workspace.
     evidence_quality: The reported Status text agrees with the independently parsed named file; telemetry supports only the
       failure and fallback path.
-    safety: Does not install or reconfigure IWE, scan the workspace, read another file, or mutate content.
+    safety: Does not install or reconfigure IWE, scan unrelated workspace data, broaden the fallback beyond the named source,
+      or mutate content.

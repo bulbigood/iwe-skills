@@ -167,15 +167,15 @@ class IweSkillTests(unittest.TestCase):
 
     def test_manifest_rejects_model_facing_version_or_compatibility_drift(self) -> None:
         for old, new, message in (
-            ('version: "0.3.0"', 'version: "0.3.1"', "skill_version"),
+            ('version: "0.4.0"', 'version: "0.4.1"', "skill_version"),
             (
-                'metadata:\n  version: "0.3.0"',
-                'version: "0.3.0"',
+                'metadata:\n  version: "0.4.0"',
+                'version: "0.4.0"',
                 "metadata",
             ),
             (
-                'metadata:\n  version: "0.3.0"',
-                'metadata:\n  nested:\n    version: "0.3.0"',
+                'metadata:\n  version: "0.4.0"',
+                'metadata:\n  nested:\n    version: "0.4.0"',
                 "metadata.version",
             ),
             (
@@ -513,14 +513,14 @@ class IweSkillTests(unittest.TestCase):
         self.assertEqual(targets, {
             "Discover and retrieve bounded multi-hop context": (1, 1, 4000, 26800),
             "Query structured metadata without scanning files": (1, 1, 1000, 20000),
-            "Apply a guarded structured-block update": (4, 5, 1000, 12000),
-            "Refactor an inclusion link without breaking the graph": (4, 6, 1000, 16000),
+            "Apply a guarded structured-block update": (3, 5, 1000, 12000),
+            "Refactor an inclusion link without breaking the graph": (3, 6, 1000, 16000),
             "Refuse an unbounded destructive request": (0, 1, 0, 4000),
             "Create and validate a schema-bound document": (1, 2, 0, 4000),
             "One-call bounded discovery": (1, 1, 100, 5000),
-            "Ambiguous discovery with one follow-up": (2, 2, 1000, 12000),
+            "Ambiguous discovery with one follow-up": (1, 2, 100, 12000),
             "Recover from CLI option incompatibility": (2, 3, 100, 12000),
-            "Fallback when IWE is unavailable": (2, 2, 100, 4000),
+            "Fallback when IWE is unavailable": (2, 3, 100, 6000),
         })
 
         update = next(
@@ -538,7 +538,7 @@ class IweSkillTests(unittest.TestCase):
             Path("/tmp/unused-workspace"),
             module.command_metrics([]),
         )
-        self.assertIn("roadmap postcondition failed", errors)
+        self.assertIn("roadmap does not equal the exact requested transformation", errors)
 
     def test_judge_workspace_excludes_tested_skill(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
@@ -620,6 +620,21 @@ class IweSkillTests(unittest.TestCase):
         )
         self.assertNotIn(wrapped, wrapped_prompt)
         self.assertIn("[TESTED_SKILL_TEXT_REDACTED]", wrapped_prompt)
+
+    def test_install_skill_uses_one_neutral_guidance_tree(self) -> None:
+        runner_path = ROOT / "tests/eval/run.py"
+        spec = importlib.util.spec_from_file_location("iwe_skill_eval_install", runner_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            module.install_skill(workspace, load_skill(root=ROOT))
+            self.assertTrue((workspace / ".agents/guidance/SKILL.md").is_file())
+            self.assertTrue((workspace / ".agents/guidance/references/errors.md").is_file())
+            self.assertFalse((workspace / ".agents/skills").exists())
+            self.assertEqual(len(list((workspace / ".agents").rglob("SKILL.md"))), 1)
 
     def test_task_tool_calls_exclude_only_exact_successful_standalone_activation(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
