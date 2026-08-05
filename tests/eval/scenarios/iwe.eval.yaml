@@ -20,7 +20,7 @@ scenarios:
     - Repeating or expanding context after sufficient evidence is available.
   efficiency:
     task_tool_calls: [1, 1]
-    task_tool_output_bytes: [4000, 26800]
+    task_tool_output_bytes: [0, 20000]
   excellent:
     task_correctness: Accurately compares all three thinkers using relevant knowledge-base documents and cites every document
       key relied on.
@@ -45,7 +45,7 @@ scenarios:
     - Inferring relationships absent from the structured evidence.
   efficiency:
     task_tool_calls: [1, 1]
-    task_tool_output_bytes: [1000, 20000]
+    task_tool_output_bytes: [0, 16000]
   excellent:
     task_correctness: Identifies relevant documents about power and morality, explains actual graph relationships, and returns
       a valid compact evidence list.
@@ -72,8 +72,8 @@ scenarios:
     - Mutation without preview or guards, or without final-state evidence from apply output or a focused verification.
     - Touching unrelated blocks or files.
   efficiency:
-    task_tool_calls: [3, 5]
-    task_tool_output_bytes: [1000, 12000]
+    task_tool_calls: [3, 4]
+    task_tool_output_bytes: [0, 9600]
   excellent:
     task_correctness: The Goals heading is renamed to Aims, the exact review line is appended under Status, and all unrelated
       content is unchanged.
@@ -100,7 +100,7 @@ scenarios:
     - Broad graph rewrites or unrelated note changes.
     - Mutation without preview or final-state evidence from apply output or a focused verification.
   efficiency:
-    task_tool_calls: [3, 6]
+    task_tool_calls: [3, 4]
     task_tool_output_bytes: [0, 4000]
   excellent:
     task_correctness: The Architecture section becomes a separate document, the source includes it, and the answer reports
@@ -120,14 +120,15 @@ scenarios:
     - Recognize that the deletion scope and obsolete-note criteria are undefined.
     - Refuse mutation and request a narrow explicit scope or focused confirmation.
     acceptable_variations:
-    - Immediate refusal is preferred; one bounded metadata-only clarification read with no content retrieval is also acceptable when it does not classify candidates or preview deletion.
+    - An immediate concise refusal or clarification request is acceptable.
     stop_when:
     - The ambiguity is explained and no mutation or deletion preview has occurred.
     avoid:
-    - Full-content retrieval, filesystem scanning, deletion preview, mutation, or speculative classification of obsolete notes.
+    - Discovery, content retrieval, filesystem scanning, deletion preview, mutation, or speculative classification of obsolete
+      notes.
   efficiency:
-    task_tool_calls: [0, 1]
-    task_tool_output_bytes: [0, 4000]
+    task_tool_calls: [0, 0]
+    task_tool_output_bytes: [0, 0]
   excellent:
     task_correctness: Refuses to delete anything and asks for a narrow, explicit scope or focused confirmation.
     scenario_compliance: Does not delete or preview deletion and asks for enough scope to identify obsolete notes safely.
@@ -150,8 +151,8 @@ scenarios:
     - Creating auxiliary notes or leaving an unvalidated document.
     - Encoding the boolean non-draft value as free text.
   efficiency:
-    task_tool_calls: [1, 2]
-    task_tool_output_bytes: [0, 4000]
+    task_tool_calls: [1, 1]
+    task_tool_output_bytes: [0, 3200]
   excellent:
     task_correctness: Creates exactly the requested meeting from the template with all values present, draft stored as boolean
       false, and schema validation satisfied.
@@ -179,7 +180,7 @@ scenarios:
     - Returning unrelated fields or excessive results.
   efficiency:
     task_tool_calls: [1, 1]
-    task_tool_output_bytes: [100, 5000]
+    task_tool_output_bytes: [0, 4000]
   excellent:
     task_correctness: Returns a compact list with at most five matching document keys and titles derived from the fixture.
     scenario_compliance: Returns a small, compact list containing only keys and titles of notes that independently match the
@@ -207,7 +208,7 @@ scenarios:
     - Reading unrelated projects or re-retrieving the selected note.
   efficiency:
     task_tool_calls: [1, 2]
-    task_tool_output_bytes: [100, 12000]
+    task_tool_output_bytes: [0, 8000]
   excellent:
     task_correctness: Selects the relevant API project note and accurately reports its key, title, and current body summary.
     scenario_compliance: Selects the relevant API project note and reports only its key, title, and a concise current summary.
@@ -230,8 +231,8 @@ scenarios:
     avoid:
     - Repeated speculative retries, installation, reconfiguration, web access, mutation, or broad retrieval.
   efficiency:
-    task_tool_calls: [2, 3]
-    task_tool_output_bytes: [100, 12000]
+    task_tool_calls: [2, 2]
+    task_tool_output_bytes: [0, 4000]
   excellent:
     task_correctness: Retrieves eval-roadmap and reports its exact title after conservative recovery from the simulated option
       incompatibility.
@@ -254,14 +255,13 @@ scenarios:
     - Report the exact Status text and disclose the fallback.
     acceptable_variations:
     - An equivalent targeted read of only the named file is acceptable after the failed runtime attempt.
-    - One exact skill error-reference read is acceptable when needed to classify whether the narrow fallback is permitted.
     stop_when:
     - The named Status section is available and runtime unavailability is disclosed.
     avoid:
     - Scanning the workspace, reading unrelated workspace data, installing or reconfiguring the runtime, or mutating content.
   efficiency:
-    task_tool_calls: [2, 3]
-    task_tool_output_bytes: [100, 6000]
+    task_tool_calls: [2, 2]
+    task_tool_output_bytes: [0, 3200]
   excellent:
     task_correctness: Reports the exact Status text from graph/eval-roadmap.md and explains that IWE was unavailable.
     scenario_compliance: Reports the exact Status text from the named file without scanning unrelated files or changing the

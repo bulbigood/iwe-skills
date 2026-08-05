@@ -4,8 +4,6 @@ import contextlib
 import importlib.util
 import io
 import json
-import math
-
 import subprocess
 import sys
 import tempfile
@@ -119,62 +117,61 @@ class EvalScoringContractTests(unittest.TestCase):
             self.assertTrue(scenario.procedure["stop_when"])
             self.assertTrue(scenario.procedure["avoid"])
 
-    def test_destructive_refusal_allows_one_bounded_metadata_clarification(self) -> None:
+    def test_destructive_refusal_uses_no_task_tools(self) -> None:
         scenario = next(
             item
             for item in self.runner.load_scenarios()
             if item.id == "refuse-an-unbounded-destructive-request"
         )
-        self.assertEqual((scenario.min_tool_calls, scenario.max_tool_calls), (0, 1))
+        self.assertEqual((scenario.min_tool_calls, scenario.max_tool_calls), (0, 0))
+        self.assertEqual(
+            (scenario.min_task_tool_output_bytes, scenario.max_task_tool_output_bytes),
+            (0, 0),
+        )
         procedure = " ".join(
             step for values in (scenario.procedure or {}).values() for step in values
         ).casefold()
-        self.assertIn("metadata", procedure)
-        self.assertIn("no content", procedure)
+        self.assertIn("discovery", procedure)
+        self.assertIn("content retrieval", procedure)
 
-    def test_multi_hop_excellence_requires_one_call_and_fixture_derived_token_ceiling(self) -> None:
-        scenario = next(
-            item
-            for item in self.runner.load_scenarios()
-            if item.id == "discover-and-retrieve-bounded-multi-hop-context"
-        )
-        self.assertEqual((scenario.min_tool_calls, scenario.max_tool_calls), (1, 1))
-        self.assertEqual(
-            (scenario.min_task_tool_output_bytes, scenario.max_task_tool_output_bytes),
-            (4000, 26800),
-        )
-        self.assertEqual(math.ceil(scenario.max_task_tool_output_bytes / 4), 6700)
-        ideal = " ".join((scenario.procedure or {})["ideal"]).casefold()
-        self.assertIn("one bounded retrieval", ideal)
-        self.assertIn("at most two", ideal)
-
-    def test_high_confidence_efficiency_ranges_allow_equivalent_bounded_paths(self) -> None:
+    def test_all_excellent_efficiency_ranges_match_semantic_routes_and_token_budgets(self) -> None:
         scenarios = {item.id: item for item in self.runner.load_scenarios()}
-        self.assertEqual(
-            (
-                scenarios["discover-and-retrieve-bounded-multi-hop-context"].min_tool_calls,
-                scenarios["discover-and-retrieve-bounded-multi-hop-context"].max_tool_calls,
-            ),
-            (1, 1),
-        )
-        self.assertEqual(
-            scenarios["apply-a-guarded-structured-block-update"].min_task_tool_output_bytes,
-            1000,
-        )
-        self.assertEqual(
-            (
-                scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].min_task_tool_output_bytes,
-                scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].max_task_tool_output_bytes,
-            ),
-            (0, 4000),
-        )
-        self.assertEqual(
-            (
-                scenarios["recover-from-cli-option-incompatibility"].min_tool_calls,
-                scenarios["recover-from-cli-option-incompatibility"].max_tool_calls,
-            ),
-            (2, 3),
-        )
+        expected = {
+            "discover-and-retrieve-bounded-multi-hop-context": ((1, 1), 5000),
+            "query-structured-metadata-without-scanning-files": ((1, 1), 4000),
+            "apply-a-guarded-structured-block-update": ((3, 4), 2400),
+            "refactor-an-inclusion-link-without-breaking-the-graph": ((3, 4), 1000),
+            "refuse-an-unbounded-destructive-request": ((0, 0), 0),
+            "create-and-validate-a-schema-bound-document": ((1, 1), 800),
+            "one-call-bounded-discovery": ((1, 1), 1000),
+            "ambiguous-discovery-with-one-follow-up": ((1, 2), 2000),
+            "recover-from-cli-option-incompatibility": ((2, 2), 1000),
+            "fallback-when-iwe-is-unavailable": ((2, 2), 800),
+        }
+        self.assertEqual(set(scenarios), set(expected))
+        for scenario_id, (tool_calls, maximum_tokens) in expected.items():
+            with self.subTest(scenario=scenario_id):
+                scenario = scenarios[scenario_id]
+                self.assertEqual(
+                    (scenario.min_tool_calls, scenario.max_tool_calls), tool_calls
+                )
+                self.assertEqual(scenario.min_task_tool_output_bytes, 0)
+                self.assertEqual(
+                    self.runner.estimate_input_tokens(
+                        scenario.max_task_tool_output_bytes
+                    ),
+                    maximum_tokens,
+                )
+                self.assertEqual(
+                    scenario.max_task_tool_output_bytes,
+                    maximum_tokens * self.runner.ESTIMATED_BYTES_PER_TOKEN,
+                )
+
+        multi_hop_ideal = " ".join(
+            scenarios["discover-and-retrieve-bounded-multi-hop-context"].procedure["ideal"]
+        ).casefold()
+        self.assertIn("one bounded retrieval", multi_hop_ideal)
+        self.assertIn("at most two", multi_hop_ideal)
 
     def test_efficiency_ranges_produce_deterministic_diagnostics_without_scores(self) -> None:
         metrics = self.runner.command_metrics([])
@@ -189,10 +186,10 @@ class EvalScoringContractTests(unittest.TestCase):
         })
         self.assertEqual(diagnostics["task_tool_output_bytes"], {
             "observed": 7000,
-            "excellent_range": [100, 5000],
+            "excellent_range": [0, 4000],
             "status": "above",
-            "distance": 2000,
-            "deviation_percent": 40.0,
+            "distance": 3000,
+            "deviation_percent": 75.0,
         })
         self.assertNotIn("document_reads", diagnostics)
         self.assertFalse(diagnostics["unbounded_read"])
@@ -850,7 +847,7 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertEqual(scenarios["apply-a-guarded-structured-block-update"].min_tool_calls, 3)
         self.assertEqual(scenarios["refactor-an-inclusion-link-without-breaking-the-graph"].min_tool_calls, 3)
         self.assertEqual(scenarios["ambiguous-discovery-with-one-follow-up"].min_tool_calls, 1)
-        self.assertEqual(scenarios["fallback-when-iwe-is-unavailable"].max_tool_calls, 3)
+        self.assertEqual(scenarios["fallback-when-iwe-is-unavailable"].max_tool_calls, 2)
         fallback_rubric = scenarios["fallback-when-iwe-is-unavailable"].rubric
         self.assertNotIn("read another file", fallback_rubric)
 
@@ -1370,11 +1367,12 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
             module.parse_args(["--jobs", "0"])
 
-    def test_non_production_evals_default_to_five_jobs(self) -> None:
+    def test_single_skill_evals_default_to_ten_jobs_and_one_sample(self) -> None:
         config = json.loads(
             (ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["jobs"], 5)
+        self.assertEqual(config["jobs"], 10)
+        self.assertEqual(config["samples"], 1)
 
 
 if __name__ == "__main__":

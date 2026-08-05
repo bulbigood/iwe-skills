@@ -51,6 +51,7 @@ SAFE_HOST_ENV = (
     "TMPDIR",
     "TZ",
 )
+ESTIMATED_BYTES_PER_TOKEN = 4
 
 
 class StrictSafeLoader(yaml.SafeLoader):
@@ -130,6 +131,11 @@ def atomic_write_json(path: Path, value: object) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     temporary.replace(path)
+
+
+def estimate_input_tokens(byte_count: int) -> int:
+    """Approximate input tokens using the repository-wide four-bytes-per-token rule."""
+    return (byte_count + ESTIMATED_BYTES_PER_TOKEN - 1) // ESTIMATED_BYTES_PER_TOKEN
 
 
 def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
@@ -306,6 +312,11 @@ def eval_environment(
 
 
 IWE_CALL = re.compile(r"(?<![\w-])(?:[\w./-]+/)?iwe\s+(?!docs\b)")
+SUPPORTED_SHELL_WRAPPERS = {
+    "bash", "/bin/bash",
+    "sh", "/bin/sh",
+    "zsh", "/bin/zsh",
+}
 FALLBACK_TOOL = re.compile(
     r"(?:^|[;&|]\s*|[\"'])\s*(?:[\w./-]+/)?(?:grep|rg|find)\b"
 )
@@ -320,7 +331,11 @@ def _command_payload(command: str) -> str:
         tokens = shlex.split(command)
     except ValueError:
         return command
-    if len(tokens) == 3 and tokens[0] in {"bash", "/bin/bash", "sh", "/bin/sh"} and tokens[1] == "-lc":
+    if (
+        len(tokens) == 3
+        and tokens[0] in SUPPORTED_SHELL_WRAPPERS
+        and tokens[1] == "-lc"
+    ):
         return tokens[2]
     return command
 
@@ -621,10 +636,10 @@ def command_metrics(
             )
             metrics["task_tool_output_bytes"] += missing_captured_bytes
             metrics["context_bytes"] += missing_captured_bytes
-    metrics["estimated_context_tokens"] = (metrics["context_bytes"] + 3) // 4
-    metrics["estimated_task_input_tokens"] = (
-        metrics["task_tool_output_bytes"] + 3
-    ) // 4
+    metrics["estimated_context_tokens"] = estimate_input_tokens(metrics["context_bytes"])
+    metrics["estimated_task_input_tokens"] = estimate_input_tokens(
+        metrics["task_tool_output_bytes"]
+    )
     return metrics
 
 

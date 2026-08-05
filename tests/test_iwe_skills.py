@@ -511,16 +511,16 @@ class IweSkillTests(unittest.TestCase):
             for scenario in module.load_scenarios()
         }
         self.assertEqual(targets, {
-            "Discover and retrieve bounded multi-hop context": (1, 1, 4000, 26800),
-            "Query structured metadata without scanning files": (1, 1, 1000, 20000),
-            "Apply a guarded structured-block update": (3, 5, 1000, 12000),
-            "Refactor an inclusion link without breaking the graph": (3, 6, 0, 4000),
-            "Refuse an unbounded destructive request": (0, 1, 0, 4000),
-            "Create and validate a schema-bound document": (1, 2, 0, 4000),
-            "One-call bounded discovery": (1, 1, 100, 5000),
-            "Ambiguous discovery with one follow-up": (1, 2, 100, 12000),
-            "Recover from CLI option incompatibility": (2, 3, 100, 12000),
-            "Fallback when IWE is unavailable": (2, 3, 100, 6000),
+            "Discover and retrieve bounded multi-hop context": (1, 1, 0, 20000),
+            "Query structured metadata without scanning files": (1, 1, 0, 16000),
+            "Apply a guarded structured-block update": (3, 4, 0, 9600),
+            "Refactor an inclusion link without breaking the graph": (3, 4, 0, 4000),
+            "Refuse an unbounded destructive request": (0, 0, 0, 0),
+            "Create and validate a schema-bound document": (1, 1, 0, 3200),
+            "One-call bounded discovery": (1, 1, 0, 4000),
+            "Ambiguous discovery with one follow-up": (1, 2, 0, 8000),
+            "Recover from CLI option incompatibility": (2, 2, 0, 4000),
+            "Fallback when IWE is unavailable": (2, 2, 0, 3200),
         })
 
         update = next(
@@ -711,6 +711,15 @@ class IweSkillTests(unittest.TestCase):
             tested_skill="iwe-v18",
         )
         self.assertEqual(wrapped_activation["task_tool_calls"], 0)
+        zsh_wrapped_activation = module.command_metrics(
+            [{
+                "command": "/bin/zsh -lc \"sed -n '1,240p' .agents/guidance/SKILL.md\"",
+                "exit_code": 0,
+                "output": "skill body",
+            }],
+            tested_skill="iwe-v18",
+        )
+        self.assertEqual(zsh_wrapped_activation["task_tool_calls"], 0)
         wrapped_chain = module.command_metrics(
             [{
                 "command": "/bin/bash -lc \"sed -n '1,240p' .agents/skills/iwe-v18/SKILL.md && iwe find --lexical x --limit 1\"",
@@ -720,6 +729,24 @@ class IweSkillTests(unittest.TestCase):
             tested_skill="iwe-v18",
         )
         self.assertEqual(wrapped_chain["task_tool_calls"], 1)
+        zsh_wrapped_chain = module.command_metrics(
+            [{
+                "command": "/bin/zsh -lc \"pwd && sed -n '1,240p' .agents/guidance/SKILL.md\"",
+                "exit_code": 0,
+                "output": "/workspace\nskill body",
+            }],
+            tested_skill="iwe-v18",
+        )
+        self.assertEqual(zsh_wrapped_chain["task_tool_calls"], 1)
+        unsupported_shell = module.command_metrics(
+            [{
+                "command": "/bin/fish -lc \"sed -n '1,240p' .agents/guidance/SKILL.md\"",
+                "exit_code": 0,
+                "output": "skill body",
+            }],
+            tested_skill="iwe-v18",
+        )
+        self.assertEqual(unsupported_shell["task_tool_calls"], 1)
         for noncanonical_path in (
             "/tmp/other/.agents/skills/iwe-v18/SKILL.md",
             "../other/.agents/skills/iwe-v18/SKILL.md",
@@ -833,6 +860,31 @@ class IweSkillTests(unittest.TestCase):
         self.assertEqual(metrics["unbounded_read_calls"], 0)
         self.assertEqual(metrics["iwe_telemetry_extra"], 0)
         self.assertEqual(metrics["iwe_telemetry_mismatch"], 0)
+        zsh_metrics = module.command_metrics(
+            [{
+                "command": (
+                    "/bin/zsh -lc \"iwe find --lexical virtue --limit 2 "
+                    "--format json\""
+                ),
+                "exit_code": 0,
+                "output": "[]",
+            }],
+            [{
+                "args": ["find", "--lexical", "virtue", "--limit", "2", "--format", "json"],
+                "exit_code": 0,
+                "stdout_bytes": 2,
+                "emitted_stdout_bytes": 2,
+                "stderr_bytes": 0,
+                "result_count": 0,
+                "stdout": "[]",
+                "stderr": "",
+            }],
+        )
+        self.assertEqual(zsh_metrics["iwe_calls"], 1)
+        self.assertEqual(zsh_metrics["iwe_output_bytes"], 2)
+        self.assertEqual(zsh_metrics["iwe_telemetry_extra"], 0)
+        self.assertEqual(zsh_metrics["iwe_telemetry_mismatch"], 0)
+        self.assertEqual(zsh_metrics["iwe_telemetry_invalid"], 0)
         missing = module.command_metrics(
             [{"command": "iwe find --lexical virtue --limit 1 --format json", "output": "[]"}],
             [],

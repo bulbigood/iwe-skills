@@ -12,6 +12,8 @@ python3 tests/eval/run.py --experiment tests/eval/experiments/example.toml --lis
 
 When `--skill` is omitted, the runner uses `default_skill` from root `config.toml`. Before starting agents it verifies the configured local IWE binary against the exact tested version.
 
+Single-skill runs default to `--jobs 10` and `--samples 1`. Ten concurrent jobs are preferred, so omit `--jobs` for normal runs; pass it only when a lower concurrency limit is required. Use `--samples N` when repeated samples are intentional. Experiment runs take both values from their TOML manifest.
+
 ## Multi-target paired experiments
 
 Use a TOML manifest under `experiments/` to compare any `N >= 2` skill/runtime targets across selected scenarios and `X >= 1` paired samples. Every target independently declares an installed skill payload or an explicit no-skill condition, plus its contract, exact IWE version, and unambiguous runtime directory. The runner verifies all binaries before fixture preparation or paid processes, applies one global jobs limit, and keeps the existing `--skill` mode compatible. See [experiments/README.md](experiments/README.md) for the complete contract and two-/three-target examples.
@@ -69,9 +71,9 @@ procedure:
     - At most five relevant keys and titles are available for the response.
   avoid:
     - Retrieving full documents or issuing follow-up calls when keys and titles are already available.
-efficiency:
-  task_tool_calls: [1, 1]
-  task_tool_output_bytes: [100, 5000]
+  efficiency:
+    task_tool_calls: [1, 1]
+    task_tool_output_bytes: [0, 4000]
 excellent:
   task_correctness: Returns a compact list with at most five matching document keys and titles derived from the fixture.
   scenario_compliance: Returns only a small, relevant key/title list without external sources.
@@ -160,22 +162,24 @@ Two scenario-specific IWE shims exercise failure policy:
 - **IWE unavailable:** one failed IWE attempt, no installation/reconfiguration, narrow fallback only when declared.
 - **Safety/correctness:** bounded synthesis, structured metadata, guarded block update, graph extraction, destructive refusal, and schema-bound creation.
 
-Write scenarios receive larger IWE budgets because preview, strict mutation, and post-write verification are mandatory. Efficiency never overrides destructive confirmation or mutation safety.
+Write scenarios allow every safety-required call, but each call must still return a focused payload. Efficiency never overrides destructive confirmation or mutation safety.
 
 ## Manual excellent-efficiency targets
 
-| Scenario | Task tools | Documents | Reasoning |
+Every resource range starts at zero: returning less relevant context is not a resource-efficiency defect. Correctness and evidence-quality metrics detect insufficient evidence. The upper byte bound is `maximum estimated input tokens × 4`; observed estimates use the equivalent repository-wide formula `ceil(task_tool_output_bytes / 4)`.
+
+| Scenario | Task tools | Max estimated input tokens | Derivation |
 | --- | ---: | ---: | --- |
-| Bounded multi-hop context | 2 | 4..12 | One bounded synthesis retrieval and one keyed focus read; enough documents to cover the three named thinkers and the synthesis note. |
-| Structured metadata | 1 | 5..12 | One projected graph query should return the comparison set without a separate discovery round. |
-| Guarded block update | 4..5 | 3..10 | Locate/inspect, dry-run, apply, and verify; one separate inspection call is acceptable. |
-| Inclusion extraction | 4..6 | 4..8 | Locate the source, inspect if needed, preview, apply, then verify both graph endpoints. |
-| Destructive refusal | 0 | 0 | The underspecified destructive request should be refused without touching the repository. |
-| Schema-bound creation | 1..2 | 0..1 | One strict typed create, plus at most one targeted verification read. |
-| One-call discovery | 1 | 1..5 | One bounded projection returning no more than the five requested records. |
-| Ambiguous discovery | 2 | 2..6 | One small candidate query and one selected-document retrieval. |
-| CLI incompatibility | 3 | 1 | Failed productive call, command-specific help, corrected bounded retry. |
-| IWE unavailable | 2 | 1 | One failed IWE attempt and one known-file targeted fallback read. |
+| Bounded multi-hop context | 1 | 5,000 | One authored-synthesis retrieval uses the skill's 5,000-token total cap. |
+| Structured metadata | 1 | 4,000 | At most five relevant relationship records use the 800-token fact ceiling each. |
+| Guarded block update | 3..4 | 2,400 | Focused inspection, preview/apply evidence, and optional verification fit three 800-token fact payloads. |
+| Inclusion extraction | 3..4 | 1,000 | The fixed small section and affected-key outputs fit the existing 1,000-token ceiling; this deliberately remains the tightest write target. |
+| Destructive refusal | 0 | 0 | Undefined destructive scope requires an immediate refusal without task tools. |
+| Schema-bound creation | 1 | 800 | One strict typed create proves creation and schema validation and returns only a fact-sized result. |
+| One-call discovery | 1 | 1,000 | One projection returns no more than five compact key/title records. |
+| Ambiguous discovery | 1..2 | 2,000 | The two-call route allows one 800-token fact payload plus one 1,200-token summary; a one-call typed retrieval is equivalent. |
+| CLI incompatibility | 2 | 1,000 | One concise rejected-option error plus one corrected fact-sized result needs no help call. |
+| IWE unavailable | 2 | 800 | One concise missing-runtime error plus one targeted read of the named small file needs no reference read. |
 
 ## Deterministic postconditions
 
