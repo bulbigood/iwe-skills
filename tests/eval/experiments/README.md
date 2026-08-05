@@ -5,7 +5,7 @@ An experiment compares **skill payload + exact IWE runtime** targets. It does no
 ```toml
 schema_version = 1
 name = "three-target-check"
-scenarios = ["one-call-bounded-discovery"]
+scenarios = ["query-structured-metadata-without-scanning-files"]
 samples = 5
 jobs = 3
 agent_judge_config = "codex"
@@ -30,7 +30,7 @@ The same skill path may be declared more than once to isolate runtime effects. E
 .venv/bin/python tests/eval/run.py --experiment tests/eval/experiments/example.toml --list
 .venv/bin/python tests/eval/run.py --experiment tests/eval/experiments/example.toml
 # Narrow the manifest's scenarios; samples/jobs still come from the manifest:
-.venv/bin/python tests/eval/run.py --experiment tests/eval/experiments/example.toml --scenario one-call-bounded-discovery
+.venv/bin/python tests/eval/run.py --experiment tests/eval/experiments/example.toml --scenario query-structured-metadata-without-scanning-files
 ```
 
 Before a paid run, budget `N × selected scenarios × X` agent calls and the same number of judge calls. `jobs` is one global concurrency bound, not a per-target limit.

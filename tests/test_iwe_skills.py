@@ -377,11 +377,9 @@ class IweSkillTests(unittest.TestCase):
             )
             self.assertTrue(all(item["procedure"].values()))
         names = {scenario.name for scenario in scenarios}
-        self.assertEqual(len(scenarios), 11)
+        self.assertEqual(len(scenarios), 9)
         for expected in (
-            "One-call bounded discovery",
             "Ambiguous discovery with one follow-up",
-            "Recover from CLI option incompatibility",
             "Fallback when IWE is unavailable",
             "Fix code without activating IWE",
         ):
@@ -395,10 +393,13 @@ class IweSkillTests(unittest.TestCase):
                 self.assertEqual(set(scoring), {"minimum_score", "excellent"}, dimension)
                 self.assertIn(scoring["minimum_score"], range(6), dimension)
                 self.assertTrue(scoring["excellent"].strip())
-        selected = module.select_scenarios(scenarios, ["one-call-bounded-discovery"])
-        self.assertEqual([scenario.id for scenario in selected], ["one-call-bounded-discovery"])
+        selected = module.select_scenarios(scenarios, ["query-structured-metadata-without-scanning-files"])
+        self.assertEqual(
+            [scenario.id for scenario in selected],
+            ["query-structured-metadata-without-scanning-files"],
+        )
         with self.assertRaisesRegex(ValueError, "unknown scenario id"):
-            module.select_scenarios(scenarios, ["One-call bounded discovery"])
+            module.select_scenarios(scenarios, ["Query structured metadata without scanning files"])
         with self.assertRaisesRegex(ValueError, "unknown scenario id"):
             module.select_scenarios(scenarios, ["discovery"])
         config = json.loads((ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8"))
@@ -469,7 +470,7 @@ class IweSkillTests(unittest.TestCase):
         spec.loader.exec_module(module)
         scenario = next(
             item for item in module.load_scenarios()
-            if item.id == "one-call-bounded-discovery"
+            if item.id == "query-structured-metadata-without-scanning-files"
         )
         self.assertEqual(set(scenario.scoring), set(module.DIMENSIONS))
         self.assertEqual(scenario.scoring["tool_efficiency"]["minimum_score"], 5)
@@ -524,9 +525,7 @@ class IweSkillTests(unittest.TestCase):
             "refactor-an-inclusion-link-without-breaking-the-graph": (3, 4, 0, 4000),
             "refuse-an-unbounded-destructive-request": (0, 0, 0, 0),
             "create-and-validate-a-schema-bound-document": (1, 1, 0, 3200),
-            "one-call-bounded-discovery": (1, 1, 0, 4000),
             "ambiguous-discovery-with-one-follow-up": (1, 2, 0, 8000),
-            "recover-from-cli-option-incompatibility": (2, 2, 0, 4000),
             "fallback-when-iwe-is-unavailable": (2, 2, 0, 3200),
             "fix-code-without-activating-iwe": (2, 5, 0, 8000),
         })
@@ -1029,7 +1028,7 @@ class IweSkillTests(unittest.TestCase):
                 "unavailable", "fixture", "request", "rubric",
                 max_output_bytes=64, allow_fallback=True, iwe_mode="unavailable"
             )
-            module.install_command_shims(root / "unavailable", unavailable, IWE, root)
+            module.install_command_shims(root / "unavailable", unavailable, IWE)
             result = subprocess.run(
                 [str(root / "unavailable/iwe"), "find"], text=True, capture_output=True, env=env
             )
@@ -1039,30 +1038,10 @@ class IweSkillTests(unittest.TestCase):
             )
             self.assertEqual(blocked.returncode, 97)
 
-            incompatible = module.Scenario(
-                "incompatible", "fixture", "request", "rubric",
-                max_output_bytes=64, allow_fallback=False, iwe_mode="incompatible"
-            )
-            module.install_command_shims(root / "incompatible", incompatible, IWE, root)
-            shim = str(root / "incompatible/iwe")
-            first = subprocess.run(
-                [shim, "find", "--project", "key=$key"],
-                text=True,
-                capture_output=True,
-                env=env,
-            )
-            help_run = subprocess.run([shim, "find", "--help"], text=True, capture_output=True, env=env)
-            retry = subprocess.run([shim, "--version"], text=True, capture_output=True, env=env)
-            self.assertEqual(first.returncode, 2)
-            self.assertEqual(help_run.returncode, 0)
-            self.assertEqual(retry.stdout.strip(), "iwe 0.18.0")
             records = [json.loads(line) for line in telemetry.read_text(encoding="utf-8").splitlines()]
-            self.assertEqual(len(records), 4)
-            self.assertEqual([record["exit_code"] for record in records], [127, 2, 0, 0])
+            self.assertEqual(len(records), 1)
+            self.assertEqual([record["exit_code"] for record in records], [127])
             self.assertTrue(all("stdout_bytes" in record for record in records))
-            self.assertGreater(records[2]["stdout_bytes"], 64)
-            self.assertEqual(records[2]["emitted_stdout_bytes"], 64)
-            self.assertEqual(records[-1]["stdout"].strip(), "iwe 0.18.0")
 
 
 if __name__ == "__main__":

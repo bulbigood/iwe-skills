@@ -6,7 +6,7 @@ The eval runner uses isolated workspaces, natural-language scenarios, complete c
 python3 -m pip install -r tests/eval/requirements.txt
 python3 tests/eval/run.py --list
 python3 tests/eval/run.py --skill iwe-v18 --config codex
-python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario one-call-bounded-discovery --jobs 1 --samples 1
+python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario ambiguous-discovery-with-one-follow-up --jobs 1 --samples 1
 python3 tests/eval/run.py --experiment tests/eval/experiments/example.toml --list
 ```
 
@@ -55,29 +55,27 @@ Every scenario declares only scenario-specific data:
 Example:
 
 ```yaml
-id: one-call-bounded-discovery
-name: One-call bounded discovery
-fixture: seventeen-centuries
-request: Find a few notes that discuss virtue and give me their keys and titles in a compact format.
-runtime:
-  output_bytes: 32768
+id: ambiguous-discovery-with-one-follow-up
+name: Ambiguous discovery with one follow-up
+fixture: pkm-demo-api-project
+request: Which project note is about an API? Give me its key, title, and a short summary.
 procedure:
   ideal:
-    - Perform one bounded discovery for notes whose bodies discuss virtue.
-    - Return only the matching keys and titles in compact form.
+    - Perform bounded discovery to identify the project note about an API.
+    - Retrieve the selected note once when its body is still needed.
   acceptable_variations:
-    - Any equivalent single bounded discovery strategy is acceptable.
+    - One bounded typed operation is acceptable when it returns enough evidence.
   stop_when:
-    - At most five relevant keys and titles are available for the response.
+    - One relevant project and its current body support the answer.
   avoid:
-    - Retrieving full documents or issuing follow-up calls when keys and titles are already available.
+    - Broad retrieval after the relevant key is known.
   efficiency:
-    task_tool_calls: [1, 1]
-    task_tool_output_bytes: [0, 4000]
+    task_tool_calls: [1, 2]
+    task_tool_output_bytes: [0, 8000]
 excellent:
-  task_correctness: Returns a compact list with at most five matching document keys and titles derived from the fixture.
-  scenario_compliance: Returns only a small, relevant key/title list without external sources.
-  evidence_quality: Every returned key and title agrees with independently parsed fixture documents.
+  task_correctness: Selects the relevant API project and accurately reports its key, title, and summary.
+  scenario_compliance: Reports only the relevant project and a concise current summary.
+  evidence_quality: The answer agrees with the independently parsed project note.
 ```
 
 ## Score assignment principle
@@ -149,16 +147,13 @@ The harness builds compact independent oracle evidence directly from pinned fixt
 
 The Codex configuration enforces `workspace-write` with disabled sandbox network access for the tested agent, `read-only` for the judge, and no generated-shell environment inheritance for either process. Shims are defense in depth, not the network boundary. Any additional agent configuration must provide equivalent filesystem, environment, and network isolation.
 
-Two scenario-specific IWE shims exercise failure policy:
+One scenario-specific IWE shim exercises failure policy:
 
-- `incompatible`: the first productive command returns an unknown-option error, command-specific help remains available, and one corrected retry can delegate to the real pinned binary;
 - `unavailable`: IWE returns command-not-found and a single explicitly permitted narrow fallback may be used.
 
 ## Scenario classes
 
-- **One-call happy path:** exactly one bounded IWE discovery and no fallback/reference read.
 - **Ambiguous result:** discovery followed by one targeted retrieval.
-- **CLI incompatibility:** productive command, command-specific help, corrected retry.
 - **IWE unavailable:** one failed IWE attempt, no installation/reconfiguration, narrow fallback only when declared.
 - **Safety/correctness:** bounded synthesis, structured metadata, guarded block update, graph extraction, destructive refusal, and schema-bound creation.
 

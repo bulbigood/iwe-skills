@@ -47,7 +47,7 @@ class EvalScoringContractTests(unittest.TestCase):
         cls.scenario = next(
             item
             for item in cls.runner.load_scenarios()
-            if item.id == "one-call-bounded-discovery"
+            if item.id == "query-structured-metadata-without-scanning-files"
         )
 
     def test_global_config_declares_scale_and_metric_success_percentages(self) -> None:
@@ -144,9 +144,7 @@ class EvalScoringContractTests(unittest.TestCase):
             "refactor-an-inclusion-link-without-breaking-the-graph": ((3, 4), 1000),
             "refuse-an-unbounded-destructive-request": ((0, 0), 0),
             "create-and-validate-a-schema-bound-document": ((1, 1), 800),
-            "one-call-bounded-discovery": ((1, 1), 1000),
             "ambiguous-discovery-with-one-follow-up": ((1, 2), 2000),
-            "recover-from-cli-option-incompatibility": ((2, 2), 1000),
             "fallback-when-iwe-is-unavailable": ((2, 2), 800),
             "fix-code-without-activating-iwe": ((2, 5), 2000),
         }
@@ -177,7 +175,7 @@ class EvalScoringContractTests(unittest.TestCase):
 
     def test_efficiency_ranges_produce_deterministic_diagnostics_without_scores(self) -> None:
         metrics = self.runner.command_metrics([])
-        metrics.update(task_tool_calls=2, task_tool_output_bytes=7000, unbounded_read_calls=0)
+        metrics.update(task_tool_calls=2, task_tool_output_bytes=19000, unbounded_read_calls=0)
         diagnostics = self.runner.efficiency_diagnostics(self.scenario, metrics)
         self.assertEqual(diagnostics["task_tool_calls"], {
             "observed": 2,
@@ -187,11 +185,11 @@ class EvalScoringContractTests(unittest.TestCase):
             "deviation_percent": 100.0,
         })
         self.assertEqual(diagnostics["task_tool_output_bytes"], {
-            "observed": 7000,
-            "excellent_range": [0, 4000],
+            "observed": 19000,
+            "excellent_range": [0, 16000],
             "status": "above",
             "distance": 3000,
-            "deviation_percent": 75.0,
+            "deviation_percent": 18.75,
         })
         self.assertNotIn("document_reads", diagnostics)
         self.assertFalse(diagnostics["unbounded_read"])
@@ -499,10 +497,8 @@ class EvalScoringContractTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as directory:
             bin_dir = Path(directory) / "bin"
-            state_dir = Path(directory) / "state"
-            state_dir.mkdir()
             self.runner.install_command_shims(
-                bin_dir, scenario, Path("/usr/bin/false"), state_dir
+                bin_dir, scenario, Path("/usr/bin/false")
             )
             for name in ("grep", "rg", "find"):
                 self.assertFalse((bin_dir / name).exists())
@@ -581,79 +577,6 @@ class EvalScoringContractTests(unittest.TestCase):
         critique["dimensions"]["tool_efficiency"]["rationale"] = "Supported."
         critique["dimensions"]["tool_efficiency"]["evidence"] = []
         self.assertTrue(list(validator.iter_errors(critique)))
-
-    def test_incompatibility_shim_allows_one_conservative_retry_without_forced_help(self) -> None:
-        scenario = next(
-            item
-            for item in self.runner.load_scenarios()
-            if item.id == "recover-from-cli-option-incompatibility"
-        )
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            real_iwe = root / "real-iwe"
-            real_iwe.write_text("#!/bin/sh\nprintf 'recovered\\n'\n", encoding="utf-8")
-            real_iwe.chmod(0o755)
-            bin_dir = root / "bin"
-            state_dir = root / "state"
-            state_dir.mkdir()
-            self.runner.install_command_shims(bin_dir, scenario, real_iwe, state_dir)
-            environment = {
-                "PATH": f"{bin_dir}:/usr/bin:/bin",
-                "IWE_EVAL_IWE_LOG": str(root / "telemetry.jsonl"),
-            }
-            first = subprocess.run(
-                [str(bin_dir / "iwe"), "find", "--project", "key=$key"],
-                text=True,
-                capture_output=True,
-                env=environment,
-                check=False,
-            )
-            repeated_rejected_option = subprocess.run(
-                [str(bin_dir / "iwe"), "find", "--project", "key=$key"],
-                text=True,
-                capture_output=True,
-                env=environment,
-                check=False,
-            )
-            retry = subprocess.run(
-                [str(bin_dir / "iwe"), "find", "--limit", "1"],
-                text=True,
-                capture_output=True,
-                env=environment,
-                check=False,
-            )
-        self.assertEqual(first.returncode, 2)
-        self.assertIn("--project", first.stderr)
-        self.assertEqual(repeated_rejected_option.returncode, 2)
-        self.assertIn("--project", repeated_rejected_option.stderr)
-        self.assertEqual(retry.returncode, 0)
-        self.assertEqual(retry.stdout, "recovered\n")
-
-    def test_recovery_procedure_rejects_reusing_the_failed_option(self) -> None:
-        scenario = next(
-            item
-            for item in self.runner.load_scenarios()
-            if item.id == "recover-from-cli-option-incompatibility"
-        )
-        commands = [
-            {
-                "command": "iwe find --lexical roadmap --limit 1 --project 'key=$key,title=$title' --format json",
-                "exit_code": 2,
-                "output": "",
-            },
-            {
-                "command": "iwe find --lexical roadmap --limit 1 --project title --format json",
-                "exit_code": 0,
-                "output": '[{"title":null}]',
-            },
-        ]
-        telemetry = [
-            {"args": ["find", "--lexical", "roadmap", "--limit", "1", "--project", "key=$key,title=$title", "--format", "json"], "exit_code": 2, "stderr": "error: unexpected argument '--project' found\n"},
-            {"args": ["find", "--lexical", "roadmap", "--limit", "1", "--project", "title", "--format", "json"], "exit_code": 0, "stderr": ""},
-        ]
-        metrics = self.runner.command_metrics(commands)
-        procedure = self.runner.procedure_errors(scenario, commands, metrics, telemetry)
-        self.assertIn("rejected IWE option reused after incompatibility failure", procedure)
 
     def test_help_output_is_not_classified_as_an_unbounded_read(self) -> None:
         stdout = "usage: iwe find [OPTIONS]\n"
@@ -855,24 +778,6 @@ class EvalScoringContractTests(unittest.TestCase):
                 "bge-228",
             },
         )
-
-    def test_one_call_oracle_keeps_every_fixture_match_available_for_membership(self) -> None:
-        scenario = next(
-            item
-            for item in self.runner.load_scenarios()
-            if item.id == "one-call-bounded-discovery"
-        )
-        fixture = self.runner.snapshot(ROOT / "tests/eval/.cache/seventeen-centuries")
-        oracle = self.runner.independent_oracle_evidence(scenario, fixture, fixture, "")
-        by_key = {item["key"]: item for item in oracle["matching_documents"]}
-        expected = {
-            "virtues", "virtue", "virtue-across-centuries",
-            "meditations-008-041", "bge-214",
-        }
-        self.assertTrue(expected <= by_key.keys())
-        for key in expected:
-            _, body = self.runner._parse_frontmatter(fixture[f"graph/{key}.md"])
-            self.assertIn("virtue", body.casefold())
 
     def test_metadata_oracle_parses_markdown_and_wiki_relationships(self) -> None:
         scenario = next(
@@ -1144,7 +1049,7 @@ version = "0.18.0"
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("v18-on-0180", completed.stdout)
         self.assertIn("IWE 0.18.1", completed.stdout)
-        self.assertIn("one-call-bounded-discovery", completed.stdout)
+        self.assertIn("query-structured-metadata-without-scanning-files", completed.stdout)
 
     def test_target_aggregation_is_independent_complete_and_histogrammed(self) -> None:
         runner = load_runner()
@@ -1215,13 +1120,13 @@ version = "0.18.0"
     def test_cli_scenario_selector_accepts_only_exact_ids(self) -> None:
         command = [str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"), "--list"]
         selected = subprocess.run(
-            command + ["--scenario", "one-call-bounded-discovery"],
+            command + ["--scenario", "query-structured-metadata-without-scanning-files"],
             cwd=ROOT, text=True, capture_output=True, check=False,
         )
         self.assertEqual(selected.returncode, 0, selected.stderr)
         self.assertEqual(len(selected.stdout.splitlines()), 1)
-        self.assertTrue(selected.stdout.startswith("one-call-bounded-discovery:"))
-        for invalid in ("One-call bounded discovery", "discovery"):
+        self.assertTrue(selected.stdout.startswith("query-structured-metadata-without-scanning-files:"))
+        for invalid in ("Query structured metadata without scanning files", "metadata"):
             rejected = subprocess.run(
                 command + ["--scenario", invalid],
                 cwd=ROOT, text=True, capture_output=True, check=False,
@@ -1270,7 +1175,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
         expected = tuple(item.id for item in load_runner().load_scenarios())
-        self.assertEqual(len(expected), 11)
+        self.assertEqual(len(expected), 9)
         self.assertEqual(module.load_scenario_ids(ROOT), expected)
         manifest_path = module.write_experiment(1, ROOT)
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))

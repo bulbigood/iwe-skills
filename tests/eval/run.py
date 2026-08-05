@@ -721,33 +721,6 @@ def procedure_errors(
     command_text = "\n".join(str(item.get("command", "")) for item in commands)
     if re.search(r"\biwe\s+find\s+(?!-)[^|;&\n]+", command_text):
         errors.append("possible deprecated positional iwe find query")
-    if scenario.iwe_mode == "incompatible":
-        records = telemetry if telemetry is not None else commands
-        for index, item in enumerate(records):
-            if int(item.get("exit_code") or 0) == 0:
-                continue
-            rejected = re.search(
-                r"(?:unexpected argument|unknown option|unrecognized option).*?['\"](--[\w-]+)['\"]",
-                str(item.get("stderr", item.get("output", ""))),
-                re.IGNORECASE,
-            )
-            if not rejected:
-                continue
-            option = rejected.group(1)
-            if telemetry is not None:
-                later_invocations = [
-                    [str(arg) for arg in later.get("args", [])]
-                    for later in records[index + 1:]
-                ]
-            else:
-                later_invocations = [
-                    invocation
-                    for later in records[index + 1:]
-                    for invocation in _observed_iwe_invocations(str(later.get("command", "")))
-                ]
-            if any(option in invocation for invocation in later_invocations):
-                errors.append("rejected IWE option reused after incompatibility failure")
-                break
     return errors
 
 
@@ -922,7 +895,6 @@ def independent_oracle_evidence(
     terms_by_scenario = {
         "discover-and-retrieve-bounded-multi-hop-context": ("marcus", "machiavelli", "nietzsche", "virtue"),
         "query-structured-metadata-without-scanning-files": ("power", "morality"),
-        "one-call-bounded-discovery": ("virtue",),
         "ambiguous-discovery-with-one-follow-up": ("api",),
     }
     authored_keys_by_scenario = {
@@ -979,8 +951,7 @@ def independent_oracle_evidence(
         documents = documents[:20]
     else:
         documents.sort(key=lambda item: item["key"])
-        if scenario.id != "one-call-bounded-discovery":
-            documents = documents[:20]
+        documents = documents[:20]
     authoritative_matches = (
         [
             item for item in documents
@@ -1172,9 +1143,7 @@ def verify_iwe_binary(skill: SkillSpec) -> Path:
     return verify_runtime_binary(skill)
 
 
-def install_command_shims(
-    bin_dir: Path, scenario: Scenario, real_iwe: Path, state_dir: Path
-) -> None:
+def install_command_shims(bin_dir: Path, scenario: Scenario, real_iwe: Path) -> None:
     bin_dir.mkdir(parents=True, exist_ok=True)
     for source in (EVAL / "shims").iterdir():
         if source.is_file():
@@ -1188,7 +1157,6 @@ def install_command_shims(
             target.chmod(0o755)
 
     iwe_shim = bin_dir / "iwe"
-    state = state_dir / "iwe-incompatible-state"
     iwe_shim.write_text(
         "#!/usr/bin/env python3\n"
         "import json, os, pathlib, subprocess, sys\n"
@@ -1221,8 +1189,6 @@ def install_command_shims(
         "    raise SystemExit(code)\n"
         "if MODE == 'unavailable':\n"
         "    finish(127, stderr=b'iwe: command not found\\n')\n"
-        "if MODE == 'incompatible' and '--project' in ARGS:\n"
-        "    finish(2, stderr=b\"error: unexpected argument '--project' found\\n\")\n"
         "completed = subprocess.run([REAL, *ARGS], capture_output=True)\n"
         "finish(completed.returncode, completed.stdout, completed.stderr)\n",
         encoding="utf-8",
@@ -1842,7 +1808,7 @@ def main() -> int:
         codex_home = temporary / "codex-home"
         isolated_home.mkdir(); codex_home.mkdir()
         shim_bin = temporary / "shims"
-        install_command_shims(shim_bin, scenario, local_iwe_binary, temporary)
+        install_command_shims(shim_bin, scenario, local_iwe_binary)
         (isolated_home / ".bash_profile").write_text(
             f'export PATH="{shim_bin}:{local_iwe_binary.parent}:$PATH"\n',
             encoding="utf-8",

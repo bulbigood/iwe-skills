@@ -1,6 +1,6 @@
 schema_version = 1
 name = "iwe-v18-runtime-comparison"
-scenarios = ["one-call-bounded-discovery", "apply-a-guarded-structured-block-update"]
+scenarios = ["query-structured-metadata-without-scanning-files", "apply-a-guarded-structured-block-update"]
 samples = 2
 jobs = 2
 agent_judge_config = "codex"

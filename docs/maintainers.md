@@ -51,13 +51,11 @@ python3 tests/eval/run.py --list
 12. After explicit authorization for paid execution, run focused efficiency scenarios before the full suite:
 
 ```bash
-python3 tests/eval/run.py --skill iwe-v18 --scenario one-call-bounded-discovery --jobs 1 --samples 1
 python3 tests/eval/run.py --skill iwe-v18 --scenario ambiguous-discovery-with-one-follow-up --jobs 1 --samples 1
-python3 tests/eval/run.py --skill iwe-v18 --scenario recover-from-cli-option-incompatibility --jobs 1 --samples 1
 python3 tests/eval/run.py --skill iwe-v18 --scenario fallback-when-iwe-is-unavailable --jobs 1 --samples 1
 ```
 
-The default complete run is ten scenarios, one agent plus one judge per scenario. Increase samples only when the expected cost and variance justify it.
+The default complete run is nine scenarios, one agent plus one judge per scenario. Increase samples only when the expected cost and variance justify it.
 
 ## Acceptance gates
 
