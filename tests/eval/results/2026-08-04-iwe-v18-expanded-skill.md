@@ -11,7 +11,7 @@ Metric semantics and gates are defined in [docs/evaluation-metrics.md](../../../
 ```bash
 .venv/bin/python tests/eval/run.py \
   --skill iwe-v18 \
-  --scenario "Discover and retrieve bounded multi-hop context" \
+  --scenario discover-and-retrieve-bounded-multi-hop-context \
   --samples 5 \
   --jobs 5 \
   --agent codex

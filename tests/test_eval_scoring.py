@@ -148,7 +148,7 @@ class EvalScoringContractTests(unittest.TestCase):
             "ambiguous-discovery-with-one-follow-up": ((1, 2), 2000),
             "recover-from-cli-option-incompatibility": ((2, 2), 1000),
             "fallback-when-iwe-is-unavailable": ((2, 2), 800),
-            "fix-code-without-activating-iwe": ((2, 3), 2000),
+            "fix-code-without-activating-iwe": ((2, 5), 2000),
         }
         self.assertEqual(set(scenarios), set(expected))
         for scenario_id, (tool_calls, maximum_tokens) in expected.items():
@@ -283,6 +283,7 @@ class EvalScoringContractTests(unittest.TestCase):
             }
             return {
                 "scenario": "speed",
+                "scenario_id": "speed",
                 "sample": number,
                 "verdict": {
                     "valid": valid,
@@ -307,6 +308,26 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertFalse(outcome["metrics"]["task_correctness"]["pass"])
         self.assertFalse(outcome["pass"])
         self.assertEqual(outcome["metrics"]["task_correctness"]["required_successes"], 5)
+
+    def test_aggregate_requires_scenario_id(self) -> None:
+        with self.assertRaisesRegex(ValueError, "scenario_id missing"):
+            self.runner.aggregate_results([{
+                "scenario": "Display label",
+                "sample": 1,
+                "verdict": {"valid": True, "metric_scores": {}, "metric_failures": {}},
+            }], self.config)
+
+    def test_aggregate_groups_by_scenario_id_not_display_name(self) -> None:
+        scores = {name: 5 for name in self.runner.DIMENSIONS}
+        rows = [{
+            "scenario_id": "stable-id",
+            "scenario": name,
+            "sample": sample,
+            "verdict": {"valid": True, "metric_scores": scores, "metric_failures": {}},
+        } for sample, name in ((1, "Old label"), (2, "New label"))]
+        outcomes = self.runner.aggregate_results(rows, self.config, expected_samples=2)
+        self.assertEqual(len(outcomes), 1)
+        self.assertEqual(outcomes[0]["scenario_id"], "stable-id")
 
     def test_no_skill_aggregate_marks_skill_compliance_not_applicable(self) -> None:
         scores = {name: 5 for name in self.runner.DIMENSIONS}
@@ -347,6 +368,7 @@ class EvalScoringContractTests(unittest.TestCase):
         results = [
             {
                 "scenario": "invalid",
+                "scenario_id": "invalid",
                 "sample": index,
                 "verdict": {
                     "valid": index != 1,
@@ -511,6 +533,7 @@ class EvalScoringContractTests(unittest.TestCase):
 
         outcome = self.runner.aggregate_results([{
             "scenario": self.scenario.name,
+            "scenario_id": self.scenario.id,
             "sample": 1,
             "verdict": sample_verdict,
         }], self.config)[0]
@@ -1178,14 +1201,33 @@ version = "0.18.0"
         with self.assertRaisesRegex(ValueError, "missing expected"):
             compare.compare_results([], ("a", "b"), ("safety",), {("s", 1): "expected"})
 
-    def test_single_skill_list_output_remains_legacy_compatible(self) -> None:
+    def test_single_skill_list_output_exposes_id_and_display_name(self) -> None:
         completed = subprocess.run([
             str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"), "--list",
         ], cwd=ROOT, text=True, capture_output=True, check=False)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         first = completed.stdout.splitlines()[0]
-        self.assertFalse(first.startswith("discover-and-retrieve-"), first)
-        self.assertRegex(first, r"^.+ \[[^]]+\]$")
+        self.assertRegex(
+            first,
+            r"^discover-and-retrieve-bounded-multi-hop-context: .+ \[[^]]+\]$",
+        )
+
+    def test_cli_scenario_selector_accepts_only_exact_ids(self) -> None:
+        command = [str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"), "--list"]
+        selected = subprocess.run(
+            command + ["--scenario", "one-call-bounded-discovery"],
+            cwd=ROOT, text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(selected.returncode, 0, selected.stderr)
+        self.assertEqual(len(selected.stdout.splitlines()), 1)
+        self.assertTrue(selected.stdout.startswith("one-call-bounded-discovery:"))
+        for invalid in ("One-call bounded discovery", "discovery"):
+            rejected = subprocess.run(
+                command + ["--scenario", invalid],
+                cwd=ROOT, text=True, capture_output=True, check=False,
+            )
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("unknown scenario id", rejected.stderr)
 
 
 class ProductionEvalCommandTests(unittest.TestCase):

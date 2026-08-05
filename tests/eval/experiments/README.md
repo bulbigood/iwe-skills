@@ -30,7 +30,7 @@ The same skill path may be declared more than once to isolate runtime effects. E
 .venv/bin/python tests/eval/run.py --experiment tests/eval/experiments/example.toml --list
 .venv/bin/python tests/eval/run.py --experiment tests/eval/experiments/example.toml
 # Narrow the manifest's scenarios; samples/jobs still come from the manifest:
-.venv/bin/python tests/eval/run.py --experiment tests/eval/experiments/example.toml --scenario discovery
+.venv/bin/python tests/eval/run.py --experiment tests/eval/experiments/example.toml --scenario one-call-bounded-discovery
 ```
 
 Before a paid run, budget `N × selected scenarios × X` agent calls and the same number of judge calls. `jobs` is one global concurrency bound, not a per-target limit.

@@ -6,7 +6,7 @@ The eval runner uses isolated workspaces, natural-language scenarios, complete c
 python3 -m pip install -r tests/eval/requirements.txt
 python3 tests/eval/run.py --list
 python3 tests/eval/run.py --skill iwe-v18 --config codex
-python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario "One-call bounded discovery" --jobs 1 --samples 1
+python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario one-call-bounded-discovery --jobs 1 --samples 1
 python3 tests/eval/run.py --experiment tests/eval/experiments/example.toml --list
 ```
 

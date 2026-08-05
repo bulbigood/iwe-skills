@@ -67,33 +67,11 @@ def _sample_reports(report_dir: Path, outcome: dict) -> list[tuple[Path, dict]]:
 
 
 def _outcomes_with_scenario_ids(outcomes: list[dict], report_dir: Path) -> list[dict]:
-    """Backfill IDs for reports produced by pre-ID aggregate runners."""
-    maps: dict[str, dict[str, str]] = {}
-    resolved = []
+    """Require stable IDs; scenario names are display labels only."""
     for outcome in outcomes:
-        if outcome.get("scenario_id"):
-            resolved.append(outcome)
-            continue
-        target_id = outcome["target_id"]
-        if target_id not in maps:
-            by_name: dict[str, str] = {}
-            for path in sorted((report_dir / "targets" / target_id).glob("*--1.json")):
-                report = json.loads(path.read_text(encoding="utf-8"))
-                name = report.get("scenario")
-                scenario_id = report.get("scenario_id")
-                if not isinstance(name, str) or not isinstance(scenario_id, str):
-                    continue
-                if name in by_name and by_name[name] != scenario_id:
-                    raise ValueError(f"ambiguous scenario name in telemetry: {name}")
-                by_name[name] = scenario_id
-            maps[target_id] = by_name
-        scenario_id = maps[target_id].get(outcome["scenario"])
-        if not scenario_id:
-            raise ValueError(
-                f"cannot resolve scenario_id from telemetry: {target_id} / {outcome['scenario']}"
-            )
-        resolved.append({**outcome, "scenario_id": scenario_id})
-    return resolved
+        if not isinstance(outcome.get("scenario_id"), str) or not outcome["scenario_id"]:
+            raise ValueError(f"scenario_id missing from outcome: {outcome.get('scenario')}")
+    return outcomes
 
 
 def _problem_lines(

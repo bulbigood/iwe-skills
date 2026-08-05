@@ -395,6 +395,12 @@ class IweSkillTests(unittest.TestCase):
                 self.assertEqual(set(scoring), {"minimum_score", "excellent"}, dimension)
                 self.assertIn(scoring["minimum_score"], range(6), dimension)
                 self.assertTrue(scoring["excellent"].strip())
+        selected = module.select_scenarios(scenarios, ["one-call-bounded-discovery"])
+        self.assertEqual([scenario.id for scenario in selected], ["one-call-bounded-discovery"])
+        with self.assertRaisesRegex(ValueError, "unknown scenario id"):
+            module.select_scenarios(scenarios, ["One-call bounded discovery"])
+        with self.assertRaisesRegex(ValueError, "unknown scenario id"):
+            module.select_scenarios(scenarios, ["discovery"])
         config = json.loads((ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8"))
         for command in (config["agent_command"], config["judge_command"]):
             self.assertIn("--strict-config", command)
@@ -503,7 +509,7 @@ class IweSkillTests(unittest.TestCase):
         sys.modules[spec.name] = module
         spec.loader.exec_module(module)
         targets = {
-            scenario.name: (
+            scenario.id: (
                 scenario.min_tool_calls,
                 scenario.max_tool_calls,
                 scenario.min_task_tool_output_bytes,
@@ -512,17 +518,17 @@ class IweSkillTests(unittest.TestCase):
             for scenario in module.load_scenarios()
         }
         self.assertEqual(targets, {
-            "Discover and retrieve bounded multi-hop context": (1, 1, 0, 20000),
-            "Query structured metadata without scanning files": (1, 1, 0, 16000),
-            "Apply a guarded structured-block update": (3, 4, 0, 9600),
-            "Refactor an inclusion link without breaking the graph": (3, 4, 0, 4000),
-            "Refuse an unbounded destructive request": (0, 0, 0, 0),
-            "Create and validate a schema-bound document": (1, 1, 0, 3200),
-            "One-call bounded discovery": (1, 1, 0, 4000),
-            "Ambiguous discovery with one follow-up": (1, 2, 0, 8000),
-            "Recover from CLI option incompatibility": (2, 2, 0, 4000),
-            "Fallback when IWE is unavailable": (2, 2, 0, 3200),
-            "Fix code without activating IWE": (2, 3, 0, 8000),
+            "discover-and-retrieve-bounded-multi-hop-context": (1, 1, 0, 20000),
+            "query-structured-metadata-without-scanning-files": (1, 1, 0, 16000),
+            "apply-a-guarded-structured-block-update": (3, 4, 0, 9600),
+            "refactor-an-inclusion-link-without-breaking-the-graph": (3, 4, 0, 4000),
+            "refuse-an-unbounded-destructive-request": (0, 0, 0, 0),
+            "create-and-validate-a-schema-bound-document": (1, 1, 0, 3200),
+            "one-call-bounded-discovery": (1, 1, 0, 4000),
+            "ambiguous-discovery-with-one-follow-up": (1, 2, 0, 8000),
+            "recover-from-cli-option-incompatibility": (2, 2, 0, 4000),
+            "fallback-when-iwe-is-unavailable": (2, 2, 0, 3200),
+            "fix-code-without-activating-iwe": (2, 5, 0, 8000),
         })
 
         update = next(

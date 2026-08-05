@@ -116,6 +116,18 @@ def build_matrix(experiment, scenarios) -> list[MatrixCell]:
     return cells
 
 
+def select_scenarios(scenarios: list["Scenario"], requested_ids: list[str] | None) -> list["Scenario"]:
+    """Select scenarios by exact stable ID, preserving declaration order."""
+    if not requested_ids:
+        return scenarios
+    available = {scenario.id for scenario in scenarios}
+    unknown = sorted(set(requested_ids) - available)
+    if unknown:
+        raise ValueError(f"unknown scenario id(s): {', '.join(unknown)}")
+    requested = set(requested_ids)
+    return [scenario for scenario in scenarios if scenario.id in requested]
+
+
 def payload_hash(path: Path) -> str:
     digest = hashlib.sha256()
     for file in sorted(item for item in path.rglob("*") if item.is_file()):
@@ -1649,15 +1661,16 @@ def aggregate_results(
 ) -> list[dict]:
     eval_config = eval_config or load_eval_config()
     excluded_dimensions_by_target = excluded_dimensions_by_target or {}
-    grouped: dict[tuple[str | None, str, str], list[dict]] = {}
+    grouped: dict[tuple[str | None, str], list[dict]] = {}
     for result in results:
         scenario = result["scenario"]
-        scenario_id = result.get("scenario_id", scenario)
-        grouped.setdefault(
-            (result.get("target_id"), scenario_id, scenario), []
-        ).append(result)
+        scenario_id = result.get("scenario_id")
+        if not isinstance(scenario_id, str) or not scenario_id:
+            raise ValueError(f"scenario_id missing from result: {scenario}")
+        grouped.setdefault((result.get("target_id"), scenario_id), []).append(result)
     outcomes = []
-    for (target_id, scenario_id, scenario), samples in grouped.items():
+    for (target_id, scenario_id), samples in grouped.items():
+        scenario = samples[0]["scenario"]
         total = len(samples)
         sample_ids = [sample["sample"] for sample in samples]
         if len(sample_ids) != len(set(sample_ids)):
@@ -1735,7 +1748,7 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--skill", help="skill id from the root config.toml")
     mode.add_argument("--experiment", type=Path, help="paired experiment TOML")
-    parser.add_argument("--scenario", action="append")
+    parser.add_argument("--scenario", action="append", metavar="ID", help="exact scenario id (repeatable)")
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--jobs", type=int)
     parser.add_argument("--samples", type=int)
@@ -1753,9 +1766,12 @@ def main() -> int:
     eval_config = load_eval_config()
     scenarios = load_scenarios()
     if experiment:
-        scenarios = [s for s in scenarios if s.id in experiment.scenario_ids]
+        scenarios = select_scenarios(scenarios, list(experiment.scenario_ids))
     if args.scenario:
-        scenarios = [s for s in scenarios if any(value.lower() in s.name.lower() for value in args.scenario)]
+        try:
+            scenarios = select_scenarios(scenarios, args.scenario)
+        except ValueError as error:
+            parser.error(str(error))
     if args.list:
         if experiment:
             for target in experiment.targets:
@@ -1768,10 +1784,7 @@ def main() -> int:
                     f"{target.runtime.version} ({target.runtime.source})"
                 )
         for scenario in scenarios:
-            if experiment:
-                print(f"{scenario.id}: {scenario.name} [{scenario.fixture}]")
-            else:
-                print(f"{scenario.name} [{scenario.fixture}]")
+            print(f"{scenario.id}: {scenario.name} [{scenario.fixture}]")
         return 0
     if not scenarios:
         parser.error("no scenarios selected")
@@ -1988,7 +2001,8 @@ def main() -> int:
         "scenarios": outcomes,
         "results": [
             ({"target_id": r["target_id"], "pair_id": r["pair_id"]} if experiment else {})
-            | {"scenario": r["scenario"], "sample": r["sample"], "verdict": r["verdict"]}
+            | {"scenario_id": r["scenario_id"], "scenario": r["scenario"],
+               "sample": r["sample"], "verdict": r["verdict"]}
             for r in results
         ],
     }
