@@ -228,6 +228,8 @@ class Scenario:
     skill_activation: str = "required"
     max_iwe_calls: int | None = None
     allow_broad_fallback: bool = False
+    forbidden_retrieve_keys: tuple[str, ...] = ()
+    require_oracle_tool_evidence: bool = False
 
     @property
     def slug(self) -> str:
@@ -309,6 +311,8 @@ def load_scenarios(
             skill_activation=item.get("skill_activation", "required"),
             max_iwe_calls=runtime.get("max_iwe_calls"),
             allow_broad_fallback=runtime.get("allow_filesystem_fallback", False),
+            forbidden_retrieve_keys=tuple(runtime.get("forbidden_retrieve_keys", [])),
+            require_oracle_tool_evidence=runtime.get("require_oracle_tool_evidence", False),
         ))
     return result
 
@@ -449,7 +453,11 @@ def _unbounded_iwe_args(args: list[str]) -> bool:
     ) or unbounded_expansion
 
 
-def _is_skill_activation(item: dict, tested_skill: str | None) -> bool:
+def _is_skill_activation(
+    item: dict,
+    tested_skill: str | None,
+    activation_path: Path | None = None,
+) -> bool:
     if not tested_skill or item.get("exit_code") != 0:
         return False
     command = str(item.get("command", ""))
@@ -477,6 +485,8 @@ def _is_skill_activation(item: dict, tested_skill: str | None) -> bool:
         f".agents/skills/{tested_skill}/SKILL.md",
         ".agents/guidance/SKILL.md",
     }
+    if activation_path is not None:
+        skill_paths.add(str(activation_path))
 
     def is_skill_path(value: str) -> bool:
         return value in skill_paths
@@ -508,12 +518,17 @@ def command_metrics(
     telemetry: list[dict] | None = None,
     tested_skill: str | None = None,
     exclude_skill_activation: bool = True,
+    activation_path: Path | None = None,
 ) -> dict[str, int]:
-    activation_calls = sum(_is_skill_activation(item, tested_skill) for item in commands)
-    skill_paths = (
-        (f".agents/skills/{tested_skill}/SKILL.md", ".agents/guidance/SKILL.md")
-        if tested_skill else ()
+    activation_calls = sum(
+        _is_skill_activation(item, tested_skill, activation_path) for item in commands
     )
+    skill_paths = [
+        f".agents/skills/{tested_skill}/SKILL.md",
+        ".agents/guidance/SKILL.md",
+    ] if tested_skill else []
+    if activation_path is not None:
+        skill_paths.append(str(activation_path))
     metrics = {
         "raw_tool_calls": len(commands),
         "task_tool_calls": max(
@@ -574,7 +589,10 @@ def command_metrics(
             and (".agents/skills/" in command or ".agents/guidance/" in command)
         )
         metrics["context_bytes"] += len(output.encode("utf-8"))
-        if not (exclude_skill_activation and _is_skill_activation(item, tested_skill)):
+        if not (
+            exclude_skill_activation
+            and _is_skill_activation(item, tested_skill, activation_path)
+        ):
             output_bytes = len(output.encode("utf-8"))
             metrics["task_tool_output_bytes"] += output_bytes
             if iwe_calls:
@@ -732,6 +750,61 @@ def procedure_errors(
     return errors
 
 
+def deterministic_metric_failures(
+    scenario: Scenario,
+    commands: list[dict],
+    oracle: dict,
+) -> dict[str, str]:
+    """Return explicit scenario-owned metric gates without rewriting judge scores."""
+    failures: dict[str, str] = {}
+    forbidden_keys = set(scenario.forbidden_retrieve_keys)
+    retrieved_forbidden: set[str] = set()
+    observed_forbidden_candidate = False
+    for item in commands:
+        invocations = _observed_iwe_invocations(str(item.get("command", "")))
+        for args in invocations:
+            if not args:
+                continue
+            if args[0] == "find" and any(
+                key in str(item.get("output", "")) for key in forbidden_keys
+            ):
+                observed_forbidden_candidate = True
+                continue
+            if args[0] != "retrieve":
+                continue
+            if observed_forbidden_candidate:
+                retrieved_forbidden.update(forbidden_keys)
+            for flag in ("--key", "-k"):
+                if flag in args and args.index(flag) + 1 < len(args):
+                    key = args[args.index(flag) + 1]
+                    if key in forbidden_keys:
+                        retrieved_forbidden.add(key)
+    if retrieved_forbidden:
+        keys = ", ".join(sorted(retrieved_forbidden))
+        reason = f"configured unrelated IWE candidate retrieved: {keys}"
+        failures["skill_compliance"] = reason
+        failures["tool_efficiency"] = reason
+
+    fact = oracle.get("workspace_fact") if isinstance(oracle, dict) else None
+    if scenario.require_oracle_tool_evidence and isinstance(fact, dict):
+        source_path = str(fact.get("source_path", ""))
+        value_match = re.search(r"=\s*([^\s]+)\s*$", str(fact.get("fact", "")))
+        value = value_match.group(1) if value_match else ""
+        command_evidence = "\n".join(str(item.get("command", "")) for item in commands)
+        output_evidence = "\n".join(str(item.get("output", "")) for item in commands)
+        combined_evidence = f"{command_evidence}\n{output_evidence}"
+        if (
+            not source_path
+            or not value
+            or source_path not in combined_evidence
+            or value not in output_evidence
+        ):
+            failures["evidence_quality"] = (
+                "independent oracle value/path not present in task tool output evidence"
+            )
+    return failures
+
+
 def snapshot(root: Path) -> dict[str, str]:
     values = {}
     for path in sorted(root.rglob("*")):
@@ -751,17 +824,24 @@ def snapshot(root: Path) -> dict[str, str]:
     return values
 
 
-def agent_prompt(scenario: Scenario, *, skill_installed: bool = True) -> str:
+def agent_prompt(
+    scenario: Scenario,
+    *,
+    skill_installed: bool = True,
+    activation_path: Path | None = None,
+) -> str:
     """Keep the tested request realistic without disclosing the eval mechanism."""
     if skill_installed and scenario.skill_activation == "required":
+        guidance_path = activation_path or Path(".agents/guidance/SKILL.md")
         activation = (
-            "First read `.agents/guidance/SKILL.md` alone, without combining that read "
+            f"First read `{guidance_path}` alone, without combining that read "
             "with any other action. Then follow it using available tools. "
         )
     elif skill_installed:
+        guidance_path = activation_path or Path(".agents/guidance/SKILL.md")
         activation = (
             "Optional guidance is available for IWE knowledge-graph retrieval and safe "
-            "Markdown refactors at `.agents/guidance/SKILL.md`; read it only if that "
+            f"Markdown refactors at `{guidance_path}`; read it only if that "
             "description applies to the request. "
         )
     else:
@@ -1585,6 +1665,7 @@ def verdict(
     mechanical: list[str],
     exits_ok: bool,
     procedure_errors: list[str] | None = None,
+    deterministic_metric_failures: dict[str, str] | None = None,
 ) -> dict:
     normalized_critique = critique if isinstance(critique, dict) else {}
     raw_dimensions = normalized_critique.get("dimensions", {})
@@ -1607,6 +1688,12 @@ def verdict(
         for name in DIMENSIONS
         if scores[name] < scoring[name]["minimum_score"]
     }
+    for name, reason in (deterministic_metric_failures or {}).items():
+        failure = failures.setdefault(
+            name,
+            {"score": scores[name], "required": scoring[name]["minimum_score"]},
+        )
+        failure["deterministic"] = reason
     validation_errors = list(mechanical)
     if not exits_ok:
         validation_errors.append("agent or judge process failed")
@@ -1846,12 +1933,17 @@ def main() -> int:
             local_target = skill
             local_skill, target_id, pair_id = skill, "single", None
             local_iwe_binary = runtime_binaries[target_id]
-        temporary = Path(tempfile.mkdtemp(prefix=f"iwe-skill-eval-{target_id[:16]}-{scenario.slug[:20]}-"))
+        temporary = Path(tempfile.mkdtemp(prefix="iwe-agent-eval-"))
         workspace = temporary / "workspace"
         base_name = "seventeen-centuries" if scenario.fixture.startswith("seventeen") else "pkm-demo"
         shutil.copytree(fixtures[scenario.fixture], workspace, ignore=shutil.ignore_patterns(".git"))
         prepare(workspace, scenario.fixture)
         install_skill(workspace, local_skill)
+        activation_path = (
+            workspace / ".agents/guidance/SKILL.md"
+            if local_skill is not None
+            else None
+        )
         before = snapshot(workspace)
         isolated_home = temporary / "home"
         codex_home = temporary / "codex-home"
@@ -1865,14 +1957,19 @@ def main() -> int:
         host_auth = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"
         if host_auth.exists(): shutil.copy2(host_auth, codex_home / "auth.json")
         env = eval_environment(isolated_home, codex_home, shim_bin, local_iwe_binary, temporary)
-        prompt = agent_prompt(scenario, skill_installed=local_skill is not None)
+        prompt = agent_prompt(
+            scenario,
+            skill_installed=local_skill is not None,
+            activation_path=activation_path,
+        )
         agent = run_process(config["agent_command"], prompt, workspace, config["timeout_seconds"], env)
         telemetry = load_iwe_telemetry(temporary / "iwe-telemetry.jsonl")
         agent["iwe_telemetry"] = telemetry
         agent["metrics"] = command_metrics(
             agent["commands"], telemetry,
-            local_skill.name if local_skill is not None else None,
+            tested_skill=local_skill.name if local_skill is not None else None,
             exclude_skill_activation=scenario.skill_activation == "required",
+            activation_path=activation_path,
         )
         range_diagnostics = efficiency_diagnostics(scenario, agent["metrics"])
         after = snapshot(workspace)
@@ -1887,13 +1984,18 @@ def main() -> int:
         )
         judge_command = config["judge_command"].format(judge_schema=shlex.quote(str(EVAL / "judge.schema.json")))
         oracle = independent_oracle_evidence(scenario, before, after, agent["final"])
+        deterministic_failures = deterministic_metric_failures(
+            scenario,
+            agent["commands"],
+            oracle,
+        )
         judge_prompt_text = judge_prompt(
             local_skill,
             scenario,
             agent,
             before,
             after,
-            integrity_errors + procedural_errors,
+            integrity_errors + procedural_errors + list(deterministic_failures.values()),
             eval_config,
             oracle,
         )
@@ -1960,6 +2062,7 @@ def main() -> int:
                 judge_errors,
                 agent["exit"] == 0 and judge["exit"] == 0,
                 procedure_errors=procedural_errors,
+                deterministic_metric_failures=deterministic_failures,
             ),
             "workspace": str(workspace) if args.keep_workspaces else None,
         }

@@ -241,6 +241,111 @@ class EvalScoringContractTests(unittest.TestCase):
             },
         )
 
+    def test_workspace_fallback_has_deterministic_relevance_and_evidence_gates(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "find-workspace-information-after-iwe-miss"
+        )
+        oracle = {
+            "workspace_fact": {
+                "source_path": "config/background-sync.yaml",
+                "fact": "background_sync.timeout_seconds = 37",
+            }
+        }
+        commands = [
+            {
+                "command": "iwe retrieve --key d8w3r --limit 1 --format json",
+                "exit_code": 0,
+                "output": '[{"key":"d8w3r","title":"Design specifications"}]',
+            },
+            {
+                "command": "rg -n timeout .",
+                "exit_code": 0,
+                "output": "graph/n7m2x.md: GET /api/sync/status",
+            },
+        ]
+
+        failures = self.runner.deterministic_metric_failures(scenario, commands, oracle)
+        self.assertIn("skill_compliance", failures)
+        self.assertIn("tool_efficiency", failures)
+        self.assertIn("evidence_quality", failures)
+        self.assertIn("d8w3r", failures["skill_compliance"])
+        self.assertIn("not present in task tool output", failures["evidence_quality"])
+
+        lexical_retrieve = self.runner.deterministic_metric_failures(
+            scenario,
+            [
+                {
+                    "command": "iwe find --lexical background --format json",
+                    "exit_code": 0,
+                    "output": '[{"key":"d8w3r","title":"Design specifications"}]',
+                },
+                {
+                    "command": "iwe retrieve --lexical background --format json",
+                    "exit_code": 0,
+                    "output": '[{"key":"d8w3r","title":"Design specifications"}]',
+                },
+            ],
+            oracle,
+        )
+        self.assertIn("skill_compliance", lexical_retrieve)
+        self.assertIn("tool_efficiency", lexical_retrieve)
+
+        critique = {
+            "dimensions": {
+                name: {"score": 5, "rationale": "judge pass", "evidence": []}
+                for name in self.runner.DIMENSIONS
+            }
+        }
+        verdict = self.runner.verdict(
+            scenario,
+            critique,
+            [],
+            True,
+            deterministic_metric_failures=failures,
+        )
+        self.assertEqual(verdict["metric_scores"]["evidence_quality"], 5)
+        self.assertIn("evidence_quality", verdict["metric_failures"])
+        self.assertEqual(
+            verdict["metric_failures"]["evidence_quality"]["deterministic"],
+            failures["evidence_quality"],
+        )
+
+        supported = self.runner.deterministic_metric_failures(
+            scenario,
+            [
+                {
+                    "command": "iwe find --query background_sync --limit 2 --format json",
+                    "exit_code": 0,
+                    "output": "[]",
+                },
+                {
+                    "command": "rg -n timeout_seconds config/background-sync.yaml",
+                    "exit_code": 0,
+                    "output": "config/background-sync.yaml:2: timeout_seconds: 37",
+                },
+            ],
+            oracle,
+        )
+        self.assertEqual(supported, {})
+
+    def test_schema_creation_names_template_and_treats_strict_create_as_validation(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "create-and-validate-a-schema-bound-document"
+        )
+        procedure = " ".join(
+            text
+            for section in scenario.procedure.values()
+            for text in section
+        ).casefold()
+
+        self.assertIn("`meeting` template", scenario.request)
+        self.assertIn("successful strict creation is the schema validation", procedure)
+        self.assertIn("no second validation call", procedure)
+
     def test_inclusion_refactor_procedure_matches_source_only_verification_contract(self) -> None:
         scenario = next(
             item
@@ -1302,11 +1407,15 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("If that search proves the requested fact and source path, stop", skill)
         self.assertIn("The two-call fallback budget includes failed and corrected IWE attempts", skill)
         self.assertIn("Call 2 is final", skill)
+        self.assertIn("Apply relevance before call 2", skill)
+        self.assertIn("Relevance after find", skill)
+        self.assertIn("Generic document-type words do not count", skill)
+        self.assertIn("Shape after relevance", skill)
         self.assertIn("For structured/config data, search the narrowest field/property token", skill)
         self.assertIn("do not require related terms on one line", skill)
         self.assertIn("Never emit a workspace-wide file inventory", skill)
         self.assertIn("After one content miss, refine once or use a narrowly globbed filename", skill)
-        self.assertIn("An unrelated candidate is a miss; do not retrieve it", skill)
+        self.assertIn("Zero match is a miss: go directly to allowed fallback", skill)
         self.assertIn("After successful extract, verify only with one bounded source retrieve", skill)
         self.assertIn("never use relationship discovery for extract verification", skill)
         self.assertIn("Remove a rejected optional shaping flag", skill)
@@ -1478,7 +1587,11 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
                     "valid": True,
                     "validation_errors": [],
                     "procedure_errors": ["unbounded"],
-                    "metric_failures": {"tool_efficiency": {"score": 2, "required": 5}},
+                    "metric_failures": {"tool_efficiency": {
+                        "score": 2,
+                        "required": 5,
+                        "deterministic": "configured unrelated IWE candidate retrieved: d8w3r",
+                    }},
                     "critique": {
                         "rationale": "The answer was correct but retrieval was unbounded.",
                         "dimensions": {"tool_efficiency": {
@@ -1510,6 +1623,10 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             self.assertIn("### Problem ledger", markdown)
             self.assertIn("Analysis: The answer was correct but retrieval was unbounded.", markdown)
             self.assertIn("**Tool efficiency: 2/5 (required 5/5).**", markdown)
+            self.assertIn(
+                "Deterministic gate: configured unrelated IWE candidate retrieved: d8w3r",
+                markdown,
+            )
             self.assertIn("Three calls were observed; one was expected.", markdown)
             self.assertIn(
                 "[raw sample JSON](../reports/run/targets/a/scenario--1.json)", markdown

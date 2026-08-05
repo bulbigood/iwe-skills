@@ -21,7 +21,7 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 - Default result limit: 20. Use a smaller request-derived limit.
 - A stated class is a hard filter: “project note” requires `--filter '{ type: project }'`; never use untyped lexical top-1. For creation, a stated semantic class sets `type=<class>`.
 - Never pass 0 as a bound; it means unlimited.
-- Prefer one discovery/retrieval. Call 2 is final and only for ambiguity, one page, or failed refinement; afterward use allowed fallback/report, never a third IWE lookup. Stop after sufficient evidence. Mutation calls are separate.
+- Prefer one discovery/retrieval. Apply relevance before call 2. Call 2 is final and only for a relevant winner or refinement. Then fallback/report; never call IWE a third time. Stop after sufficient evidence. Mutation calls are separate.
 - Mutation safety: resolve scope, preview, validate affected keys/counts, apply identical arguments, then verify only when success cannot prove final state. Create/new are collision-guarded exceptions: use strict validation and collision policy, never `--dry-run`.
 
 ## Route and compute parameters mentally
@@ -44,12 +44,13 @@ Use the request, conversation, and prior IWE output only; do not read sources ju
 1. **Selector:** exact key → `--key`; typed field/entity class → `--filter`; known graph anchor → relationship flag; incomplete identity → `--fuzzy`; body concepts → `--lexical`.
 2. **Search phrase:** keep distinctive names, nouns, quoted terms, and shared topic; comparisons include every entity plus their relation/topic.
 3. **Count:** exact note/synthesis = 1; explicit N = N; “a few” = 5; otherwise requested facets, capped at 20.
-4. **Shape:** identities → keys; fields → projection; sections/lines → blocks/matches; prose → retrieve. No bodies for lists/counts.
-5. **Graph bounds:** direct = 1; stated hops = that number. Authored synthesis = 1 document; otherwise cap the useful cited set, normally 3–12.
-6. **Token bounds:** fact = 800/document; summary = 1200; detail = 2000; authored synthesis = 4500. Total = per-document × documents, normally ≤8000.
-7. **Typed values:** preserve booleans, numbers, lists, and maps in YAML/JSON. Quote numeric-looking or boolean-looking strings.
-8. **Guards:** exact mutation uses document `--expect 1`; batch uses a user-derived count/range; every block operator gets inline `expect`. Explicit new keys default to collision policy `fail`.
-9. **Stop:** no confirmation query after enough evidence. Cite a synthesis key first; cite returned source keys only when material.
+4. **Relevance after find:** retrieve only when the returned key/title contains a distinctive requested entity/facet or direct synonym. Generic document-type words do not count. Zero match is a miss: go directly to allowed fallback.
+5. **Shape after relevance:** identities → keys; fields → projection; sections/lines → blocks/matches; prose → retrieve. No bodies for lists/counts.
+6. **Graph bounds:** direct = 1; stated hops = that number. Authored synthesis = 1 document; otherwise cap the useful cited set, normally 3–12.
+7. **Token bounds:** fact = 800/document; summary = 1200; detail = 2000; authored synthesis = 4500. Total = per-document × documents, normally ≤8000.
+8. **Typed values:** preserve booleans, numbers, lists, and maps in YAML/JSON. Quote numeric-looking or boolean-looking strings.
+9. **Guards:** exact mutation uses document `--expect 1`; batch uses a user-derived count/range; every block operator gets inline `expect`. Explicit new keys default to collision policy `fail`.
+10. **Stop:** no confirmation query after enough evidence. Cite a synthesis key first; cite returned source keys only when material.
 
 ## Cluster A — identify, list, and inspect without full bodies
 
@@ -207,7 +208,7 @@ Safety calls are not waste. Refuse destructive work when scope or recovery is in
 
 Filters are one inline YAML mapping. Plain fields mean equality. Use `$and`, `$or`, or `$not` only when one mapping cannot express the condition; `$in` for alternatives; comparisons for numeric/time bounds; `$exists` for presence; `$regex` for an actual pattern. Keep finite `maxDepth`/`maxDistance` in nested graph predicates.
 
-Projection is `alias=source`: aliases are free; sources are not. Use only `$key`/`$title` or exact request/schema/prior-output frontmatter fields (bare); never derive sources from answer labels. If none is known, omit `--project`; on rejection remove its whole flag/value and retry once. `--project` replaces defaults; `--add-fields` retains them. Use `--blocks`/`--matches` for sections/lines; cap projected content. Carry selectors and inline expect into mutation. Prefer relationship flags for one anchor.
+Projection is `alias=source`: aliases are free; sources are not. Use only `$key`/`$title` or exact request/schema/prior-output frontmatter fields (bare); never derive sources from answer labels. If none is known, omit `--project`; on rejection remove its whole flag/value and retry once. `--project` replaces defaults; `--add-fields` retains them. Use `--blocks`/`--matches` for sections/lines; cap projected content. Carry selectors and inline expect into mutation. `--references` and `--includes` take known key anchors, never booleans; omit them without an anchor. Prefer relationship flags for one anchor.
 
 ## Rare errors and fallback reference
 
@@ -217,7 +218,7 @@ Triggers: missing executable; still-unknown command/option; invalid YAML; empty 
 
 For a self-explanatory missing-executable error, skip the reference. Otherwise read `references/errors.md` only when classification is unclear.
 
-Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, one refinement stays empty, or candidates are unrelated. An unrelated candidate is a miss; do not retrieve it. The two-call fallback budget includes failed and corrected IWE attempts; then fallback/report—never call IWE a third time. If the operator limits search to IWE/notes/docs, report not found and stop. For workspace/project questions: Begin local recovery with one targeted, hidden-aware content search. For structured/config data, search the narrowest field/property token; do not require related terms on one line. Never emit a workspace-wide file inventory. After one content miss, refine once or use a narrowly globbed filename. If that search proves the requested fact and source path, stop; otherwise read only the candidate source. Stay local; expose no unrelated matches. Say "IWE is unavailable" only when execution failed; otherwise say the information was found outside IWE.
+Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, one refinement stays empty, or candidates are unrelated. The two-call fallback budget includes failed and corrected IWE attempts; then fallback/report—never call IWE a third time. If the requested source scope is IWE, graph, notes, or docs, report not found and stop without scanning files. For workspace/project questions: Known file path: one bounded read of that file or named section, with no path, filename, or heading discovery. With an unknown path: Begin local recovery with one targeted, hidden-aware content search. For structured/config data, search the narrowest field/property token and do not require related terms on one line. Never emit a workspace-wide file inventory. After one content miss, refine once or use a narrowly globbed filename. If that search proves the requested fact and source path, stop; otherwise read only the candidate source. Stay local; expose no unrelated matches. Say "IWE is unavailable" only when execution failed; otherwise say the information was found outside IWE.
 
 ## Completion
 

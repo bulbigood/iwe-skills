@@ -150,6 +150,10 @@ def _problem_lines(
                 score = failure.get("score", detail.get("score", "?"))
                 required = failure.get("required", "?")
                 lines.append(f"  - **{label}: {score}/5 (required {required}/5).**")
+                if failure.get("deterministic"):
+                    lines.append(
+                        f"    - Deterministic gate: {_one_line(failure['deterministic'])}"
+                    )
                 if detail.get("rationale"):
                     lines.append(f"    - Analysis: {_one_line(detail['rationale'])}")
                 evidence = detail.get("evidence", [])

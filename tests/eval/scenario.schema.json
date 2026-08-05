@@ -69,7 +69,13 @@
             "mode": {"enum": ["real", "unavailable"]},
             "output_bytes": {"type": "integer", "minimum": 1},
             "allow_filesystem_fallback": {"type": "boolean"},
-            "max_iwe_calls": {"type": "integer", "minimum": 1}
+            "max_iwe_calls": {"type": "integer", "minimum": 1},
+            "forbidden_retrieve_keys": {
+              "type": "array",
+              "items": {"type": "string", "minLength": 1},
+              "uniqueItems": true
+            },
+            "require_oracle_tool_evidence": {"type": "boolean"}
           }
         },
         "efficiency": {

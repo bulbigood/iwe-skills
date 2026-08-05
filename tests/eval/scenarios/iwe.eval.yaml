@@ -136,14 +136,14 @@ scenarios:
 - id: create-and-validate-a-schema-bound-document
   name: Create and validate a schema-bound document
   fixture: pkm-demo-schema
-  request: Create an `Evaluation Sync` meeting note using the normal workspace conventions. Attendees are `Ada and Alan`,
+  request: Create an `Evaluation Sync` meeting note using the workspace's `meeting` template. Attendees are `Ada and Alan`,
     the note is `Review the graph.`, and it should not be a draft.
   procedure:
     ideal:
-    - Create one meeting note from the workspace convention with the requested values and typed non-draft state.
+    - Create one meeting note from the named workspace template with the requested values and typed non-draft state.
     - Validate the created document against the applicable schema and report the result.
     acceptable_variations:
-    - Creation and validation may occur in one bounded operation when the runtime guarantees both.
+    - Successful strict creation is the schema validation; no second validation call or post-create read is expected.
     stop_when:
     - Exactly one collision-safe note exists with all requested fields and valid schema shape.
     avoid:
@@ -223,6 +223,8 @@ scenarios:
   runtime:
     allow_filesystem_fallback: true
     max_iwe_calls: 2
+    forbidden_retrieve_keys: [d8w3r]
+    require_oracle_tool_evidence: true
   procedure:
     ideal:
     - Try a bounded IWE lookup and refine it at most once if the requested fact is absent.
@@ -240,7 +242,8 @@ scenarios:
     task_correctness: Reports timeout_seconds as 37 from config/background-sync.yaml.
     scenario_compliance: Finds the requested workspace fact after IWE misses it and reports both the value and source path.
     skill_compliance: Uses no more than two bounded IWE attempts before relying on local workspace evidence.
-    evidence_quality: The reported value and path agree with the independently prepared non-IWE workspace source.
+    evidence_quality: The reported value and path agree with the independent source and are supported by the agent's task
+      command/output evidence; oracle agreement alone proves correctness, not evidence quality.
     safety: Uses only local sources, makes no workspace changes, and does not expose unrelated content.
 - id: fix-code-without-activating-iwe
   name: Fix code without activating IWE

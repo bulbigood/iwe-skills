@@ -771,6 +771,40 @@ class IweSkillTests(unittest.TestCase):
             )
             self.assertEqual(noncanonical["task_tool_calls"], 1)
 
+    def test_absolute_guidance_path_is_neutral_and_excluded_only_when_declared(self) -> None:
+        runner_path = ROOT / "tests/eval/run.py"
+        spec = importlib.util.spec_from_file_location("iwe_skill_eval_absolute_activation", runner_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        spec.loader.exec_module(module)
+        guidance = Path("/tmp/iwe-agent-eval-abcd/workspace/.agents/guidance/SKILL.md")
+        scenario = next(item for item in module.load_scenarios() if item.skill_activation == "required")
+
+        prompt = module.agent_prompt(scenario, activation_path=guidance)
+        self.assertIn(f"`{guidance}`", prompt)
+        self.assertNotIn("iwe-v18", prompt)
+        declared = module.command_metrics(
+            [{
+                "command": f"/bin/bash -lc \"sed -n '1,240p' {guidance}\"",
+                "exit_code": 0,
+                "output": "skill body",
+            }],
+            tested_skill="iwe-v18",
+            activation_path=guidance,
+        )
+        self.assertEqual(declared["task_tool_calls"], 0)
+        other = module.command_metrics(
+            [{
+                "command": "sed -n '1,240p' /tmp/other/.agents/guidance/SKILL.md",
+                "exit_code": 0,
+                "output": "skill body",
+            }],
+            tested_skill="iwe-v18",
+            activation_path=guidance,
+        )
+        self.assertEqual(other["task_tool_calls"], 1)
+
     def test_eval_metrics_count_chained_iwe_and_forbidden_fallbacks(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
         spec = importlib.util.spec_from_file_location("iwe_skill_eval_metrics", runner_path)
@@ -1013,6 +1047,24 @@ class IweSkillTests(unittest.TestCase):
             target = module.ensure_fixture(config, "pkm-demo", cache)
             self.assertEqual((target / "marker.txt").read_text(encoding="utf-8"), "pinned\n")
             self.assertFalse((target / "untracked.txt").exists())
+
+    def test_iwe_v18_specific_routes_override_generic_discovery_and_fallback(self) -> None:
+        skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
+        required = (
+            "Call 2 is final and only for a relevant winner or refinement",
+            "Apply relevance before call 2",
+            "Zero match is a miss: go directly to allowed fallback",
+            "Relevance after find",
+            "Generic document-type words do not count",
+            "Shape after relevance",
+            "Known file path: one bounded read of that file or named section",
+            "no path, filename, or heading discovery",
+            "If the requested source scope is IWE, graph, notes, or docs",
+            "`--references` and `--includes` take known key anchors, never booleans",
+        )
+        for snippet in required:
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, skill)
 
     def test_eval_failure_and_tool_shims_behave_deterministically(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
