@@ -1,7 +1,7 @@
 {
-  "name": "codex",
+  "name": "codex-luna-medium-judge-terra-medium",
   "agent_command": "codex exec --json --ephemeral --ignore-user-config --strict-config --skip-git-repo-check -s workspace-write -m gpt-5.6-luna -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=\"none\" -c sandbox_workspace_write.network_access=false -",
-  "judge_command": "codex exec --json --ephemeral --ignore-user-config --strict-config --skip-git-repo-check -s read-only -m gpt-5.6-sol -c model_reasoning_effort=\"low\" -c shell_environment_policy.inherit=\"none\" --output-schema {judge_schema} -",
+  "judge_command": "codex exec --json --ephemeral --ignore-user-config --strict-config --skip-git-repo-check -s read-only -m gpt-5.6-terra -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=\"none\" --output-schema {judge_schema} -",
   "timeout_seconds": 1800,
   "jobs": 10,
   "samples": 1,

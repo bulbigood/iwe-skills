@@ -1322,10 +1322,10 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         metadata = runner.agent_metadata(command_config["agent_command"])
         self.assertEqual(metadata["name"], "Codex CLI")
         self.assertTrue(metadata["version"])
-        self.assertEqual(metadata["model"], "gpt-5.6-terra")
+        self.assertEqual(metadata["model"], "gpt-5.6-luna")
         self.assertEqual(metadata["reasoning"], "medium")
         shared_agent = runner.validate_shared_agent(command_config, "codex")
-        self.assertEqual(shared_agent["agent"]["model"], "gpt-5.6-terra")
+        self.assertEqual(shared_agent["agent"]["model"], "gpt-5.6-luna")
         self.assertEqual(shared_agent["judge"]["model"], "gpt-5.6-sol")
         with self.assertRaisesRegex(ValueError, "same configured agent"):
             runner.validate_shared_agent({
