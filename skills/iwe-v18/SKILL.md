@@ -8,22 +8,25 @@ metadata:
 
 # IWE problem-solving policy
 
-IWE is authoritative. Classify, choose the narrowest route, derive known parameters, and stop on success.
+IWE is authoritative. Choose the narrowest route; stop on success.
 
 ## Hard execution rules
 
 - After activation, treat this file as complete IWE guidance; do not search for competing agent instructions.
 - Do not use web search, `grep`, `rg`, `find`, recursive lists, or broad reads before trying IWE. The failed-search fallback below is the only workspace-search exception. Do not run routine preflight.
 - Do not install, update, configure, or repair IWE.
+- Use `iwe <command> --help` only after an IWE CLI command fails and its error does not provide enough information for one direct correction. Never call help proactively, globally, or after a successful command.
+- Do not run discovery or validation as preflight before a direct operation when its target, inputs, and guards are known from the request or prior evidence. Required mutation preview is execution, not preflight validation.
+- When discovery is necessary, make it task-shaped: include known selectors/class/heading/terms and request only the needed projection/block and limit. Do not retrieve after discovery when its shaped output already supplies the required scope.
 - Default result limit: 20. Use a smaller request-derived limit.
 - A stated class is a hard filter: “project note” requires `--filter '{ type: project }'`; never use untyped lexical top-1. For creation, a stated semantic class sets `type=<class>`.
-- Never pass 0 as a result, depth, distance, document, or token bound; 0 is unlimited.
-- For discovery and retrieval, prefer one call and never exceed two IWE lookup calls for one task. Use a second only for ambiguity, one bounded page, or one failed refinement. Do not run a second query after sufficient evidence. Safety-required mutation calls are separate.
+- Never pass 0 as a bound; it means unlimited.
+- Prefer one discovery/retrieval. Call 2 is final and only for ambiguity, one page, or failed refinement; afterward use allowed fallback/report, never a third IWE lookup. Stop after sufficient evidence. Mutation calls are separate.
 - Mutation safety: resolve scope, preview, validate affected keys/counts, apply identical arguments, then verify only when success cannot prove final state. Create/new are collision-guarded exceptions: use strict validation and collision policy, never `--dry-run`.
 
 ## Route and compute parameters mentally
 
-Use only the request, conversation, and prior IWE output; do not read other sources merely to choose parameters.
+Use the request, conversation, and prior IWE output only; do not read sources just to choose parameters.
 
 | Need | Direct route | Output |
 |---|---|---|
@@ -122,7 +125,7 @@ Do not retrieve documents before an artifact command.
 - **E4 Idempotent optional creation:** skip only when already-existing is an acceptable success state.
 - **E5 Deliberate replacement:** override only with explicit overwrite intent; otherwise fail or suffix.
 
-Known template route: `iwe create --template <name> --vars-yaml '<all variables>' --set 'type=<class>' --set '<field>=<typed value>' --strict --if-exists fail`. Preserve request field names exactly: rendered title/attendees/body are variables, including `"body":"<text>"`; document type/status/draft are typed `--set` frontmatter. Keep every template variable and never duplicate a field. This recipe is complete: no help/docs/schema/retrieve. Successful strict create proves schema and final key; stop. Create has no `--format` flag.
+Known template route: `iwe create --template <name> --vars-yaml '<all variables>' --set 'type=<class>' --set '<field>=<typed value>' --strict --if-exists fail`. Preserve request field names exactly: title/attendees/body are variables, including `"body":"<text>"`; type/status/draft are typed `--set` frontmatter. Keep every template variable; never duplicate a field. Complete route: no preflight/help/docs/schema/retrieve. Successful strict create proves schema and final key; stop. Create has no `--format` flag.
 
 ## Cluster F — atomic metadata and local body edits
 
@@ -157,7 +160,7 @@ iwe extract "<source-key>" --section "<known heading>" --dry-run --format keys
 - **G6 Attach:** attach one source to one or more already-known configured destinations in one preview/apply pair.
 - **G7 Attach-action inventory:** attach list only when available actions are the requested outcome.
 
-Preview and apply identical arguments. For extract, verify only the source inclusion when output cannot prove the graph result; do not retrieve the created target after successful apply.
+Preview and apply identical arguments. After successful extract, verify only with one bounded source retrieve when output cannot prove inclusion; never use relationship discovery for extract verification or retrieve the created target.
 
 ## Cluster H — destructive and workspace-wide work
 
@@ -173,7 +176,7 @@ Safety calls are not waste. Refuse destructive work when scope or recovery is in
 - **I2 Initialize:** auto-apply accepted detection; static defaults only when explicitly preferred.
 - **I3 Completions:** `completions` for the already-known shell.
 - **I4 Embedded reference:** `docs` query/config/schema only when that reference itself is requested; never as routine task discovery.
-- **I5 Exact command help:** after selecting a command, use `iwe <command> --help` only when a rare syntax, default, or option detail missing here is necessary; then execute the task without global help or repeated lookups.
+- **I5 Exact command help after error:** after an IWE CLI failure, first apply a direct correction supported by the error. Only if the error is insufficient, inspect that exact command's help once; never use global help or repeat the lookup.
 
 ## Command glossary
 
@@ -204,17 +207,17 @@ Safety calls are not waste. Refuse destructive work when scope or recovery is in
 
 Filters are one inline YAML mapping. Plain fields mean equality. Use `$and`, `$or`, or `$not` only when one mapping cannot express the condition; `$in` for alternatives; comparisons for numeric/time bounds; `$exists` for presence; `$regex` for an actual pattern. Keep finite `maxDepth`/`maxDistance` in nested graph predicates.
 
-Projection replaces defaults; additive fields retain them. Built-ins use `$key`/`$title`; frontmatter fields use bare names. Project content only with token caps. One block predicate selects header, text, within, paragraph, or references. Carry selectors and inline expect into mutation. Prefer relationship flags for one anchor.
+Projection is `alias=source`: aliases are free; sources are not. Use only `$key`/`$title` or exact request/schema/prior-output frontmatter fields (bare); never derive sources from answer labels. If none is known, omit `--project`; on rejection remove its whole flag/value and retry once. `--project` replaces defaults; `--add-fields` retains them. Use `--blocks`/`--matches` for sections/lines; cap projected content. Carry selectors and inline expect into mutation. Prefer relationship flags for one anchor.
 
 ## Rare errors and fallback reference
 
-Remove a rejected optional shaping flag and its value: corrected argv is the failed argv minus only that flag/value; preserve every other argument and retry immediately once. Do not read reference/help, substitute aliases, or repeat the rejected flag. A null or missing requested field is not evidence. Otherwise correct quoting/YAML once, look up still-unknown syntax once, refine one empty query once, narrow truncation, and stop on schema/expectation failure.
+Remove a rejected optional shaping flag: corrected argv is the failed argv minus only that flag/value; preserve other arguments and retry once. Do not read help/reference, alias, or repeat it. A null or missing requested field is not evidence. Otherwise correct quoting/YAML once, inspect still-unknown syntax once, refine one empty query, narrow truncation, and stop on schema/expectation failure.
 
-Triggers: missing executable; still-unknown command/option after direct correction; invalid YAML; empty result after refinement; unsupported operation; source outside index; unexplained truncation; permission/I/O failure; schema/expectation failure.
+Triggers: missing executable; still-unknown command/option; invalid YAML; empty result after refinement; unsupported operation; source outside index; unexplained truncation; permission/I/O failure; schema/expectation failure.
 
-For a self-explanatory missing-executable error, skip the reference. Read `references/errors.md` only when classification is unclear: unknown syntax, invalid YAML, failed refinement, unsupported operation, truncation, permission/I/O, or schema/expectation failure.
+For a self-explanatory missing-executable error, skip the reference. Otherwise read `references/errors.md` only when classification is unclear.
 
-Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, or one refinement stays empty. If the operator explicitly limits the search to IWE, its notes, or its documentation, report that the information was not found and do not search elsewhere. Otherwise, for a workspace or project question, search local files after the IWE miss; a broad `rg` is allowed when no source path is known. Stay local, stop when the requested fact and source are found, and do not expose unrelated matches. For a named source, read only that source. Say "IWE is unavailable" only when execution itself failed; otherwise disclose that the information was found outside IWE.
+Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, one refinement stays empty, or candidates are unrelated. An unrelated candidate is a miss; do not retrieve it. The two-call fallback budget includes failed and corrected IWE attempts; then fallback/report—never call IWE a third time. If the operator limits search to IWE/notes/docs, report not found and stop. For workspace/project questions: Begin local recovery with one targeted, hidden-aware content search. For structured/config data, search the narrowest field/property token; do not require related terms on one line. Never emit a workspace-wide file inventory. After one content miss, refine once or use a narrowly globbed filename. If that search proves the requested fact and source path, stop; otherwise read only the candidate source. Stay local; expose no unrelated matches. Say "IWE is unavailable" only when execution failed; otherwise say the information was found outside IWE.
 
 ## Completion
 

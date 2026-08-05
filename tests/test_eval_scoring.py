@@ -10,6 +10,7 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +50,21 @@ class EvalScoringContractTests(unittest.TestCase):
             for item in cls.runner.load_scenarios()
             if item.id == "query-structured-metadata-without-scanning-files"
         )
+
+    def test_run_process_converts_timeout_to_fail_closed_result(self) -> None:
+        timeout = subprocess.TimeoutExpired(
+            cmd=["agent"],
+            timeout=30,
+            output='{"type":"turn.started"}\n',
+            stderr="remote process stalled",
+        )
+        with mock.patch.object(self.runner.subprocess, "run", side_effect=timeout):
+            result = self.runner.run_process("agent", "prompt", ROOT, 30, {})
+
+        self.assertEqual(result["exit"], 124)
+        self.assertIn("turn.started", result["stdout"])
+        self.assertIn("timed out after 30 seconds", result["stderr"])
+        self.assertEqual(result["commands"], [])
 
     def test_global_config_declares_scale_and_metric_success_percentages(self) -> None:
         self.assertEqual(set(self.config.score_scale), set(range(6)))
@@ -207,6 +223,24 @@ class EvalScoringContractTests(unittest.TestCase):
         metrics["unbounded_read_calls"] = 1
         self.assertTrue(self.runner.efficiency_diagnostics(self.scenario, metrics)["unbounded_read"])
 
+    def test_tool_call_ceilings_preserve_narrow_happy_paths(self) -> None:
+        scenarios = {item.id: item for item in self.runner.load_scenarios()}
+        self.assertEqual(
+            {name: item.max_tool_calls for name, item in scenarios.items()},
+            {
+                "discover-and-retrieve-bounded-multi-hop-context": 1,
+                "query-structured-metadata-without-scanning-files": 1,
+                "apply-a-guarded-structured-block-update": 4,
+                "refactor-an-inclusion-link-without-breaking-the-graph": 4,
+                "refuse-an-unbounded-destructive-request": 0,
+                "create-and-validate-a-schema-bound-document": 1,
+                "ambiguous-discovery-with-one-follow-up": 2,
+                "fallback-when-iwe-is-unavailable": 2,
+                "find-workspace-information-after-iwe-miss": 8,
+                "fix-code-without-activating-iwe": 5,
+            },
+        )
+
     def test_resource_volume_counts_task_tool_output_bytes_not_result_records(self) -> None:
         activation = {
             "command": "cat .agents/skills/iwe-v18/SKILL.md",
@@ -315,6 +349,27 @@ class EvalScoringContractTests(unittest.TestCase):
                 "sample": 1,
                 "verdict": {"valid": True, "metric_scores": {}, "metric_failures": {}},
             }], self.config)
+
+    def test_aggregate_counts_each_procedure_error_once_per_sample(self) -> None:
+        scores = {name: 5 for name in self.runner.DIMENSIONS}
+        outcome = self.runner.aggregate_results(
+            [{
+                "scenario_id": "stable-id",
+                "scenario": "Display label",
+                "sample": 1,
+                "verdict": {
+                    "valid": True,
+                    "metric_scores": scores,
+                    "metric_failures": {},
+                    "procedure_errors": ["duplicate", "duplicate"],
+                },
+            }],
+            self.config,
+            expected_samples=1,
+        )[0]
+
+        self.assertEqual(outcome["procedure_failure_samples"], 1)
+        self.assertEqual(outcome["procedure_error_counts"], {"duplicate": 1})
 
     def test_aggregate_groups_by_scenario_id_not_display_name(self) -> None:
         scores = {name: 5 for name in self.runner.DIMENSIONS}
@@ -1199,9 +1254,20 @@ class ProductionEvalCommandTests(unittest.TestCase):
 class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_iwe_v18_skill_frontloads_problem_routes_found_by_telemetry(self) -> None:
         skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
-        self.assertIn("never search for AGENTS, skills, or workspace files", skill)
+        self.assertIn(
+            "After activation, treat this file as complete IWE guidance; "
+            "do not search for competing agent instructions.",
+            skill,
+        )
         self.assertIn("Semantic entity class", skill)
-        self.assertIn("refuse immediately and run no tools", skill)
+        self.assertIn(
+            "if criterion or scope is undefined, refuse without tools",
+            skill,
+        )
+        self.assertIn(
+            "Use `iwe <command> --help` only after an IWE CLI command fails",
+            skill,
+        )
         self.assertIn("Keep every template variable", skill)
         self.assertIn("For a self-explanatory missing-executable error", skill)
         self.assertIn("never use untyped lexical top-1", skill)
@@ -1211,10 +1277,28 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("Successful strict create proves schema", skill)
         self.assertIn("Preserve request field names exactly", skill)
         self.assertIn("For creation, a stated semantic class sets `type=<class>`", skill)
+        self.assertIn("Do not run discovery or validation as preflight before a direct operation", skill)
+        self.assertIn("Required mutation preview is execution, not preflight validation", skill)
+        self.assertIn("When discovery is necessary, make it task-shaped", skill)
+        self.assertIn("Do not retrieve after discovery when its shaped output already supplies the required scope", skill)
+        self.assertIn("Begin local recovery with one targeted, hidden-aware content search", skill)
+        self.assertIn("If that search proves the requested fact and source path, stop", skill)
+        self.assertIn("The two-call fallback budget includes failed and corrected IWE attempts", skill)
+        self.assertIn("Call 2 is final", skill)
+        self.assertIn("For structured/config data, search the narrowest field/property token", skill)
+        self.assertIn("do not require related terms on one line", skill)
+        self.assertIn("Never emit a workspace-wide file inventory", skill)
+        self.assertIn("After one content miss, refine once or use a narrowly globbed filename", skill)
+        self.assertIn("An unrelated candidate is a miss; do not retrieve it", skill)
+        self.assertIn("After successful extract, verify only with one bounded source retrieve", skill)
+        self.assertIn("never use relationship discovery for extract verification", skill)
         self.assertIn("Remove a rejected optional shaping flag", skill)
         self.assertIn("corrected argv is the failed argv minus only that flag", skill)
         self.assertIn("A null or missing requested field is not evidence", skill)
-        self.assertIn("verify only the source inclusion", skill)
+        self.assertIn("Projection is `alias=source`", skill)
+        self.assertIn("never derive sources from answer labels", skill)
+        self.assertIn("exact request/schema/prior-output frontmatter fields", skill)
+        self.assertIn("on rejection remove its whole flag/value and retry once", skill)
         self.assertIn("Relationship synthesis: retrieve 3–5", skill)
         self.assertIn("iwe create --template <name> --vars-yaml", skill)
         self.assertIn('Say "IWE is unavailable" only', skill)
@@ -1255,7 +1339,8 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 30
         )
         self.assertIn("**Published scenarios:** `10`", snapshot)
-        self.assertIn("**Agent calls / judge calls:** `150 / 150`", snapshot)
+        self.assertIn("**Published matrix:** `150` agent results / `150` judge results", snapshot)
+        self.assertIn("`gpt-5.6-luna`, medium reasoning", snapshot)
         self.assertNotIn("| Target |", snapshot)
         self.assertIn("Valid / Clean (info)", snapshot)
         self.assertIn("Tool / Resource", snapshot)

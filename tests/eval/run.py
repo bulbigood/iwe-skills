@@ -1222,7 +1222,32 @@ def install_command_shims(bin_dir: Path, scenario: Scenario, real_iwe: Path) -> 
 
 def run_process(command: str, prompt: str, cwd: Path, timeout: int, env: dict[str, str]) -> dict:
     started = time.monotonic()
-    completed = subprocess.run(shlex.split(command), input=prompt, cwd=cwd, env=env, text=True, capture_output=True, timeout=timeout, check=False)
+    argv = shlex.split(command)
+    try:
+        completed = subprocess.run(
+            argv,
+            input=prompt,
+            cwd=cwd,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as error:
+        def captured_text(value: str | bytes | None) -> str:
+            if isinstance(value, bytes):
+                return value.decode("utf-8", errors="replace")
+            return value or ""
+
+        stderr = captured_text(error.stderr)
+        timeout_message = f"process timed out after {timeout} seconds"
+        completed = subprocess.CompletedProcess(
+            argv,
+            124,
+            stdout=captured_text(error.stdout),
+            stderr=f"{stderr}\n{timeout_message}".strip(),
+        )
     final = ""
     commands = []
     for line in completed.stdout.splitlines():
@@ -1710,7 +1735,7 @@ def aggregate_results(
         )
         procedure_error_counts: dict[str, int] = {}
         for sample in samples:
-            for error in sample["verdict"].get("procedure_errors", []):
+            for error in set(sample["verdict"].get("procedure_errors", [])):
                 procedure_error_counts[error] = procedure_error_counts.get(error, 0) + 1
         outcome = {
             "scenario": scenario,
