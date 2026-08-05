@@ -6,7 +6,7 @@ This document explains every status and metric shown in paired evaluation report
 
 The judge receives its scoring contract directly from these files:
 
-- [`config.toml`](../config.toml) is the SSOT for the global `0..5` score scale, metric-specific Tool/Resource efficiency scales, per-metric `minimum_score`, shared excellence defaults, runtime output default, and repeated-sample success percentages.
+- [`config.toml`](../config.toml) is the SSOT for the global `0..5` score scale, metric-specific Tool/Resource efficiency scales, the default tested-model profile, complete per-profile `minimum_score` and `required_success_percent` maps, shared excellence defaults, and runtime output default.
 - [`tests/eval/scenarios/iwe.eval.yaml`](../tests/eval/scenarios/iwe.eval.yaml) is the SSOT for scenario-specific semantic ideal procedures, excellence conditions, efficiency ranges, runtime overrides, requests, and fixtures.
 - [`tests/eval/run.py`](../tests/eval/run.py) loads those declarations and injects them into the isolated judge prompt. It also calculates sample validity, procedure errors, and aggregate threshold verdicts.
 
@@ -77,9 +77,29 @@ For each metric, the judge applies this global scale together with the merged ex
 
 Efficiency scores remain semantic. Their authoritative metric-specific wording is declared under [`eval.efficiency_score_scale` in `config.toml`](../config.toml) and injected into the judge prompt. Tool efficiency distinguishes necessary calls from justified recovery and avoidable retries. Resource efficiency independently distinguishes relevant bounded evidence from duplicate, irrelevant, or excessive context. Counts remain evidence rather than a score formula. The judge must interpret count deviations by their purpose and cause rather than by percentage alone.
 
-A sample succeeds for a metric when its judge score is greater than or equal to the metric's global `minimum_score` from `config.toml`.
+A sample succeeds for a metric when its judge score is greater than or equal to the selected model profile's `minimum_score` from `config.toml`.
 
-Aggregate acceptance then applies the metric's repeated-sample percentage from [`eval.required_success_percent` in `config.toml`](../config.toml). The required count is `ceil(samples × percent / 100)`.
+Aggregate acceptance then applies the same profile's `required_success_percent`. The required count is `ceil(samples × percent / 100)`.
+
+### Tested-model profiles
+
+The judge always uses the same semantic `0..5` scale and scenario excellence conditions. A model profile selects only PASS thresholds and repeated-sample requirements; it does not change prompts, tool-call ranges, output ranges, safety gates, fixtures, or call budgets.
+
+- `medium` is the default. Every metric requires score `5`.
+- `weak` requires score `5` for every metric except `tool_efficiency` and `resource_efficiency`, which require `4`.
+- Both profiles currently require `100%` success for correctness, compliance, safety, and evidence metrics, and `80%` for tool/resource efficiency. These values are duplicated explicitly per profile in `config.toml`; the runner has no implicit fallback map.
+
+Deterministic metric failures remain failures regardless of the profile or judge score. Reports record the profile and both complete threshold maps for every A/B target. Pairwise comparisons fail closed when samples use different profiles.
+
+Existing raw reports can be reaggregated without agent or judge calls:
+
+```bash
+python scripts/replay_eval_acceptance.py <report-dir> \
+  --model-profile weak \
+  --output <derived-report.json>
+```
+
+The output must be outside the immutable source report directory.
 
 ## Reading the tables
 

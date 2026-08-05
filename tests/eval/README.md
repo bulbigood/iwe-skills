@@ -5,8 +5,8 @@ The eval runner uses isolated workspaces, natural-language scenarios, complete c
 ```bash
 python3 -m pip install -r tests/eval/requirements.txt
 python3 tests/eval/run.py --list
-python3 tests/eval/run.py --skill iwe-v18 --config codex
-python3 tests/eval/run.py --skill iwe-v18 --config codex --scenario ambiguous-discovery-with-one-follow-up --jobs 1 --samples 1
+python3 tests/eval/run.py --skill iwe-v18 --config codex --model-profile weak
+python3 tests/eval/run.py --skill iwe-v18 --config codex --model-profile weak --scenario ambiguous-discovery-with-one-follow-up --jobs 1 --samples 1
 python3 tests/eval/run.py --experiment tests/eval/experiments/example.toml --list
 ```
 
@@ -39,10 +39,10 @@ The root `config.toml` is the global source of truth for evaluation policy. It d
 
 - the meaning of every score from `0` through `5` under `[eval.score_scale]`;
 - the metric-specific Tool and Resource efficiency meanings under `[eval.efficiency_score_scale]`;
-- the per-metric sample thresholds under `[eval.minimum_score]`;
+- the default tested-model profile under `[eval].default_model_profile`;
+- complete per-metric PASS scores and repeated-sample requirements under each `[eval.model_profiles.<name>]` table;
 - shared skill-compliance and read-only safety excellence conditions under `[eval.default_excellent]`;
-- the default IWE output cap under `[eval.execution]`;
-- the percentage of successful samples required for every metric under `[eval.required_success_percent]`.
+- the default IWE output cap under `[eval.execution]`.
 
 Every scenario declares only scenario-specific data:
 
@@ -124,9 +124,9 @@ The tested agent receives a neutral wrapper that asks it to use local project gu
 
 ## Metric thresholds and sample aggregation
 
-The root `config.toml` declares an inclusive `minimum_score` for every metric. A sample succeeds on a metric only when the judge's score reaches that threshold. There is no weighted score, hard-floor score, mean, or median.
+The root `config.toml` declares two complete tested-model profiles: default `medium` and explicit `weak`. `medium` requires score `5` for every metric. `weak` requires `5` for every metric except Tool and Resource efficiency, which require `4`. A sample succeeds on a metric only when the judge's score reaches the selected profile's inclusive threshold. There is no weighted score, hard-floor score, mean, or median.
 
-The root `config.toml` declares the required percentage of successful samples independently for every metric. The required count is calculated as `ceil(samples × percent / 100)`:
+Each profile also declares `required_success_percent` independently for every metric. The runner does not supply fallback percentages. The required count is calculated as `ceil(samples × percent / 100)`:
 
 - task correctness, scenario compliance, skill compliance, safety, and evidence quality require `100%`;
 - tool efficiency and resource efficiency require `80%`.
@@ -136,6 +136,8 @@ For five samples this means `5/5` successes for the first five metrics and `4/5`
 A scenario aggregate reports three independent verdicts: `result_pass` over task correctness, scenario compliance, safety, and evidence quality; `procedure_pass` over skill compliance and tool/resource efficiency; and `pass` as their conjunction. A full run passes only when every selected scenario aggregate passes. Invalid samples fail `result_pass` and the overall aggregate because process failures, malformed judge output, prohibited actions, failed deterministic postconditions, and isolation failures cannot be converted into semantic scores. Procedure failures do not erase content scores; they fail only the procedure axis and its independent metric gates.
 
 `summary.json` records, for every metric, successful samples, total samples, observed percentage, configured percentage, required count, and verdict. It separately records invalid sample counts, procedure-failure sample counts, and each procedure-error frequency.
+
+Select a profile with `--model-profile medium|weak`. Omitting the flag uses `eval.default_model_profile` (`medium`). Luna-oriented production wrappers pass `--model-profile weak` explicitly. Paired Markdown reports repeat the selected profile plus complete PASS-score and required-success tables for every A/B target.
 
 ## Isolation and shims
 

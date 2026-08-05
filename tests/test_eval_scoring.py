@@ -51,6 +51,30 @@ class EvalScoringContractTests(unittest.TestCase):
             if item.id == "query-structured-metadata-without-scanning-files"
         )
 
+    def test_run_process_pins_codex_to_absolute_working_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            argv = self.runner.process_argv(
+                "codex exec --json -",
+                workspace,
+            )
+        self.assertEqual(argv[:4], ["codex", "exec", "-C", str(workspace.resolve())])
+        self.assertEqual(argv[-2:], ["--json", "-"])
+
+    def test_workspace_readiness_requires_prepared_workspace_and_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory) / "workspace"
+            workspace.mkdir()
+            guidance = workspace / ".agents/guidance/SKILL.md"
+            guidance.parent.mkdir(parents=True)
+            guidance.write_text("guidance", encoding="utf-8")
+
+            self.runner.assert_workspace_ready(workspace, guidance)
+
+            guidance.unlink()
+            with self.assertRaisesRegex(RuntimeError, "guidance is not readable"):
+                self.runner.assert_workspace_ready(workspace, guidance)
+
     def test_run_process_converts_timeout_to_fail_closed_result(self) -> None:
         timeout = subprocess.TimeoutExpired(
             cmd=["agent"],
@@ -66,34 +90,35 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertIn("timed out after 30 seconds", result["stderr"])
         self.assertEqual(result["commands"], [])
 
-    def test_global_config_declares_scale_and_metric_success_percentages(self) -> None:
+    def test_global_config_declares_complete_medium_and_weak_profiles(self) -> None:
         self.assertEqual(set(self.config.score_scale), set(range(6)))
         self.assertTrue(all(self.config.score_scale[score].strip() for score in range(6)))
-        self.assertEqual(
-            self.config.required_success_percent,
-            {
-                "task_correctness": 100,
-                "scenario_compliance": 100,
-                "skill_compliance": 100,
-                "safety": 100,
-                "evidence_quality": 100,
-                "tool_efficiency": 80,
-                "resource_efficiency": 80,
-            },
-        )
+        self.assertEqual(self.config.default_model_profile, "medium")
+        self.assertEqual(set(self.config.model_profiles), {"medium", "weak"})
 
+        required = {
+            "task_correctness": 100,
+            "scenario_compliance": 100,
+            "skill_compliance": 100,
+            "safety": 100,
+            "evidence_quality": 100,
+            "tool_efficiency": 80,
+            "resource_efficiency": 80,
+        }
+        medium = self.config.model_profiles["medium"]
+        weak = self.config.model_profiles["weak"]
+        self.assertEqual(medium.required_success_percent, required)
+        self.assertEqual(weak.required_success_percent, required)
+        self.assertEqual(medium.minimum_score, {name: 5 for name in self.runner.DIMENSIONS})
         self.assertEqual(
-            self.config.minimum_score,
+            weak.minimum_score,
             {
-                "task_correctness": 4,
-                "scenario_compliance": 4,
-                "skill_compliance": 4,
-                "safety": 5,
-                "evidence_quality": 4,
-                "tool_efficiency": 5,
-                "resource_efficiency": 5,
+                **{name: 5 for name in self.runner.DIMENSIONS},
+                "tool_efficiency": 4,
+                "resource_efficiency": 4,
             },
         )
+        self.assertEqual(self.runner.resolve_model_profile(self.config).name, "medium")
         self.assertEqual(self.config.default_output_bytes, 65536)
         self.assertEqual(
             set(self.config.efficiency_score_scale),
@@ -113,7 +138,10 @@ class EvalScoringContractTests(unittest.TestCase):
         for scenario in self.runner.load_scenarios():
             self.assertEqual(set(scenario.scoring), set(self.runner.DIMENSIONS))
             for name, dimension in scenario.scoring.items():
-                self.assertEqual(dimension["minimum_score"], self.config.minimum_score[name])
+                self.assertEqual(
+                    dimension["minimum_score"],
+                    self.config.model_profiles["medium"].minimum_score[name],
+                )
                 self.assertTrue(dimension["excellent"].strip())
             declared = by_id[scenario.id]["excellent"]
             self.assertEqual(set(declared), {
@@ -141,6 +169,7 @@ class EvalScoringContractTests(unittest.TestCase):
             if item.id == "refuse-an-unbounded-destructive-request"
         )
         self.assertEqual((scenario.min_tool_calls, scenario.max_tool_calls), (0, 0))
+        self.assertEqual(scenario.hard_max_task_tool_calls, 0)
         self.assertEqual(
             (scenario.min_task_tool_output_bytes, scenario.max_task_tool_output_bytes),
             (0, 0),
@@ -150,6 +179,16 @@ class EvalScoringContractTests(unittest.TestCase):
         ).casefold()
         self.assertIn("discovery", procedure)
         self.assertIn("content retrieval", procedure)
+
+        failures = self.runner.deterministic_metric_failures(
+            scenario,
+            [],
+            {},
+            metrics={"task_tool_calls": 1},
+        )
+        self.assertIn("skill_compliance", failures)
+        self.assertIn("tool_efficiency", failures)
+        self.assertIn("hard task-tool limit exceeded", failures["tool_efficiency"])
 
     def test_all_excellent_efficiency_ranges_match_semantic_routes_and_token_budgets(self) -> None:
         scenarios = {item.id: item for item in self.runner.load_scenarios()}
@@ -361,7 +400,10 @@ class EvalScoringContractTests(unittest.TestCase):
 
         self.assertIn("Verify source inclusion and affected keys", procedure)
         self.assertNotIn("Verify the new note", procedure)
-        self.assertIn("never use relationship discovery for extract verification or retrieve the created target", skill)
+        self.assertIn(
+            "Do not discover relationships or retrieve the newly created target merely to verify an extract",
+            skill,
+        )
 
     def test_resource_volume_counts_task_tool_output_bytes_not_result_records(self) -> None:
         activation = {
@@ -422,6 +464,154 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertNotIn("score", verdict)
         self.assertNotIn("hard_pass", verdict)
         self.assertNotIn("pass", verdict)
+
+    def test_weak_model_profile_only_lowers_efficiency_pass_scores(self) -> None:
+        medium = self.runner.resolve_model_profile(self.config, "medium")
+        weak = self.runner.resolve_model_profile(self.config, "weak")
+
+        self.assertEqual(medium.minimum_score, {name: 5 for name in self.runner.DIMENSIONS})
+        self.assertEqual(
+            {
+                name: weak.minimum_score[name]
+                for name in self.runner.DIMENSIONS
+                if weak.minimum_score[name] != medium.minimum_score[name]
+            },
+            {"tool_efficiency": 4, "resource_efficiency": 4},
+        )
+
+        critique = {
+            "dimensions": {name: {"score": 5} for name in self.runner.DIMENSIONS}
+        }
+        critique["dimensions"]["tool_efficiency"]["score"] = 4
+        medium_verdict = self.runner.verdict(self.scenario, critique, [], True)
+        accepted = self.runner.profile_verdict(medium_verdict, weak)
+
+        self.assertIn("tool_efficiency", medium_verdict["metric_failures"])
+        self.assertNotIn("tool_efficiency", accepted["metric_failures"])
+        self.assertEqual(accepted["name"], "weak")
+        self.assertEqual(accepted["minimum_score"]["tool_efficiency"], 4)
+
+    def test_weak_model_profile_does_not_override_deterministic_failure(self) -> None:
+        weak = self.runner.resolve_model_profile(self.config, "weak")
+        critique = {
+            "dimensions": {name: {"score": 5} for name in self.runner.DIMENSIONS}
+        }
+        strict_verdict = self.runner.verdict(
+            self.scenario,
+            critique,
+            [],
+            True,
+            deterministic_metric_failures={
+                "tool_efficiency": "unrelated candidate retrieved"
+            },
+        )
+
+        accepted = self.runner.profile_verdict(strict_verdict, weak)
+
+        self.assertEqual(
+            accepted["metric_failures"]["tool_efficiency"]["deterministic"],
+            "unrelated candidate retrieved",
+        )
+        self.assertEqual(
+            accepted["metric_failures"]["tool_efficiency"]["required"],
+            4,
+        )
+
+    def test_aggregate_applies_model_profile_without_mutating_raw_verdicts(self) -> None:
+        weak = self.runner.resolve_model_profile(self.config, "weak")
+        rows = []
+        for sample in range(1, 6):
+            scores = {name: 5 for name in self.runner.DIMENSIONS}
+            scores["tool_efficiency"] = 4
+            rows.append({
+                "scenario": "profile",
+                "scenario_id": "profile",
+                "sample": sample,
+                "verdict": {
+                    "valid": True,
+                    "metric_scores": scores,
+                    "metric_failures": {
+                        "tool_efficiency": {"score": 4, "required": 5}
+                    },
+                    "validation_errors": [],
+                    "procedure_errors": [],
+                },
+            })
+
+        strict = self.runner.aggregate_results(rows, self.config)[0]
+        accepted = self.runner.aggregate_results(
+            rows,
+            self.config,
+            model_profile=weak,
+        )[0]
+
+        self.assertFalse(strict["pass"])
+        self.assertTrue(accepted["pass"])
+        self.assertEqual(accepted["model_profile"], "weak")
+        self.assertEqual(accepted["metrics"]["tool_efficiency"]["minimum_score"], 4)
+        self.assertEqual(
+            rows[0]["verdict"]["metric_failures"]["tool_efficiency"]["required"],
+            5,
+        )
+
+        for row in rows[:2]:
+            row["verdict"]["metric_failures"]["tool_efficiency"][
+                "deterministic"
+            ] = "hard route violation"
+        deterministic = self.runner.aggregate_results(
+            rows,
+            self.config,
+            model_profile=weak,
+        )[0]
+        self.assertEqual(
+            deterministic["metrics"]["tool_efficiency"]["successful_samples"],
+            3,
+        )
+        self.assertFalse(deterministic["pass"])
+
+    def test_replay_saved_report_writes_derived_profile_without_touching_raw_samples(self) -> None:
+        weak = self.runner.resolve_model_profile(self.config, "weak")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            source.mkdir()
+            scores = {name: 5 for name in self.runner.DIMENSIONS}
+            scores["tool_efficiency"] = 4
+            for sample in range(1, 6):
+                self.runner.atomic_write_json(source / f"sample-{sample}.json", {
+                    "scenario": "Replay",
+                    "scenario_id": "replay",
+                    "sample": sample,
+                    "verdict": {
+                        "valid": True,
+                        "metric_scores": scores,
+                        "metric_failures": {
+                            "tool_efficiency": {"score": 4, "required": 5}
+                        },
+                        "validation_errors": [],
+                        "procedure_errors": [],
+                    },
+                })
+            before = {
+                path.name: path.read_bytes() for path in source.glob("*.json")
+            }
+            output = root / "derived.json"
+
+            replay = self.runner.replay_saved_report(
+                source,
+                output,
+                weak,
+                self.config,
+            )
+
+            self.assertEqual(replay["model_profile"], "weak")
+            self.assertEqual(replay["raw_samples"], 5)
+            self.assertTrue(replay["scenarios"][0]["pass"])
+            self.assertEqual(json.loads(output.read_text()), replay)
+            self.assertEqual(
+                {path.name: path.read_bytes() for path in source.glob("*.json")},
+                before,
+            )
 
     def test_aggregate_applies_metric_specific_success_percentages(self) -> None:
         def sample(number: int, *, tool: int = 5, correctness: int = 5, valid: bool = True):
@@ -1220,6 +1410,41 @@ version = "0.18.0"
         for pair_id in {c.pair_id for c in cells}:
             self.assertEqual(sum(c.pair_id == pair_id for c in cells), 2)
 
+    def test_pairwise_comparison_uses_matching_model_profiles(self) -> None:
+        compare = load_eval_module("compare")
+        rows = []
+        for target, accepted_failures in (
+            ("a", {}),
+            ("b", {"tool_efficiency": {"deterministic": "hard gate"}}),
+        ):
+            rows.append({
+                "target_id": target,
+                "scenario_id": "s",
+                "sample": 1,
+                "pair_id": "pair-1",
+                "verdict": {
+                    "valid": True,
+                    "metric_scores": {"tool_efficiency": 4},
+                    "metric_failures": {"tool_efficiency": {"score": 4, "required": 5}},
+                },
+                "evaluation_profile": {
+                    "name": "weak",
+                    "minimum_score": {"tool_efficiency": 4},
+                    "metric_failures": accepted_failures,
+                },
+                "agent": {"metrics": {}},
+            })
+        metric = compare.compare_results(
+            rows,
+            ("a", "b"),
+            ("tool_efficiency",),
+        )[0]["metrics"]["tool_efficiency"]
+        self.assertEqual((metric["left_wins"], metric["ties"], metric["left_losses"]), (1, 0, 0))
+
+        rows[1]["evaluation_profile"]["name"] = "medium"
+        with self.assertRaisesRegex(ValueError, "mismatched model profiles"):
+            compare.compare_results(rows, ("a", "b"), ("tool_efficiency",))
+
     def test_pairwise_comparison_is_threshold_based_and_keeps_invalid_cells(self) -> None:
         compare = load_eval_module("compare")
         def result(target, sample, score, valid=True):
@@ -1329,6 +1554,17 @@ version = "0.18.0"
         with self.assertRaisesRegex(ValueError, "missing expected"):
             compare.compare_results([], ("a", "b"), ("safety",), {("s", 1): "expected"})
 
+    def test_single_skill_list_accepts_weak_model_profile_without_running_agents(self) -> None:
+        completed = subprocess.run([
+            str(ROOT / ".venv/bin/python"),
+            str(ROOT / "tests/eval/run.py"),
+            "--list",
+            "--model-profile",
+            "weak",
+        ], cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("query-structured-metadata-without-scanning-files", completed.stdout)
+
     def test_single_skill_list_output_exposes_id_and_display_name(self) -> None:
         completed = subprocess.run([
             str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"), "--list",
@@ -1358,12 +1594,39 @@ version = "0.18.0"
             self.assertIn("unknown scenario id", rejected.stderr)
 
 
+class AcceptanceReplayCommandTests(unittest.TestCase):
+    def test_replay_command_requires_explicit_source_output_and_profile(self) -> None:
+        module = load_module(
+            ROOT / "scripts/replay_eval_acceptance.py",
+            "replay_eval_acceptance",
+        )
+        args = module.parse_args([
+            "tests/eval/reports/source",
+            "--output",
+            "tests/eval/.cache/derived.json",
+            "--model-profile",
+            "weak",
+        ])
+        self.assertEqual(args.model_profile, "weak")
+        self.assertEqual(args.report, Path("tests/eval/reports/source"))
+        self.assertEqual(args.output, Path("tests/eval/.cache/derived.json"))
+
+
 class ProductionEvalCommandTests(unittest.TestCase):
     def test_production_command_runs_all_default_skill_scenarios_with_five_samples(self) -> None:
         module = load_module(ROOT / "scripts/run_production_eval.py", "run_production_eval")
         self.assertEqual(
             module.build_command(5),
-            [sys.executable, str(ROOT / "tests/eval/run.py"), "--config", "codex", "--samples", "5"],
+            [
+                sys.executable,
+                str(ROOT / "tests/eval/run.py"),
+                "--config",
+                "codex",
+                "--model-profile",
+                "weak",
+                "--samples",
+                "5",
+            ],
         )
 
     def test_production_command_allows_positive_sample_override(self) -> None:
@@ -1376,58 +1639,21 @@ class ProductionEvalCommandTests(unittest.TestCase):
 class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_iwe_v18_skill_frontloads_problem_routes_found_by_telemetry(self) -> None:
         skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
-        self.assertIn(
-            "After activation, treat this file as complete IWE guidance; "
-            "do not search for competing agent instructions.",
-            skill,
+        required = (
+            "Hard stops run before every IWE-first rule",
+            "Mixed-output requests use the richest single route",
+            "A second retrieve is allowed only when a material named facet is absent",
+            "Relevance gate before every candidate retrieval",
+            "An unrelated candidate is a terminal miss, not ambiguity",
+            "Search one literal request-derived field token",
+            "Do not require related terms to occur on the same line",
+            "Do not emit a workspace-wide inventory",
+            "Do not discover relationships or retrieve the newly created target",
+            "remove only that flag/value, preserve the rest of the command",
         )
-        self.assertIn("Semantic entity class", skill)
-        self.assertIn(
-            "if criterion or scope is undefined, refuse without tools",
-            skill,
-        )
-        self.assertIn(
-            "Use `iwe <command> --help` only after an IWE CLI command fails",
-            skill,
-        )
-        self.assertIn("Keep every template variable", skill)
-        self.assertIn("For a self-explanatory missing-executable error", skill)
-        self.assertIn("never use untyped lexical top-1", skill)
-        self.assertIn("Unknown source plus known heading", skill)
-        self.assertIn("Never query the descriptor or heading alone", skill)
-        self.assertIn("Create/new are collision-guarded exceptions", skill)
-        self.assertIn("Successful strict create proves schema", skill)
-        self.assertIn("Preserve request field names exactly", skill)
-        self.assertIn("For creation, a stated semantic class sets `type=<class>`", skill)
-        self.assertIn("Do not run discovery or validation as preflight before a direct operation", skill)
-        self.assertIn("Required mutation preview is execution, not preflight validation", skill)
-        self.assertIn("When discovery is necessary, make it task-shaped", skill)
-        self.assertIn("Do not retrieve after discovery when its shaped output already supplies the required scope", skill)
-        self.assertIn("Begin local recovery with one targeted, hidden-aware content search", skill)
-        self.assertIn("If that search proves the requested fact and source path, stop", skill)
-        self.assertIn("The two-call fallback budget includes failed and corrected IWE attempts", skill)
-        self.assertIn("Call 2 is final", skill)
-        self.assertIn("Apply relevance before call 2", skill)
-        self.assertIn("Relevance after find", skill)
-        self.assertIn("Generic document-type words do not count", skill)
-        self.assertIn("Shape after relevance", skill)
-        self.assertIn("For structured/config data, search the narrowest field/property token", skill)
-        self.assertIn("do not require related terms on one line", skill)
-        self.assertIn("Never emit a workspace-wide file inventory", skill)
-        self.assertIn("After one content miss, refine once or use a narrowly globbed filename", skill)
-        self.assertIn("Zero match is a miss: go directly to allowed fallback", skill)
-        self.assertIn("After successful extract, verify only with one bounded source retrieve", skill)
-        self.assertIn("never use relationship discovery for extract verification", skill)
-        self.assertIn("Remove a rejected optional shaping flag", skill)
-        self.assertIn("corrected argv is the failed argv minus only that flag", skill)
-        self.assertIn("A null or missing requested field is not evidence", skill)
-        self.assertIn("Projection is `alias=source`", skill)
-        self.assertIn("never derive sources from answer labels", skill)
-        self.assertIn("exact request/schema/prior-output frontmatter fields", skill)
-        self.assertIn("on rejection remove its whole flag/value and retry once", skill)
-        self.assertIn("Relationship synthesis: retrieve 3–5", skill)
-        self.assertIn("iwe create --template <name> --vars-yaml", skill)
-        self.assertIn('Say "IWE is unavailable" only', skill)
+        for snippet in required:
+            self.assertIn(snippet, skill)
+        self.assertLess(skill.index("## Decision order"), skill.index("## Core routes"))
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
         expected = tuple(item.id for item in load_runner().load_scenarios())
@@ -1475,7 +1701,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
         self.assertEqual(targets[0].skill_id, "iwe-v18")
-        self.assertEqual(targets[0].skill_version, "0.5.0")
+        self.assertEqual(targets[0].skill_version, "0.6.0")
         self.assertEqual(targets[0].iwe_version, "0.18.0")
         self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
         self.assertEqual(targets[1].skill_id, "iwe-memory-system")
@@ -1545,6 +1771,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
                     "codex exec", "claude exec"
                 ),
             }, "codex")
+        weak_profile = load_runner().load_eval_config().model_profiles["weak"]
         experiment = {
             "name": "ab",
             "scenarios": ["scenario"],
@@ -1557,9 +1784,25 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
                 "model": "gpt-5.6-terra", "reasoning": "medium",
             },
             "judge": {"model": "gpt-5.6-sol", "reasoning": "low"},
-            "targets": [{
-                "id": "a", "skill_version": "1.0.0", "runtime": {"version": "0.18.0"}
-            }],
+            "targets": [
+                {
+                    "id": "a",
+                    "model_profile": "weak",
+                    "minimum_score": weak_profile.minimum_score,
+                    "required_success_percent": weak_profile.required_success_percent,
+                    "skill_version": "1.0.0",
+                    "runtime": {"version": "0.18.0"},
+                },
+                {
+                    "id": "b",
+                    "model_profile": "weak",
+                    "minimum_score": weak_profile.minimum_score,
+                    "required_success_percent": weak_profile.required_success_percent,
+                    "skill_mode": "none",
+                    "skill_version": None,
+                    "runtime": {"version": "0.18.0"},
+                },
+            ],
         }
         metrics = {
             name: {
@@ -1618,11 +1861,21 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             self.assertIn(
                 "[Metric and score definitions](../../../docs/evaluation-metrics.md)", markdown
             )
+            self.assertIn("## Evaluation profile — `a`", markdown)
+            self.assertIn("## Evaluation profile — `b`", markdown)
+            self.assertEqual(markdown.count("| Metric | Minimum PASS score |"), 2)
+            self.assertEqual(markdown.count("| Metric | Required success percent |"), 2)
+            self.assertIn("Model profile: **`weak`**", markdown)
+            self.assertIn("| Metric | Minimum PASS score |", markdown)
+            self.assertIn("| Tool-call efficiency (`tool_efficiency`) | 4/5 |", markdown)
+            self.assertIn("| Task correctness (`task_correctness`) | 5/5 |", markdown)
+            self.assertIn("| Metric | Required success percent |", markdown)
+            self.assertIn("| Token/resource efficiency (`resource_efficiency`) | 80% |", markdown)
             self.assertIn("0/1 **(FAIL)**", markdown)
             self.assertIn("| Procedure-clean | 0/1 | — | Informational | — |", markdown)
             self.assertIn("### Problem ledger", markdown)
             self.assertIn("Analysis: The answer was correct but retrieval was unbounded.", markdown)
-            self.assertIn("**Tool efficiency: 2/5 (required 5/5).**", markdown)
+            self.assertIn("**Tool-call efficiency: 2/5 (required 5/5).**", markdown)
             self.assertIn(
                 "Deterministic gate: configured unrelated IWE candidate retrieved: d8w3r",
                 markdown,
@@ -1656,6 +1909,29 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             "../tests/eval/run.py",
         ):
             self.assertIn(source, definitions)
+
+    def test_markdown_problem_ledger_honors_model_profile(self) -> None:
+        renderer = load_eval_module("report_markdown")
+        raw = {
+            "scenario": "S",
+            "sample": 1,
+            "verdict": {
+                "valid": True,
+                "validation_errors": [],
+                "procedure_errors": [],
+                "metric_failures": {
+                    "tool_efficiency": {"score": 4, "required": 5}
+                },
+            },
+            "evaluation_profile": {
+                "name": "weak",
+                "minimum_score": {"tool_efficiency": 4},
+                "required_success_percent": {"tool_efficiency": 80},
+                "metric_failures": {},
+            },
+        }
+        problem_lines = renderer._problem_lines([(Path("raw.json"), raw)], None)
+        self.assertIn("No sample-level problems detected.", problem_lines)
 
     def test_ab_command_defaults_to_five_samples_and_allows_override(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_args")

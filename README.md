@@ -11,7 +11,7 @@ The maintained `iwe-v18` skill lets an agent search, retrieve, analyze, create, 
 - **Mental parameter derivation:** the skill teaches the model how to derive selectors, search terms, limits, graph depth, token budgets, typed values, and mutation guards from the request and known context.
 - **Bounded context:** explicit document, result, depth, distance, and token limits prevent unlimited reads and reduce irrelevant or duplicate output.
 - **Strong stopping rules:** the agent stops when one result already supports the answer and does not rediscover known keys or reread an authored synthesis.
-- **Compact complete command map:** every IWE 0.18 command has a short purpose-oriented glossary entry; command-specific help is reserved for genuinely rare details.
+- **Precedence-first routing:** hard stops, direct operations, richest-route selection, relevance checks, bounded fallback, and stopping rules are evaluated in a fixed order.
 - **Safe mutations:** structured preview, expected-count guards, strict application, focused confirmation, and selective verification replace ad-hoc Markdown edits.
 - **Versioned contract:** behavior is checked against the exact supported IWE CLI line rather than silently mixing syntax from incompatible releases.
 - **Measured behavior:** repeated paired evaluations use pinned fixtures, independent correctness oracles, isolated agents and judges, and separate correctness, safety, tool-efficiency, and resource-efficiency gates.
@@ -32,7 +32,7 @@ npx skills add bulbigood/iwe-skills --skill iwe-v18
 
 ## Skills
 
-- **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.5.0`.
+- **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.6.0`.
 - **`iwe-memory-system` [deprecated]** — legacy workflow retained only for compatibility and A/B comparison. Skill version: `0.0.67`.
 
 ## Latest production comparison snapshot

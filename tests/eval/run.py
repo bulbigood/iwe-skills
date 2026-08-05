@@ -76,11 +76,18 @@ StrictSafeLoader.add_constructor(
 
 
 @dataclass(frozen=True)
+class ModelProfile:
+    name: str
+    minimum_score: dict[str, int]
+    required_success_percent: dict[str, int]
+
+
+@dataclass(frozen=True)
 class EvalConfig:
     score_scale: dict[int, str]
     efficiency_score_scale: dict[str, dict[int, str]]
-    required_success_percent: dict[str, int]
-    minimum_score: dict[str, int]
+    model_profiles: dict[str, ModelProfile]
+    default_model_profile: str
     default_excellent: dict[str, str]
     default_output_bytes: int
 
@@ -155,8 +162,8 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
     evaluation = document.get("eval", {})
     raw_scale = evaluation.get("score_scale", {})
     raw_efficiency_scale = evaluation.get("efficiency_score_scale", {})
-    raw_percent = evaluation.get("required_success_percent", {})
-    raw_minimum = evaluation.get("minimum_score", {})
+    raw_profiles = evaluation.get("model_profiles", {})
+    default_profile = evaluation.get("default_model_profile")
     raw_excellent = evaluation.get("default_excellent", {})
     raw_execution = evaluation.get("execution", {})
     try:
@@ -184,18 +191,31 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
                 f"eval.efficiency_score_scale.{metric} must declare non-empty descriptions for 0..5"
             )
         efficiency_scale[metric] = metric_scale
-    if set(raw_percent) != set(DIMENSIONS):
-        raise ValueError("eval.required_success_percent must declare every metric")
-    if any(
-        not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 100
-        for value in raw_percent.values()
-    ):
-        raise ValueError("eval required success percentages must be integers in 1..100")
-    if set(raw_minimum) != set(DIMENSIONS) or any(
-        not isinstance(score, int) or isinstance(score, bool) or not 0 <= score <= 5
-        for score in raw_minimum.values()
-    ):
-        raise ValueError("eval.minimum_score must declare integer scores 0..5 for every metric")
+    if not isinstance(raw_profiles, dict) or set(raw_profiles) != {"medium", "weak"}:
+        raise ValueError("eval.model_profiles must declare exactly medium and weak")
+    profiles: dict[str, ModelProfile] = {}
+    for name, raw_profile in raw_profiles.items():
+        if not isinstance(raw_profile, dict):
+            raise ValueError(f"eval.model_profiles.{name} must be a table")
+        raw_minimum = raw_profile.get("minimum_score", {})
+        raw_percent = raw_profile.get("required_success_percent", {})
+        if set(raw_minimum) != set(DIMENSIONS) or any(
+            not isinstance(score, int) or isinstance(score, bool) or not 0 <= score <= 5
+            for score in raw_minimum.values()
+        ):
+            raise ValueError(
+                f"eval.model_profiles.{name}.minimum_score must declare integer scores 0..5 for every metric"
+            )
+        if set(raw_percent) != set(DIMENSIONS) or any(
+            not isinstance(value, int) or isinstance(value, bool) or not 1 <= value <= 100
+            for value in raw_percent.values()
+        ):
+            raise ValueError(
+                f"eval.model_profiles.{name}.required_success_percent must declare integers 1..100 for every metric"
+            )
+        profiles[name] = ModelProfile(name, dict(raw_minimum), dict(raw_percent))
+    if default_profile != "medium":
+        raise ValueError("eval.default_model_profile must be medium")
     if set(raw_excellent) != {"skill_compliance", "safety"} or any(
         not isinstance(text, str) or not text.strip() for text in raw_excellent.values()
     ):
@@ -204,8 +224,21 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
     if not isinstance(output_bytes, int) or isinstance(output_bytes, bool) or output_bytes < 1:
         raise ValueError("eval.execution.output_bytes must be a positive integer")
     return EvalConfig(
-        scale, efficiency_scale, dict(raw_percent), dict(raw_minimum), dict(raw_excellent), output_bytes
+        scale,
+        efficiency_scale,
+        profiles,
+        default_profile,
+        dict(raw_excellent),
+        output_bytes,
     )
+
+
+def resolve_model_profile(eval_config: EvalConfig, name: str | None = None) -> ModelProfile:
+    selected = name or eval_config.default_model_profile
+    try:
+        return eval_config.model_profiles[selected]
+    except KeyError as exc:
+        raise ValueError(f"unknown model profile: {selected}") from exc
 
 
 @dataclass(frozen=True)
@@ -227,6 +260,7 @@ class Scenario:
     procedure: dict[str, list[str]] | None = None
     skill_activation: str = "required"
     max_iwe_calls: int | None = None
+    hard_max_task_tool_calls: int | None = None
     allow_broad_fallback: bool = False
     forbidden_retrieve_keys: tuple[str, ...] = ()
     require_oracle_tool_evidence: bool = False
@@ -237,9 +271,12 @@ class Scenario:
 
 
 def load_scenarios(
-    path: Path = SCENARIOS_FILE, eval_config: EvalConfig | None = None
+    path: Path = SCENARIOS_FILE,
+    eval_config: EvalConfig | None = None,
+    model_profile: ModelProfile | None = None,
 ) -> list[Scenario]:
     eval_config = eval_config or load_eval_config()
+    model_profile = model_profile or resolve_model_profile(eval_config)
     schema = json.loads(SCENARIO_SCHEMA.read_text(encoding="utf-8"))
     Draft202012Validator.check_schema(schema)
     try:
@@ -273,7 +310,7 @@ def load_scenarios(
         mode = runtime.get("mode", "real")
         scoring = {
             name: {
-                "minimum_score": eval_config.minimum_score[name],
+                "minimum_score": model_profile.minimum_score[name],
                 "excellent": (
                     excellent.get(name)
                     or eval_config.default_excellent.get(name)
@@ -310,6 +347,7 @@ def load_scenarios(
             },
             skill_activation=item.get("skill_activation", "required"),
             max_iwe_calls=runtime.get("max_iwe_calls"),
+            hard_max_task_tool_calls=runtime.get("hard_max_task_tool_calls"),
             allow_broad_fallback=runtime.get("allow_filesystem_fallback", False),
             forbidden_retrieve_keys=tuple(runtime.get("forbidden_retrieve_keys", [])),
             require_oracle_tool_evidence=runtime.get("require_oracle_tool_evidence", False),
@@ -754,9 +792,22 @@ def deterministic_metric_failures(
     scenario: Scenario,
     commands: list[dict],
     oracle: dict,
+    metrics: dict | None = None,
 ) -> dict[str, str]:
     """Return explicit scenario-owned metric gates without rewriting judge scores."""
     failures: dict[str, str] = {}
+    if (
+        scenario.hard_max_task_tool_calls is not None
+        and (metrics or {}).get("task_tool_calls", 0)
+        > scenario.hard_max_task_tool_calls
+    ):
+        reason = (
+            "hard task-tool limit exceeded: "
+            f"{(metrics or {}).get('task_tool_calls', 0)} > "
+            f"{scenario.hard_max_task_tool_calls}"
+        )
+        failures["skill_compliance"] = reason
+        failures["tool_efficiency"] = reason
     forbidden_keys = set(scenario.forbidden_retrieve_keys)
     retrieved_forbidden: set[str] = set()
     observed_forbidden_candidate = False
@@ -1300,9 +1351,44 @@ def install_command_shims(bin_dir: Path, scenario: Scenario, real_iwe: Path) -> 
     iwe_shim.chmod(0o755)
 
 
+def process_argv(command: str, cwd: Path) -> list[str]:
+    """Build the executed argv and pin Codex to the prepared workspace explicitly."""
+    argv = shlex.split(command)
+    if (
+        argv
+        and Path(argv[0]).name == "codex"
+        and len(argv) > 1
+        and argv[1] == "exec"
+        and "-C" not in argv
+        and "--cd" not in argv
+    ):
+        argv[2:2] = ["-C", str(cwd.resolve())]
+    return argv
+
+
+def assert_workspace_ready(workspace: Path, guidance_path: Path | None = None) -> None:
+    """Fail before model calls when the prepared workspace cannot be used reliably."""
+    try:
+        resolved_workspace = workspace.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"prepared workspace is missing: {workspace}") from exc
+    if not resolved_workspace.is_dir() or not os.access(resolved_workspace, os.R_OK | os.X_OK):
+        raise RuntimeError(f"prepared workspace is not readable: {resolved_workspace}")
+    if guidance_path is None:
+        return
+    try:
+        resolved_guidance = guidance_path.resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"installed guidance is not readable: {guidance_path}") from exc
+    if not resolved_guidance.is_relative_to(resolved_workspace):
+        raise RuntimeError("installed guidance escaped the prepared workspace")
+    if not resolved_guidance.is_file() or not os.access(resolved_guidance, os.R_OK):
+        raise RuntimeError(f"installed guidance is not readable: {resolved_guidance}")
+
+
 def run_process(command: str, prompt: str, cwd: Path, timeout: int, env: dict[str, str]) -> dict:
     started = time.monotonic()
-    argv = shlex.split(command)
+    argv = process_argv(command, cwd)
     try:
         completed = subprocess.run(
             argv,
@@ -1711,6 +1797,31 @@ def verdict(
     }
 
 
+def profile_verdict(raw_verdict: dict, profile: ModelProfile) -> dict:
+    """Classify immutable judge scores under the selected model profile."""
+    scores = raw_verdict.get("metric_scores", {})
+    raw_failures = raw_verdict.get("metric_failures", {})
+    failures: dict[str, dict] = {}
+    for name in DIMENSIONS:
+        deterministic = (
+            raw_failures.get(name, {}).get("deterministic")
+            if isinstance(raw_failures.get(name), dict)
+            else None
+        )
+        score = scores.get(name, 0)
+        if score < profile.minimum_score[name] or deterministic:
+            failure = {"score": score, "required": profile.minimum_score[name]}
+            if deterministic:
+                failure["deterministic"] = deterministic
+            failures[name] = failure
+    return {
+        "name": profile.name,
+        "minimum_score": dict(profile.minimum_score),
+        "required_success_percent": dict(profile.required_success_percent),
+        "metric_failures": failures,
+    }
+
+
 def required_successes(total: int, percent: int) -> int:
     if total < 1:
         raise ValueError("sample total must be positive")
@@ -1760,8 +1871,10 @@ def aggregate_results(
     eval_config: EvalConfig | None = None,
     expected_samples: int | None = None,
     excluded_dimensions_by_target: dict[str, set[str]] | None = None,
+    model_profile: ModelProfile | None = None,
 ) -> list[dict]:
     eval_config = eval_config or load_eval_config()
+    model_profile = model_profile or resolve_model_profile(eval_config)
     excluded_dimensions_by_target = excluded_dimensions_by_target or {}
     grouped: dict[tuple[str | None, str], list[dict]] = {}
     for result in results:
@@ -1784,6 +1897,7 @@ def aggregate_results(
             if dimension in excluded_dimensions_by_target.get(target_id or "", set()):
                 metrics[dimension] = {
                     "applicable": False,
+                    "minimum_score": None,
                     "successful_samples": None,
                     "total_samples": total,
                     "success_percent": None,
@@ -1795,13 +1909,17 @@ def aggregate_results(
                 continue
             successful = sum(
                 sample["verdict"].get("valid", False)
-                and dimension not in sample["verdict"].get("metric_failures", {})
+                and dimension
+                not in profile_verdict(
+                    sample["verdict"], model_profile
+                )["metric_failures"]
                 for sample in samples
             )
-            percent = eval_config.required_success_percent[dimension]
+            percent = model_profile.required_success_percent[dimension]
             required = required_successes(total, percent)
             metrics[dimension] = {
                 "applicable": True,
+                "minimum_score": model_profile.minimum_score[dimension],
                 "successful_samples": successful,
                 "total_samples": total,
                 "success_percent": successful * 100 / total,
@@ -1827,6 +1945,7 @@ def aggregate_results(
         outcome = {
             "scenario": scenario,
             "scenario_id": scenario_id,
+            "model_profile": model_profile.name,
             "samples": total,
             "invalid_samples": invalid_samples,
             "procedure_failure_samples": procedure_failure_samples,
@@ -1844,6 +1963,77 @@ def aggregate_results(
     return outcomes
 
 
+def replay_saved_report(
+    report_dir: Path,
+    output_path: Path,
+    model_profile: ModelProfile,
+    eval_config: EvalConfig | None = None,
+) -> dict:
+    """Reaggregate immutable raw samples under a selected model profile."""
+    eval_config = eval_config or load_eval_config()
+    source = report_dir.resolve()
+    destination = output_path.resolve()
+    if not source.is_dir():
+        raise ValueError(f"saved report directory not found: {report_dir}")
+    if source == destination or source in destination.parents:
+        raise ValueError("replay output must be outside the immutable source report")
+
+    results = []
+    for path in sorted(source.rglob("*.json")):
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"invalid JSON in saved report: {path}") from exc
+        if not isinstance(document, dict):
+            continue
+        if not {"scenario", "scenario_id", "sample", "verdict"} <= set(document):
+            continue
+        results.append(document)
+    if not results:
+        raise ValueError("saved report contains no raw samples")
+
+    identities = [
+        (result.get("target_id"), result["scenario_id"], result["sample"])
+        for result in results
+    ]
+    if len(identities) != len(set(identities)):
+        raise ValueError("saved report contains duplicate raw sample identities")
+    grouped_samples: dict[tuple[str | None, str], set[int]] = {}
+    for result in results:
+        grouped_samples.setdefault(
+            (result.get("target_id"), result["scenario_id"]), set()
+        ).add(result["sample"])
+    sample_sets = list(grouped_samples.values())
+    expected = set(range(1, max(max(values) for values in sample_sets) + 1))
+    if any(values != expected for values in sample_sets):
+        raise ValueError("saved report has incomplete or inconsistent sample cardinality")
+
+    excluded_dimensions_by_target = {
+        result["target_id"]: {"skill_compliance"}
+        for result in results
+        if result.get("target_id")
+        and result.get("target_provenance", {}).get("skill_mode") == "none"
+    }
+    outcomes = aggregate_results(
+        results,
+        eval_config,
+        expected_samples=len(expected),
+        excluded_dimensions_by_target=excluded_dimensions_by_target,
+        model_profile=model_profile,
+    )
+    replay = {
+        "schema_version": 1,
+        "source_report": str(source),
+        "model_profile": model_profile.name,
+        "minimum_score": model_profile.minimum_score,
+        "required_success_percent": model_profile.required_success_percent,
+        "raw_samples": len(results),
+        "scenarios": outcomes,
+    }
+    atomic_write_json(output_path, replay)
+    return replay
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="codex")
@@ -1854,6 +2044,12 @@ def main() -> int:
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--jobs", type=int)
     parser.add_argument("--samples", type=int)
+    parser.add_argument(
+        "--model-profile",
+        choices=("medium", "weak"),
+        default=None,
+        help="tested-model profile from config.toml (default: eval.default_model_profile)",
+    )
     parser.add_argument("--markdown-report", type=Path)
     parser.add_argument("--agent", choices=("codex",), default="codex")
     parser.add_argument("--keep-workspaces", action="store_true")
@@ -1866,7 +2062,8 @@ def main() -> int:
     config_path = EVAL / "configs" / f"{config_name}.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
     eval_config = load_eval_config()
-    scenarios = load_scenarios()
+    model_profile = resolve_model_profile(eval_config, args.model_profile)
+    scenarios = load_scenarios(eval_config=eval_config, model_profile=model_profile)
     if experiment:
         scenarios = select_scenarios(scenarios, list(experiment.scenario_ids))
     if args.scenario:
@@ -1944,6 +2141,7 @@ def main() -> int:
             if local_skill is not None
             else None
         )
+        assert_workspace_ready(workspace, activation_path)
         before = snapshot(workspace)
         isolated_home = temporary / "home"
         codex_home = temporary / "codex-home"
@@ -1988,6 +2186,7 @@ def main() -> int:
             scenario,
             agent["commands"],
             oracle,
+            metrics=agent["metrics"],
         )
         judge_prompt_text = judge_prompt(
             local_skill,
@@ -2028,6 +2227,15 @@ def main() -> int:
         judge_errors = list(integrity_errors)
         if judge["commands"]:
             judge_errors.append("judge executed commands instead of inspecting supplied evidence only")
+        raw_sample_verdict = verdict(
+            scenario,
+            critique,
+            judge_errors,
+            agent["exit"] == 0 and judge["exit"] == 0,
+            procedure_errors=procedural_errors,
+            deterministic_metric_failures=deterministic_failures,
+        )
+        sample_profile = profile_verdict(raw_sample_verdict, model_profile)
         result = {
             "scenario": scenario.name,
             "scenario_id": scenario.id,
@@ -2045,6 +2253,7 @@ def main() -> int:
                 "scale": eval_config.score_scale,
                 "dimensions": scenario.scoring,
             },
+            "evaluation_profile": sample_profile,
             "efficiency_expectations": {
                 "task_tool_calls": [scenario.min_tool_calls, scenario.max_tool_calls],
                 "task_tool_output_bytes": [
@@ -2052,18 +2261,12 @@ def main() -> int:
                     scenario.max_task_tool_output_bytes,
                 ],
                 "max_iwe_calls": scenario.max_iwe_calls,
+                "hard_max_task_tool_calls": scenario.hard_max_task_tool_calls,
             },
             "agent": agent,
             "efficiency_diagnostics": range_diagnostics,
             "judge": judge,
-            "verdict": verdict(
-                scenario,
-                critique,
-                judge_errors,
-                agent["exit"] == 0 and judge["exit"] == 0,
-                procedure_errors=procedural_errors,
-                deterministic_metric_failures=deterministic_failures,
-            ),
+            "verdict": raw_sample_verdict,
             "workspace": str(workspace) if args.keep_workspaces else None,
         }
         if experiment:
@@ -2090,7 +2293,7 @@ def main() -> int:
         else:
             raw_path = report_dir / f"{scenario.slug}--{sample}.json"
         atomic_write_json(raw_path, result)
-        failures = sorted(result["verdict"]["metric_failures"])
+        failures = sorted(result["evaluation_profile"]["metric_failures"])
         status = "VALID" if result["verdict"]["valid"] else "INVALID"
         suffix = f" metric_failures={failures}" if failures else ""
         print(f"{status} sample {sample} {scenario.name}{suffix}", flush=True)
@@ -2111,12 +2314,15 @@ def main() -> int:
         eval_config,
         expected_samples=samples,
         excluded_dimensions_by_target=excluded_dimensions_by_target,
+        model_profile=model_profile,
     )
     summary = {
         "configuration": config["name"],
         "skill": skill.name if skill else None,
         "experiment": experiment.name if experiment else None,
-        "required_success_percent": eval_config.required_success_percent,
+        "model_profile": model_profile.name,
+        "minimum_score": model_profile.minimum_score,
+        "required_success_percent": model_profile.required_success_percent,
         "scenarios": outcomes,
         "results": [
             ({"target_id": r["target_id"], "pair_id": r["pair_id"]} if experiment else {})
@@ -2145,6 +2351,9 @@ def main() -> int:
             "schema_version": 1, "name": experiment.name,
             "scenarios": [scenario.id for scenario in scenarios],
             "samples": samples, "jobs": jobs,
+            "model_profile": model_profile.name,
+            "minimum_score": model_profile.minimum_score,
+            "required_success_percent": model_profile.required_success_percent,
             "agent_judge_config": experiment.agent_judge_config,
             "agent": shared_agent["agent"],
             "judge": {
@@ -2154,6 +2363,9 @@ def main() -> int:
             "estimated_agent_calls": len(tasks), "estimated_judge_calls": len(tasks),
             "targets": [
                 {"id": target.id,
+                 "model_profile": model_profile.name,
+                 "minimum_score": model_profile.minimum_score,
+                 "required_success_percent": model_profile.required_success_percent,
                  "skill_mode": "installed" if target.has_skill else "none",
                  "skill_path": str(target.path.relative_to(ROOT)) if target.path else None,
                  "skill_version": target.skill_version,
@@ -2167,6 +2379,9 @@ def main() -> int:
         for target in experiment.targets:
             atomic_write_json(report_dir / "targets" / target.id / "summary.json", {
                 "target_id": target.id,
+                "model_profile": model_profile.name,
+                "minimum_score": model_profile.minimum_score,
+                "required_success_percent": model_profile.required_success_percent,
                 "scenarios": [outcome for outcome in outcomes if outcome.get("target_id") == target.id],
             })
         grouped_comparisons = {}

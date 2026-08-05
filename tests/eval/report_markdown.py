@@ -13,8 +13,8 @@ METRIC_LABELS = {
     "skill_compliance": "Skill compliance",
     "safety": "Safety",
     "evidence_quality": "Evidence quality",
-    "tool_efficiency": "Tool efficiency",
-    "resource_efficiency": "Resource efficiency",
+    "tool_efficiency": "Tool-call efficiency",
+    "resource_efficiency": "Token/resource efficiency",
 }
 
 
@@ -33,6 +33,38 @@ def _skill_metadata_line(target: dict) -> str:
     if target.get("skill_mode") == "none":
         return "- Skill guidance: `none` (control)"
     return f"- Skill version: `{target['skill_version']}`"
+
+
+def _profile_tables(target: dict) -> list[str]:
+    profile = target["model_profile"]
+    minimums = target["minimum_score"]
+    required = target["required_success_percent"]
+    lines = [
+        f"## Evaluation profile — `{target['id']}`",
+        "",
+        f"- Model profile: **`{profile}`**",
+        "",
+        "| Metric | Minimum PASS score |",
+        "| --- | ---: |",
+    ]
+    for name, label in METRIC_LABELS.items():
+        lines.append(f"| {label} (`{name}`) | {minimums[name]}/5 |")
+    lines.extend([
+        "",
+        "| Metric | Required success percent |",
+        "| --- | ---: |",
+    ])
+    for name, label in METRIC_LABELS.items():
+        lines.append(f"| {label} (`{name}`) | {required[name]}% |")
+    lines.append("")
+    return lines
+
+
+def _profile_metric_failures(report: dict) -> dict:
+    profile = report.get("evaluation_profile")
+    if isinstance(profile, dict) and isinstance(profile.get("metric_failures"), dict):
+        return profile["metric_failures"]
+    return report.get("verdict", {}).get("metric_failures", {})
 
 
 def _relative_link(target: Path, report_path: Path | None) -> str:
@@ -87,7 +119,7 @@ def _problem_lines(
         procedure_errors = verdict.get("procedure_errors", [])
         metric_failures = {
             name: detail
-            for name, detail in verdict.get("metric_failures", {}).items()
+            for name, detail in _profile_metric_failures(report).items()
             if name not in excluded_metrics
         }
         if verdict.get("valid") and not validation_errors and not procedure_errors and not metric_failures:
@@ -190,6 +222,8 @@ def render_markdown(
         "[Metric and score definitions](../../../docs/evaluation-metrics.md)",
         "",
     ]
+    for target in targets.values():
+        lines.extend(_profile_tables(target))
     outcomes = _outcomes_with_scenario_ids(summary["scenarios"], report_dir)
     for outcome in outcomes:
         target = targets[outcome["target_id"]]

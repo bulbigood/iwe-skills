@@ -10,6 +10,13 @@ def _histogram(rows, metric):
     return {str(score): counts[score] for score in range(6)}
 
 
+def _profile_failures(row: dict) -> dict:
+    profile = row.get("evaluation_profile")
+    if isinstance(profile, dict) and isinstance(profile.get("metric_failures"), dict):
+        return profile["metric_failures"]
+    return row["verdict"].get("metric_failures", {})
+
+
 def compare_results(
     results: list[dict],
     target_ids: tuple[str, ...],
@@ -18,6 +25,12 @@ def compare_results(
     excluded_dimensions_by_target: dict[str, set[str]] | None = None,
 ) -> list[dict]:
     excluded_dimensions_by_target = excluded_dimensions_by_target or {}
+    model_profiles = {
+        row.get("evaluation_profile", {}).get("name", "medium")
+        for row in results
+    }
+    if results and len(model_profiles) != 1:
+        raise ValueError(f"mismatched model profiles: {sorted(model_profiles)}")
     by_target = {target: {} for target in target_ids}
     for row in results:
         target = row["target_id"]
@@ -60,8 +73,16 @@ def compare_results(
                 ):
                     metrics[metric] = {"applicable": False}
                     continue
-                left_success = [row["verdict"].get("valid", False) and metric not in row["verdict"].get("metric_failures", {}) for row in left_rows]
-                right_success = [row["verdict"].get("valid", False) and metric not in row["verdict"].get("metric_failures", {}) for row in right_rows]
+                left_success = [
+                    row["verdict"].get("valid", False)
+                    and metric not in _profile_failures(row)
+                    for row in left_rows
+                ]
+                right_success = [
+                    row["verdict"].get("valid", False)
+                    and metric not in _profile_failures(row)
+                    for row in right_rows
+                ]
                 metrics[metric] = {
                     "applicable": True,
                     "left_wins": sum(a and not b for a, b in zip(left_success, right_success)),

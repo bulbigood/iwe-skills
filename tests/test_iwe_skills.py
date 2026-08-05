@@ -167,15 +167,15 @@ class IweSkillTests(unittest.TestCase):
 
     def test_manifest_rejects_model_facing_version_or_compatibility_drift(self) -> None:
         for old, new, message in (
-            ('version: "0.5.0"', 'version: "0.5.1"', "skill_version"),
+            ('version: "0.6.0"', 'version: "0.6.1"', "skill_version"),
             (
-                'metadata:\n  version: "0.5.0"',
-                'version: "0.5.0"',
+                'metadata:\n  version: "0.6.0"',
+                'version: "0.6.0"',
                 "metadata",
             ),
             (
-                'metadata:\n  version: "0.5.0"',
-                'metadata:\n  nested:\n    version: "0.5.0"',
+                'metadata:\n  version: "0.6.0"',
+                'metadata:\n  nested:\n    version: "0.6.0"',
                 "metadata.version",
             ),
             (
@@ -318,40 +318,34 @@ class IweSkillTests(unittest.TestCase):
         self.assertLessEqual(metrics["estimated_tokens"], 5_000)
         self.assertEqual(metrics["contract_operations"], 22)
 
-    def test_skill_contains_every_cataloged_case_and_command_glossary_entry(self) -> None:
+    def test_skill_is_precedence_first_and_encodes_terminal_route_invariants(self) -> None:
         spec = load_skill(root=ROOT)
         skill = (spec.path / "SKILL.md").read_text(encoding="utf-8")
-        contract = json.loads(spec.contract_file.read_text(encoding="utf-8"))
-        expected_cases = {
-            *(f"**A{i} " for i in range(1, 11)),
-            *(f"**B{i} " for i in range(1, 11)),
-            *(f"**C{i} " for i in range(1, 9)),
-            *(f"**D{i} " for i in range(1, 7)),
-            *(f"**E{i} " for i in range(1, 6)),
-            *(f"**F{i} " for i in range(1, 9)),
-            *(f"**G{i} " for i in range(1, 8)),
-            *(f"**H{i} " for i in range(1, 4)),
-            *(f"**I{i} " for i in range(1, 6)),
-        }
-        self.assertEqual(len(expected_cases), 62)
-        for case in expected_cases:
-            self.assertIn(case, skill)
-        glossary = skill.split("## Command glossary", 1)[1].split("## Complex IWE queries", 1)[0]
-        for operation in contract["commands"]:
-            command = operation.replace(".", " ")
-            self.assertIn(f"`{command}`", glossary)
-        for rare_case in (
-            "missing executable",
-            "still-unknown command/option",
-            "invalid YAML",
-            "empty result after refinement",
-            "unsupported operation",
-            "source outside index",
-            "unexplained truncation",
-            "permission/I/O failure",
-            "schema/expectation failure",
+
+        self.assertIn("## Decision order", skill)
+        self.assertIn("## Core routes", skill)
+        self.assertLess(skill.index("## Decision order"), skill.index("## Core routes"))
+        for invariant in (
+            "Hard stops run before every IWE-first rule",
+            "undefined destructive criterion, scope, or recovery",
+            "Mixed-output requests use the richest single route",
+            "Relevance gate before every candidate retrieval",
+            "An unrelated candidate is a terminal miss, not ambiguity",
+            "Search one literal request-derived field token",
+            "A second retrieve is allowed only when a material named facet is absent",
+            "Do not require related terms to occur on the same line",
         ):
-            self.assertIn(rare_case, skill)
+            self.assertIn(invariant, skill)
+        self.assertLess(
+            skill.index("Relevance gate before every candidate retrieval"),
+            skill.index("Ambiguous relevant candidate"),
+        )
+        self.assertNotIn("## Command glossary", skill)
+        self.assertNotRegex(skill, r"\*\*[A-I][0-9]+ ")
+
+        words = skill.split()
+        self.assertGreaterEqual(len(words), 700)
+        self.assertLessEqual(len(words), 1_900)
 
     def test_eval_configuration_and_scenarios_load(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
@@ -1051,16 +1045,14 @@ class IweSkillTests(unittest.TestCase):
     def test_iwe_v18_specific_routes_override_generic_discovery_and_fallback(self) -> None:
         skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
         required = (
-            "Call 2 is final and only for a relevant winner or refinement",
-            "Apply relevance before call 2",
-            "Zero match is a miss: go directly to allowed fallback",
-            "Relevance after find",
-            "Generic document-type words do not count",
-            "Shape after relevance",
-            "Known file path: one bounded read of that file or named section",
-            "no path, filename, or heading discovery",
+            "A second IWE read is the final read call",
+            "Relevance gate before every candidate retrieval",
+            "No distinctive overlap means terminal miss",
+            "Generic document-type words do not establish relevance",
+            "For a workspace/project question with a known path, read only that path or named section",
+            "Do not discover filenames or headings",
             "If the requested source scope is IWE, graph, notes, or docs",
-            "`--references` and `--includes` take known key anchors, never booleans",
+            "Relationship flags take known key anchors, not booleans",
         )
         for snippet in required:
             with self.subTest(snippet=snippet):

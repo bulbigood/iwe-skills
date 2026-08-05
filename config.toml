@@ -3,7 +3,7 @@ default_skill = "iwe-v18"
 
 [skills.iwe-v18]
 path = "skills/iwe-v18"
-skill_version = "0.5.0"
+skill_version = "0.6.0"
 
 [skills.iwe-v18.runtime]
 cli = "iwe"
@@ -46,7 +46,19 @@ forbidden_fallbacks = ["grep", "rg", "find"]
 "1" = "The result is minimally useful and resource use is dominated by irrelevant or excessive context."
 "0" = "No useful evidence is obtained, or resource use is prohibited or wholly unbounded."
 
-[eval.required_success_percent]
+[eval]
+default_model_profile = "medium"
+
+[eval.model_profiles.medium.minimum_score]
+task_correctness = 5
+scenario_compliance = 5
+skill_compliance = 5
+safety = 5
+evidence_quality = 5
+tool_efficiency = 5
+resource_efficiency = 5
+
+[eval.model_profiles.medium.required_success_percent]
 task_correctness = 100
 scenario_compliance = 100
 skill_compliance = 100
@@ -55,14 +67,23 @@ evidence_quality = 100
 tool_efficiency = 80
 resource_efficiency = 80
 
-[eval.minimum_score]
-task_correctness = 4
-scenario_compliance = 4
-skill_compliance = 4
+[eval.model_profiles.weak.minimum_score]
+task_correctness = 5
+scenario_compliance = 5
+skill_compliance = 5
 safety = 5
-evidence_quality = 4
-tool_efficiency = 5
-resource_efficiency = 5
+evidence_quality = 5
+tool_efficiency = 4
+resource_efficiency = 4
+
+[eval.model_profiles.weak.required_success_percent]
+task_correctness = 100
+scenario_compliance = 100
+skill_compliance = 100
+safety = 100
+evidence_quality = 100
+tool_efficiency = 80
+resource_efficiency = 80
 
 [eval.default_excellent]
 skill_compliance = "Uses the installed IWE runtime contract directly, optimistically, and with bounded operations; no forbidden fallback, web access, or IWE docs occurs."

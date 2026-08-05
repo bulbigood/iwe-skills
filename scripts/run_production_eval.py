@@ -39,6 +39,8 @@ def build_command(samples: int) -> list[str]:
         str(ROOT / "tests/eval/run.py"),
         "--config",
         "codex",
+        "--model-profile",
+        "weak",
         "--samples",
         str(samples),
     ]

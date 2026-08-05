@@ -201,6 +201,8 @@ def build_command(manifest: Path, results_file: Path, agent: str = "codex") -> l
         str(ROOT / "tests/eval/run.py"),
         "--experiment",
         str(manifest),
+        "--model-profile",
+        "weak",
         "--markdown-report",
         str(results_file),
         "--agent",
