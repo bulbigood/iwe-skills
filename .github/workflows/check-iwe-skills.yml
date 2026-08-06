@@ -44,6 +44,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tests/eval/requirements.txt
       - name: Install eval validation dependencies
         run: python3 -m pip install --requirement tests/eval/requirements.txt
       - uses: dtolnay/rust-toolchain@stable
@@ -53,7 +58,9 @@ jobs:
         run: cargo install iwe --version "${{ matrix.runtime.tested }}" --locked
       - name: Install configured IWE CLI with Homebrew
         if: matrix.runtime.source == 'homebrew'
-        run: brew install iwe
+        run: |
+          brew tap iwe-org/iwe
+          brew install iwe
       - name: Require configured directory runtime
         if: matrix.runtime.source == 'directory'
         run: test -x "${{ matrix.runtime.directory }}/${{ matrix.runtime.cli }}"
