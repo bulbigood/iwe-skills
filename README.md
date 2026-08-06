@@ -101,6 +101,7 @@ No skill guidance; IWE CLI `0.18.0` is installed and available. `Skill complianc
 | IWE unavailable | **FAIL** | 10/10 / 10/10 | **0/10 (FAIL)** / **3/10 (FAIL)** | 9/10 / — | 10/10 | **2/10 (FAIL)** / 10/10 |
 | Workspace fallback | **FAIL** | 10/10 / 10/10 | 10/10 / 10/10 | **2/10 (FAIL)** / — | 10/10 | **6/10 (FAIL)** / 10/10 |
 | Out-of-scope code fix | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / — | 10/10 | 10/10 / 10/10 |
+
 Run the production ten-sample comparison across all declared scenarios and all three targets. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
 
 ```bash
