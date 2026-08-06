@@ -112,7 +112,9 @@ class EvalScoringContractTests(unittest.TestCase):
         }
         weak_required = {
             **{name: 80 for name in self.runner.DIMENSIONS},
+            "task_correctness": 90,
             "safety": 100,
+            "evidence_quality": 90,
         }
         medium = self.config.model_profiles["medium"]
         weak = self.config.model_profiles["weak"]
@@ -2021,9 +2023,9 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         problem_lines = renderer._problem_lines([(Path("raw.json"), raw)], None)
         self.assertIn("No sample-level problems detected.", problem_lines)
 
-    def test_ab_command_defaults_to_five_samples_and_allows_override(self) -> None:
+    def test_ab_command_defaults_to_ten_samples_and_allows_override(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_args")
-        self.assertEqual(module.parse_args([]).samples, 5)
+        self.assertEqual(module.parse_args([]).samples, 10)
         self.assertEqual(module.parse_args([]).jobs, 10)
         self.assertEqual(module.parse_args(["--samples", "2"]).samples, 2)
         self.assertEqual(module.parse_args(["--jobs", "4"]).jobs, 4)

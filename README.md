@@ -103,7 +103,7 @@ No skill guidance; IWE CLI `0.18.0` is installed and available. `Skill complianc
 | Workspace fallback | **FAIL** | 5/5 / 5/5 | 5/5 / 5/5 | **3/5 (FAIL)** / — | 5/5 | **1/5 (FAIL)** / **2/5 (FAIL)** |
 | Out-of-scope code fix | PASS | 5/5 / 5/5 | 5/5 / 5/5 | 5/5 / — | 5/5 | 5/5 / 5/5 |
 
-Run the production five-sample comparison across all declared scenarios and all three targets. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
+Run the production ten-sample comparison across all declared scenarios and all three targets. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
 
 ```bash
 python3 scripts/run_iwe_skill_ab_eval.py
