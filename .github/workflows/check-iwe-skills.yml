@@ -41,7 +41,7 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(needs.manifest.outputs.manifest).skills }}
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install eval validation dependencies
