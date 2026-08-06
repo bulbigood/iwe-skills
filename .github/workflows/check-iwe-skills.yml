@@ -31,7 +31,7 @@ jobs:
     outputs:
       manifest: ${{ steps.skills.outputs.manifest }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: skills
         run: echo "manifest=$(python3 scripts/skill_manifest.py --json)" >> "$GITHUB_OUTPUT"
 
@@ -43,7 +43,7 @@ jobs:
         include: ${{ fromJSON(needs.manifest.outputs.manifest).skills }}
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -56,9 +56,21 @@ jobs:
       - name: Install configured IWE CLI with Cargo
         if: matrix.runtime.source == 'cargo'
         run: cargo install iwe --version "${{ matrix.runtime.tested }}" --locked
-      - name: Install configured IWE CLI with Homebrew
+      - name: Install configured IWE CLI from GitHub release
         if: matrix.runtime.source == 'homebrew'
-        run: brew install iwe-org/iwe/iwe
+        env:
+          IWE_SHA256: a77e1008a47e49d4d1b996c5b58bfe3448c0044e07ccecd9e8d998cbcd06567c
+        run: |
+          archive="$RUNNER_TEMP/iwe.tar.gz"
+          runtime="$RUNNER_TEMP/iwe-runtime"
+          version="${{ matrix.runtime.tested }}"
+          curl --proto '=https' --tlsv1.2 --fail --location --silent --show-error \
+            "https://github.com/iwe-org/iwe/releases/download/iwe-v${version}/iwe-v${version}-universal-apple-darwin.tar.gz" \
+            --output "$archive"
+          echo "$IWE_SHA256  $archive" | shasum --algorithm 256 --check
+          mkdir -p "$runtime"
+          tar -xzf "$archive" -C "$runtime" iwe
+          install -m 0755 "$runtime/iwe" "$(brew --prefix)/bin/iwe"
       - name: Require configured directory runtime
         if: matrix.runtime.source == 'directory'
         run: test -x "${{ matrix.runtime.directory }}/${{ matrix.runtime.cli }}"
