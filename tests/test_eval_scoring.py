@@ -1193,27 +1193,28 @@ class EvalScoringContractTests(unittest.TestCase):
             for item in self.runner.load_scenarios()
             if item.id == "discover-and-retrieve-bounded-multi-hop-context"
         )
-        fixture = self.runner.snapshot(ROOT / "tests/eval/.cache/seventeen-centuries")
+        expected_keys = {
+            "virtue-across-centuries",
+            "meditations-009-043",
+            "meditations-010-001",
+            "meditations-010-016",
+            "meditations-010-033",
+            "meditations-011-017",
+            "meditations-011-043",
+            "prince-15",
+            "prince-16",
+            "prince-26",
+            "bge-041",
+            "bge-227",
+            "bge-228",
+        }
+        fixture = {
+            f"graph/{key}.md": f"# {key}\n\nMarcus Machiavelli Nietzsche virtue.\n"
+            for key in expected_keys
+        }
         oracle = self.runner.independent_oracle_evidence(scenario, fixture, fixture, "")
         keys = {item["key"] for item in oracle["matching_documents"]}
-        self.assertEqual(
-            keys,
-            {
-                "virtue-across-centuries",
-                "meditations-009-043",
-                "meditations-010-001",
-                "meditations-010-016",
-                "meditations-010-033",
-                "meditations-011-017",
-                "meditations-011-043",
-                "prince-15",
-                "prince-16",
-                "prince-26",
-                "bge-041",
-                "bge-227",
-                "bge-228",
-            },
-        )
+        self.assertEqual(keys, expected_keys)
 
     def test_metadata_oracle_parses_markdown_and_wiki_relationships(self) -> None:
         scenario = next(
@@ -1516,7 +1517,7 @@ version = "0.18.0"
 
     def test_experiment_list_mode_shows_pairs_without_resolving_binaries(self) -> None:
         completed = subprocess.run([
-            str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"),
+            sys.executable, str(ROOT / "tests/eval/run.py"),
             "--experiment", "tests/eval/experiments/example.toml", "--list",
         ], cwd=ROOT, text=True, capture_output=True, check=False)
         self.assertEqual(completed.returncode, 0, completed.stderr)
@@ -1581,7 +1582,7 @@ version = "0.18.0"
 
     def test_single_skill_list_accepts_weak_model_profile_without_running_agents(self) -> None:
         completed = subprocess.run([
-            str(ROOT / ".venv/bin/python"),
+            sys.executable,
             str(ROOT / "tests/eval/run.py"),
             "--list",
             "--model-profile",
@@ -1592,7 +1593,7 @@ version = "0.18.0"
 
     def test_single_skill_list_output_exposes_id_and_display_name(self) -> None:
         completed = subprocess.run([
-            str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"), "--list",
+            sys.executable, str(ROOT / "tests/eval/run.py"), "--list",
         ], cwd=ROOT, text=True, capture_output=True, check=False)
         self.assertEqual(completed.returncode, 0, completed.stderr)
         first = completed.stdout.splitlines()[0]
@@ -1602,7 +1603,7 @@ version = "0.18.0"
         )
 
     def test_cli_scenario_selector_accepts_only_exact_ids(self) -> None:
-        command = [str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"), "--list"]
+        command = [sys.executable, str(ROOT / "tests/eval/run.py"), "--list"]
         selected = subprocess.run(
             command + ["--scenario", "query-structured-metadata-without-scanning-files"],
             cwd=ROOT, text=True, capture_output=True, check=False,
@@ -1704,7 +1705,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertNotIn("skill_path", no_skill)
         self.assertNotIn("skill_version", no_skill)
         completed = subprocess.run(
-            [str(ROOT / ".venv/bin/python"), str(ROOT / "tests/eval/run.py"),
+            [sys.executable, str(ROOT / "tests/eval/run.py"),
              "--experiment", str(manifest_path.relative_to(ROOT)), "--list"],
             cwd=ROOT, text=True, capture_output=True, check=False,
         )
@@ -1806,12 +1807,17 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         command_config = json.loads(
             (ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8")
         )
-        metadata = runner.agent_metadata(command_config["agent_command"])
-        self.assertEqual(metadata["name"], "Codex CLI")
-        self.assertTrue(metadata["version"])
-        self.assertEqual(metadata["model"], "gpt-5.6-luna")
-        self.assertEqual(metadata["reasoning"], "medium")
-        shared_agent = runner.validate_shared_agent(command_config, "codex")
+        with mock.patch.object(runner.shutil, "which", return_value="/usr/bin/codex"), \
+             mock.patch.object(runner.subprocess, "run") as version_run:
+            version_run.return_value.stdout = "codex-cli 0.test\n"
+            metadata = runner.agent_metadata(command_config["agent_command"])
+            shared_agent = runner.validate_shared_agent(command_config, "codex")
+        self.assertEqual(metadata, {
+            "name": "Codex CLI",
+            "version": "0.test",
+            "model": "gpt-5.6-luna",
+            "reasoning": "medium",
+        })
         self.assertEqual(shared_agent["agent"]["model"], "gpt-5.6-luna")
         self.assertEqual(shared_agent["judge"]["model"], "gpt-5.6-sol")
         with self.assertRaisesRegex(ValueError, "same configured agent"):
