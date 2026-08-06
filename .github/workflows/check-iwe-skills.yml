@@ -58,9 +58,7 @@ jobs:
         run: cargo install iwe --version "${{ matrix.runtime.tested }}" --locked
       - name: Install configured IWE CLI with Homebrew
         if: matrix.runtime.source == 'homebrew'
-        run: |
-          brew tap iwe-org/iwe
-          brew install iwe
+        run: brew install iwe-org/iwe/iwe
       - name: Require configured directory runtime
         if: matrix.runtime.source == 'directory'
         run: test -x "${{ matrix.runtime.directory }}/${{ matrix.runtime.cli }}"
