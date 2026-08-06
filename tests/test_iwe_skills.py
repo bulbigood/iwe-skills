@@ -167,15 +167,15 @@ class IweSkillTests(unittest.TestCase):
 
     def test_manifest_rejects_model_facing_version_or_compatibility_drift(self) -> None:
         for old, new, message in (
-            ('version: "0.6.0"', 'version: "0.6.1"', "skill_version"),
+            ('version: "0.9.0"', 'version: "0.9.1"', "skill_version"),
             (
-                'metadata:\n  version: "0.6.0"',
-                'version: "0.6.0"',
+                'metadata:\n  version: "0.9.0"',
+                'version: "0.9.0"',
                 "metadata",
             ),
             (
-                'metadata:\n  version: "0.6.0"',
-                'metadata:\n  nested:\n    version: "0.6.0"',
+                'metadata:\n  version: "0.9.0"',
+                'metadata:\n  nested:\n    version: "0.9.0"',
                 "metadata.version",
             ),
             (
@@ -219,7 +219,7 @@ class IweSkillTests(unittest.TestCase):
             self.assertGreaterEqual(len(lines), 60)
             self.assertLessEqual(len(lines), 270)
             self.assertGreaterEqual(len(words), 500)
-            self.assertLessEqual(len(words), 2_700)
+            self.assertLessEqual(len(words), 2_800)
             references = sorted(path.name for path in (spec.path / "references").glob("*.md"))
             self.assertEqual(references, ["errors.md"])
             self.assertIn("## Complex IWE queries", skill)
@@ -249,6 +249,38 @@ class IweSkillTests(unittest.TestCase):
             self.assertNotIn("iwe status", skill)
             self.assertNotIn("iwe schema\n", skill)
             self.assertNotIn("allowed-tools:", skill)
+
+    def test_metadata_find_stops_before_retrieving_an_unrelated_candidate(self) -> None:
+        spec = load_skill(root=ROOT)
+        skill = (spec.path / "SKILL.md").read_text(encoding="utf-8")
+
+        rule = (
+            "After a metadata-only find, compare every returned key/title with the "
+            "request-derived distinctive terms before any retrieve"
+        )
+        self.assertIn(rule, skill)
+        self.assertIn(
+            "If no candidate overlaps, do not retrieve merely to inspect or assess relevance",
+            skill,
+        )
+        self.assertIn("Treat that result as a terminal IWE miss", skill)
+
+    def test_known_path_and_section_use_one_direct_read_after_iwe_failure(self) -> None:
+        spec = load_skill(root=ROOT)
+        skill = (spec.path / "SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "When the request already names a source path and section or field, use one bounded direct read",
+            skill,
+        )
+        self.assertIn(
+            "Do not search, list, glob, or rediscover that path, heading, section, or field",
+            skill,
+        )
+        self.assertIn(
+            "The final response must say that IWE is unavailable and identify the fallback source",
+            skill,
+        )
 
     def test_skill_examples_are_bounded_and_use_contract_commands(self) -> None:
         spec = load_skill(root=ROOT)
@@ -318,34 +350,27 @@ class IweSkillTests(unittest.TestCase):
         self.assertLessEqual(metrics["estimated_tokens"], 5_000)
         self.assertEqual(metrics["contract_operations"], 22)
 
-    def test_skill_is_precedence_first_and_encodes_terminal_route_invariants(self) -> None:
+    def test_skill_preserves_baseline_routes_with_frontloaded_overrides(self) -> None:
         spec = load_skill(root=ROOT)
         skill = (spec.path / "SKILL.md").read_text(encoding="utf-8")
 
-        self.assertIn("## Decision order", skill)
-        self.assertIn("## Core routes", skill)
-        self.assertLess(skill.index("## Decision order"), skill.index("## Core routes"))
+        self.assertIn("## Non-negotiable route overrides", skill)
+        self.assertLess(skill.index("## Non-negotiable route overrides"), skill.index("## Cluster A"))
         for invariant in (
-            "Hard stops run before every IWE-first rule",
-            "undefined destructive criterion, scope, or recovery",
-            "Mixed-output requests use the richest single route",
-            "Relevance gate before every candidate retrieval",
-            "An unrelated candidate is a terminal miss, not ambiguity",
-            "Search one literal request-derived field token",
-            "A second retrieve is allowed only when a material named facet is absent",
-            "Do not require related terms to occur on the same line",
+            "Relationship synthesis: retrieve 3–5",
+            "Known template route:",
+            "--vars-yaml",
+            "--filter '{ type: project }'",
+            "After a metadata-only find",
+            "do not retrieve merely to inspect or assess relevance",
+            "use one bounded direct read",
+            "The final response must say that IWE is unavailable",
         ):
             self.assertIn(invariant, skill)
-        self.assertLess(
-            skill.index("Relevance gate before every candidate retrieval"),
-            skill.index("Ambiguous relevant candidate"),
-        )
-        self.assertNotIn("## Command glossary", skill)
-        self.assertNotRegex(skill, r"\*\*[A-I][0-9]+ ")
 
         words = skill.split()
-        self.assertGreaterEqual(len(words), 700)
-        self.assertLessEqual(len(words), 1_900)
+        self.assertGreaterEqual(len(words), 1_900)
+        self.assertLessEqual(len(words), 2_800)
 
     def test_eval_configuration_and_scenarios_load(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
@@ -1045,14 +1070,14 @@ class IweSkillTests(unittest.TestCase):
     def test_iwe_v18_specific_routes_override_generic_discovery_and_fallback(self) -> None:
         skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
         required = (
-            "A second IWE read is the final read call",
-            "Relevance gate before every candidate retrieval",
-            "No distinctive overlap means terminal miss",
-            "Generic document-type words do not establish relevance",
-            "For a workspace/project question with a known path, read only that path or named section",
-            "Do not discover filenames or headings",
-            "If the requested source scope is IWE, graph, notes, or docs",
-            "Relationship flags take known key anchors, not booleans",
+            "Call 2 is final",
+            "After a metadata-only find",
+            "Treat that result as a terminal IWE miss",
+            "Generic type words do not establish relevance",
+            "use one bounded direct read of only that named scope",
+            "Do not search, list, glob, or rediscover that path",
+            "If the operator limits search to IWE/notes/docs",
+            "Prefer relationship flags for one anchor",
         )
         for snippet in required:
             with self.subTest(snippet=snippet):

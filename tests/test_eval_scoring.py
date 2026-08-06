@@ -4,6 +4,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -405,7 +406,7 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertIn("Verify source inclusion and affected keys", procedure)
         self.assertNotIn("Verify the new note", procedure)
         self.assertIn(
-            "Do not discover relationships or retrieve the newly created target merely to verify an extract",
+            "never use relationship discovery for extract verification or retrieve the created target",
             skill,
         )
 
@@ -1340,7 +1341,9 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertNotIn("score ceiling", prompt.lower())
         with tempfile.TemporaryDirectory() as directory:
             env = self.runner.judge_environment(Path(directory), Path(directory), Path(directory))
-        self.assertNotIn("iwe", env["PATH"].lower())
+            self.assertFalse(
+                any((Path(entry) / "iwe").exists() for entry in env["PATH"].split(os.pathsep))
+            )
 
     def test_no_skill_judge_uses_same_oracle_and_rubric_without_skill_redaction(self) -> None:
         run = {
@@ -1644,20 +1647,21 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_iwe_v18_skill_frontloads_problem_routes_found_by_telemetry(self) -> None:
         skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
         required = (
-            "Hard stops run before every IWE-first rule",
-            "Mixed-output requests use the richest single route",
-            "A second retrieve is allowed only when a material named facet is absent",
-            "Relevance gate before every candidate retrieval",
-            "An unrelated candidate is a terminal miss, not ambiguity",
-            "Search one literal request-derived field token",
-            "Do not require related terms to occur on the same line",
-            "Do not emit a workspace-wide inventory",
-            "Do not discover relationships or retrieve the newly created target",
-            "remove only that flag/value, preserve the rest of the command",
+            "if criterion or scope is undefined, refuse without tools",
+            "Known template route:",
+            "Relationship synthesis: retrieve 3–5",
+            "After a metadata-only find",
+            "do not retrieve merely to inspect or assess relevance",
+            "use one bounded direct read",
+            "Do not search, list, glob, or rediscover that path",
+            "The final response must say that IWE is unavailable",
+            "Never emit a workspace-wide file inventory",
+            "never use relationship discovery for extract verification",
+            "corrected argv is the failed argv minus only that flag/value",
         )
         for snippet in required:
             self.assertIn(snippet, skill)
-        self.assertLess(skill.index("## Decision order"), skill.index("## Core routes"))
+        self.assertLess(skill.index("## Non-negotiable route overrides"), skill.index("## Cluster A"))
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
         expected = tuple(item.id for item in load_runner().load_scenarios())
@@ -1705,7 +1709,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
         self.assertEqual(targets[0].skill_id, "iwe-v18")
-        self.assertEqual(targets[0].skill_version, "0.6.0")
+        self.assertEqual(targets[0].skill_version, "0.9.0")
         self.assertEqual(targets[0].iwe_version, "0.18.0")
         self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
         self.assertEqual(targets[1].skill_id, "iwe-memory-system")
