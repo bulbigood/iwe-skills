@@ -71,7 +71,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--agent",
-        choices=("codex",),
+        choices=("codex", "claude"),
         default="codex",
         help="shared agent implementation for tested runs and judges (default: codex)",
     )
@@ -145,7 +145,7 @@ def load_targets(root: Path = ROOT) -> tuple[Target, ...]:
 
 
 def write_experiment(
-    samples: int, root: Path = ROOT, jobs: int = DEFAULT_JOBS
+    samples: int, root: Path = ROOT, jobs: int = DEFAULT_JOBS, agent: str = "codex"
 ) -> Path:
     _, skills = load_skills(root)
     targets = load_targets(root)
@@ -154,7 +154,7 @@ def write_experiment(
     lines = [
         "schema_version = 1",
         'name = "iwe-v18-vs-controls-all-scenarios"',
-        'agent_judge_config = "codex"',
+        f"agent_judge_config = {json.dumps(agent)}",
         f"scenarios = {json.dumps(scenario_ids)}",
         f"samples = {samples}",
         f"jobs = {jobs}",
@@ -196,13 +196,14 @@ def write_experiment(
 
 
 def build_command(manifest: Path, results_file: Path, agent: str = "codex") -> list[str]:
+    model_profile = {"codex": "weak", "claude": "medium"}[agent]
     return [
         sys.executable,
         str(ROOT / "tests/eval/run.py"),
         "--experiment",
         str(manifest),
         "--model-profile",
-        "weak",
+        model_profile,
         "--markdown-report",
         str(results_file),
         "--agent",
@@ -212,7 +213,7 @@ def build_command(manifest: Path, results_file: Path, agent: str = "codex") -> l
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    manifest = write_experiment(args.samples, jobs=args.jobs)
+    manifest = write_experiment(args.samples, jobs=args.jobs, agent=args.agent)
     return subprocess.call(build_command(manifest, args.results_file, args.agent), cwd=ROOT)
 
 

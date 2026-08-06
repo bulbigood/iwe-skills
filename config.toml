@@ -49,6 +49,10 @@ forbidden_fallbacks = ["grep", "rg", "find"]
 [eval]
 default_model_profile = "medium"
 
+[eval.agent_model_profiles]
+codex = "weak"
+claude = "medium"
+
 [eval.model_profiles.medium.minimum_score]
 task_correctness = 5
 scenario_compliance = 5

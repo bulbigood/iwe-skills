@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -438,6 +439,28 @@ class IweSkillTests(unittest.TestCase):
         finally:
             os.environ.pop(secret, None)
         self.assertNotIn(secret, environment)
+
+    def test_claude_eval_config_uses_documented_models_and_low_effort(self) -> None:
+        config = json.loads(
+            (ROOT / "tests/eval/configs/claude.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(config["name"], "claude")
+        for command, model in (
+            (config["agent_command"], "sonnet"),
+            (config["judge_command"], "opus"),
+        ):
+            tokens = shlex.split(command)
+            self.assertEqual(tokens[0], "claude")
+            self.assertIn("--bare", tokens)
+            self.assertEqual(tokens[tokens.index("--model") + 1], model)
+            self.assertEqual(tokens[tokens.index("--effort") + 1], "low")
+            self.assertIn("--no-session-persistence", tokens)
+        self.assertIn("--output-format stream-json", config["agent_command"])
+        self.assertIn("--tools Bash", config["agent_command"])
+        self.assertIn("--permission-mode bypassPermissions", config["agent_command"])
+        self.assertIn("--output-format json", config["judge_command"])
+        self.assertIn("--tools ''", config["judge_command"])
+        self.assertIn("--json-schema {judge_schema_json}", config["judge_command"])
 
     def test_eval_scenario_loader_rejects_malformed_scoring_fail_closed(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"

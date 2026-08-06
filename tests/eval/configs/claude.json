@@ -1,0 +1,18 @@
+{
+  "name": "claude",
+  "agent_command": "claude --bare -p --output-format stream-json --verbose --model sonnet --effort low --tools Bash --permission-mode bypassPermissions --no-session-persistence",
+  "judge_command": "claude --bare -p --output-format json --model opus --effort low --tools '' --no-session-persistence --json-schema {judge_schema_json}",
+  "timeout_seconds": 1800,
+  "jobs": 10,
+  "samples": 1,
+  "fixtures": {
+    "seventeen-centuries": {
+      "repository": "https://github.com/iwe-org/seventeen-centuries.git",
+      "commit": "acc00aeabee4fd510c54e9e9033d6b9869aedc3d"
+    },
+    "pkm-demo": {
+      "repository": "https://github.com/iwe-org/pkm-demo.git",
+      "commit": "76007db0c64c3ee170e2a8869a88e7c61909d489"
+    }
+  }
+}

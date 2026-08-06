@@ -96,6 +96,10 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertTrue(all(self.config.score_scale[score].strip() for score in range(6)))
         self.assertEqual(self.config.default_model_profile, "medium")
         self.assertEqual(set(self.config.model_profiles), {"medium", "weak"})
+        self.assertEqual(
+            self.config.agent_model_profiles,
+            {"codex": "weak", "claude": "medium"},
+        )
 
         medium_required = {
             "task_correctness": 100,
@@ -124,6 +128,18 @@ class EvalScoringContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(self.runner.resolve_model_profile(self.config).name, "medium")
+        self.assertEqual(
+            self.runner.resolve_agent_model_profile(self.config, "codex").name,
+            "weak",
+        )
+        self.assertEqual(
+            self.runner.resolve_agent_model_profile(self.config, "claude").name,
+            "medium",
+        )
+        with self.assertRaisesRegex(ValueError, "requires model profile medium"):
+            self.runner.resolve_agent_model_profile(self.config, "claude", "weak")
+        with self.assertRaisesRegex(ValueError, "requires model profile weak"):
+            self.runner.resolve_agent_model_profile(self.config, "codex", "medium")
         self.assertEqual(self.config.default_output_bytes, 65536)
         self.assertEqual(
             set(self.config.efficiency_score_scale),
@@ -1728,8 +1744,15 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_report")
         args = module.parse_args([])
         self.assertEqual(args.agent, "codex")
-        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
-            module.parse_args(["--agent", "claude"])
+        self.assertEqual(module.parse_args(["--agent", "claude"]).agent, "claude")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.object(module, "verify_runtime_binary", return_value=Path("/bin/true")):
+                manifest = module.write_experiment(1, root=ROOT, jobs=1, agent="claude")
+            self.assertIn(
+                'agent_judge_config = "claude"',
+                manifest.read_text(encoding="utf-8"),
+            )
         command = module.build_command(Path("manifest.toml"), args.results_file, args.agent)
         self.assertEqual(
             args.results_file,
@@ -1738,6 +1761,14 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertEqual(command[-4:], [
             "--markdown-report", str(args.results_file), "--agent", "codex"
         ])
+        self.assertEqual(command[command.index("--model-profile") + 1], "weak")
+        claude_command = module.build_command(
+            Path("manifest.toml"), args.results_file, "claude"
+        )
+        self.assertEqual(
+            claude_command[claude_command.index("--model-profile") + 1],
+            "medium",
+        )
 
         renderer = load_eval_module("report_markdown")
         self.assertEqual(
@@ -1779,6 +1810,55 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
                     "codex exec", "claude exec"
                 ),
             }, "codex")
+
+        claude_stream = "\n".join((
+            json.dumps({"type": "assistant", "message": {"content": [{
+                "type": "tool_use", "id": "tool-1", "name": "Bash",
+                "input": {"command": "iwe count --filter '{ type: project }'"},
+            }]}}),
+            json.dumps({"type": "user", "message": {"content": [{
+                "type": "tool_result", "tool_use_id": "tool-1",
+                "content": "3\n", "is_error": False,
+            }]}}),
+            json.dumps({"type": "result", "subtype": "success", "result": "There are 3."}),
+        ))
+        parsed = runner.parse_process_output("claude", claude_stream)
+        self.assertEqual(parsed["final"], "There are 3.")
+        self.assertEqual(parsed["commands"], [{
+            "command": "iwe count --filter '{ type: project }'",
+            "exit_code": 0,
+            "output": "3\n",
+        }])
+        structured = runner.parse_process_output("claude", json.dumps({
+            "type": "result", "subtype": "success",
+            "structured_output": {"rationale": "bounded", "dimensions": {}},
+        }))
+        self.assertEqual(
+            json.loads(structured["final"]),
+            {"rationale": "bounded", "dimensions": {}},
+        )
+        with mock.patch.object(runner.shutil, "which", return_value="/usr/bin/claude"), \
+             mock.patch.object(runner.subprocess, "run") as version_run:
+            version_run.return_value.stdout = "2.1.200 (Claude Code)\n"
+            metadata = runner.agent_metadata(
+                "claude --bare -p --model sonnet --effort low"
+            )
+        self.assertEqual(metadata, {
+            "name": "Claude Code", "version": "2.1.200 (Claude Code)",
+            "model": "sonnet", "reasoning": "low",
+        })
+        with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-only"}, clear=False):
+            claude_env = runner.eval_environment(
+                Path("/tmp/home"), Path("/tmp/codex"), Path("/tmp/shims"),
+                Path("/tmp/iwe"), Path("/tmp/eval"), "claude",
+            )
+            codex_env = runner.eval_environment(
+                Path("/tmp/home"), Path("/tmp/codex"), Path("/tmp/shims"),
+                Path("/tmp/iwe"), Path("/tmp/eval"), "codex",
+            )
+        self.assertEqual(claude_env["ANTHROPIC_API_KEY"], "test-only")
+        self.assertEqual(claude_env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"], "1")
+        self.assertNotIn("ANTHROPIC_API_KEY", codex_env)
         weak_profile = load_runner().load_eval_config().model_profiles["weak"]
         experiment = {
             "name": "ab",

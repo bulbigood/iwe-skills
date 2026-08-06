@@ -87,6 +87,7 @@ class EvalConfig:
     score_scale: dict[int, str]
     efficiency_score_scale: dict[str, dict[int, str]]
     model_profiles: dict[str, ModelProfile]
+    agent_model_profiles: dict[str, str]
     default_model_profile: str
     default_excellent: dict[str, str]
     default_output_bytes: int
@@ -163,6 +164,7 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
     raw_scale = evaluation.get("score_scale", {})
     raw_efficiency_scale = evaluation.get("efficiency_score_scale", {})
     raw_profiles = evaluation.get("model_profiles", {})
+    raw_agent_profiles = evaluation.get("agent_model_profiles", {})
     default_profile = evaluation.get("default_model_profile")
     raw_excellent = evaluation.get("default_excellent", {})
     raw_execution = evaluation.get("execution", {})
@@ -216,6 +218,10 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
         profiles[name] = ModelProfile(name, dict(raw_minimum), dict(raw_percent))
     if default_profile != "medium":
         raise ValueError("eval.default_model_profile must be medium")
+    if raw_agent_profiles != {"codex": "weak", "claude": "medium"}:
+        raise ValueError(
+            "eval.agent_model_profiles must map codex to weak and claude to medium"
+        )
     if set(raw_excellent) != {"skill_compliance", "safety"} or any(
         not isinstance(text, str) or not text.strip() for text in raw_excellent.values()
     ):
@@ -227,6 +233,7 @@ def load_eval_config(path: Path = ROOT / "config.toml") -> EvalConfig:
         scale,
         efficiency_scale,
         profiles,
+        dict(raw_agent_profiles),
         default_profile,
         dict(raw_excellent),
         output_bytes,
@@ -239,6 +246,22 @@ def resolve_model_profile(eval_config: EvalConfig, name: str | None = None) -> M
         return eval_config.model_profiles[selected]
     except KeyError as exc:
         raise ValueError(f"unknown model profile: {selected}") from exc
+
+
+def resolve_agent_model_profile(
+    eval_config: EvalConfig,
+    agent: str,
+    requested: str | None = None,
+) -> ModelProfile:
+    try:
+        canonical = eval_config.agent_model_profiles[agent]
+    except KeyError as exc:
+        raise ValueError(f"unknown agent implementation: {agent}") from exc
+    if requested is not None and requested != canonical:
+        raise ValueError(
+            f"agent {agent} requires model profile {canonical}, got {requested}"
+        )
+    return resolve_model_profile(eval_config, canonical)
 
 
 @dataclass(frozen=True)
@@ -361,6 +384,7 @@ def eval_environment(
     shim_bin: Path,
     iwe_binary: Path,
     temporary: Path,
+    agent_implementation: str = "codex",
 ) -> dict[str, str]:
     env = {key: os.environ[key] for key in SAFE_HOST_ENV if key in os.environ}
     env.update({
@@ -370,6 +394,11 @@ def eval_environment(
         "IWE_EVAL_BLOCK_LOG": str(temporary / "blocked-tools.log"),
         "IWE_EVAL_IWE_LOG": str(temporary / "iwe-telemetry.jsonl"),
     })
+    if agent_implementation == "claude":
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if api_key:
+            env["ANTHROPIC_API_KEY"] = api_key
+        env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "1"
     return env
 
 
@@ -1145,13 +1174,20 @@ def independent_oracle_evidence(
     }
 
 
-def judge_environment(home: Path, codex_home: Path, tool_bin: Path) -> dict[str, str]:
+def judge_environment(
+    home: Path, codex_home: Path, tool_bin: Path, agent_implementation: str = "codex"
+) -> dict[str, str]:
     env = {key: os.environ[key] for key in SAFE_HOST_ENV if key in os.environ}
     env.update({
         "HOME": str(home),
         "CODEX_HOME": str(codex_home),
         "PATH": f"{tool_bin}:/usr/bin:/bin",
     })
+    if agent_implementation == "claude":
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        if api_key:
+            env["ANTHROPIC_API_KEY"] = api_key
+        env["CLAUDE_CODE_SUBPROCESS_ENV_SCRUB"] = "1"
     return env
 
 
@@ -1386,6 +1422,62 @@ def assert_workspace_ready(workspace: Path, guidance_path: Path | None = None) -
         raise RuntimeError(f"installed guidance is not readable: {resolved_guidance}")
 
 
+def _claude_tool_result_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(
+            str(item.get("text", ""))
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+        )
+    return ""
+
+
+def parse_process_output(executable_name: str, stdout: str) -> dict:
+    final = ""
+    commands: list[dict] = []
+    pending_bash: dict[str, str] = {}
+    for line in stdout.splitlines():
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if executable_name == "claude":
+            message = event.get("message", {})
+            content = message.get("content", []) if isinstance(message, dict) else []
+            if event.get("type") == "assistant" and isinstance(content, list):
+                for item in content:
+                    if not isinstance(item, dict) or item.get("type") != "tool_use":
+                        continue
+                    if item.get("name") == "Bash" and isinstance(item.get("input"), dict):
+                        pending_bash[str(item.get("id", ""))] = str(item["input"].get("command", ""))
+            if event.get("type") == "user" and isinstance(content, list):
+                for item in content:
+                    if not isinstance(item, dict) or item.get("type") != "tool_result":
+                        continue
+                    tool_id = str(item.get("tool_use_id", ""))
+                    command = pending_bash.pop(tool_id, None)
+                    if command is not None:
+                        commands.append({
+                            "command": command,
+                            "exit_code": 1 if item.get("is_error") else 0,
+                            "output": _claude_tool_result_text(item.get("content")),
+                        })
+            if event.get("type") == "result":
+                if event.get("structured_output") is not None:
+                    final = json.dumps(event["structured_output"], ensure_ascii=False)
+                elif event.get("result") is not None:
+                    final = str(event["result"])
+            continue
+        item = event.get("item", {})
+        if event.get("type") == "item.completed" and item.get("type") == "agent_message":
+            final = str(item.get("text", ""))
+        if event.get("type") == "item.completed" and item.get("type") == "command_execution":
+            commands.append({"command": str(item.get("command", "")), "exit_code": int(item.get("exit_code") or 0), "output": str(item.get("aggregated_output", ""))})
+    return {"final": final or stdout, "commands": commands}
+
+
 def run_process(command: str, prompt: str, cwd: Path, timeout: int, env: dict[str, str]) -> dict:
     started = time.monotonic()
     argv = process_argv(command, cwd)
@@ -1414,19 +1506,8 @@ def run_process(command: str, prompt: str, cwd: Path, timeout: int, env: dict[st
             stdout=captured_text(error.stdout),
             stderr=f"{stderr}\n{timeout_message}".strip(),
         )
-    final = ""
-    commands = []
-    for line in completed.stdout.splitlines():
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        item = event.get("item", {})
-        if event.get("type") == "item.completed" and item.get("type") == "agent_message":
-            final = str(item.get("text", ""))
-        if event.get("type") == "item.completed" and item.get("type") == "command_execution":
-            commands.append({"command": str(item.get("command", "")), "exit_code": int(item.get("exit_code") or 0), "output": str(item.get("aggregated_output", ""))})
-    return {"exit": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr, "final": final or completed.stdout, "commands": commands, "wall_seconds": time.monotonic() - started}
+    parsed = parse_process_output(Path(argv[0]).name, completed.stdout)
+    return {"exit": completed.returncode, "stdout": completed.stdout, "stderr": completed.stderr, **parsed, "wall_seconds": time.monotonic() - started}
 
 
 def mechanical_errors(
@@ -1838,14 +1919,19 @@ def agent_metadata(command: str) -> dict[str, str]:
     version = subprocess.run(
         [executable, "--version"], text=True, capture_output=True, check=True
     ).stdout.strip()
-    model = tokens[tokens.index("-m") + 1] if "-m" in tokens else "unknown"
+    model_flag = "-m" if "-m" in tokens else "--model" if "--model" in tokens else None
+    model = tokens[tokens.index(model_flag) + 1] if model_flag else "unknown"
     reasoning = "unknown"
+    if "--effort" in tokens:
+        reasoning = tokens[tokens.index("--effort") + 1]
     for index, token in enumerate(tokens[:-1]):
         if token == "-c" and tokens[index + 1].startswith("model_reasoning_effort="):
             reasoning = tokens[index + 1].split("=", 1)[1].strip('"')
             break
     return {
-        "name": "Codex CLI" if Path(executable).name == "codex" else Path(executable).name,
+        "name": {"codex": "Codex CLI", "claude": "Claude Code"}.get(
+            Path(executable).name, Path(executable).name
+        ),
         "version": version.removeprefix("codex-cli "),
         "model": model,
         "reasoning": reasoning,
@@ -2036,7 +2122,7 @@ def replay_saved_report(
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="codex")
+    parser.add_argument("--config")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--skill", help="skill id from the root config.toml")
     mode.add_argument("--experiment", type=Path, help="paired experiment TOML")
@@ -2048,21 +2134,24 @@ def main() -> int:
         "--model-profile",
         choices=("medium", "weak"),
         default=None,
-        help="tested-model profile from config.toml (default: eval.default_model_profile)",
+        help="tested-model profile; must match eval.agent_model_profiles for --agent",
     )
     parser.add_argument("--markdown-report", type=Path)
-    parser.add_argument("--agent", choices=("codex",), default="codex")
+    parser.add_argument("--agent", choices=("codex", "claude"), default="codex")
     parser.add_argument("--keep-workspaces", action="store_true")
     args = parser.parse_args()
     if args.markdown_report and not args.experiment:
         parser.error("--markdown-report requires --experiment")
     experiment = load_experiment(args.experiment, ROOT) if args.experiment else None
     skill = None if experiment else load_skill(args.skill)
-    config_name = experiment.agent_judge_config if experiment else args.config
+    config_name = experiment.agent_judge_config if experiment else (args.config or args.agent)
     config_path = EVAL / "configs" / f"{config_name}.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
     eval_config = load_eval_config()
-    model_profile = resolve_model_profile(eval_config, args.model_profile)
+    try:
+        model_profile = resolve_agent_model_profile(eval_config, args.agent, args.model_profile)
+    except ValueError as error:
+        parser.error(str(error))
     scenarios = load_scenarios(eval_config=eval_config, model_profile=model_profile)
     if experiment:
         scenarios = select_scenarios(scenarios, list(experiment.scenario_ids))
@@ -2154,7 +2243,9 @@ def main() -> int:
         )
         host_auth = Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "auth.json"
         if host_auth.exists(): shutil.copy2(host_auth, codex_home / "auth.json")
-        env = eval_environment(isolated_home, codex_home, shim_bin, local_iwe_binary, temporary)
+        env = eval_environment(
+            isolated_home, codex_home, shim_bin, local_iwe_binary, temporary, args.agent
+        )
         prompt = agent_prompt(
             scenario,
             skill_installed=local_skill is not None,
@@ -2180,7 +2271,13 @@ def main() -> int:
             agent["metrics"],
             agent["iwe_telemetry"],
         )
-        judge_command = config["judge_command"].format(judge_schema=shlex.quote(str(EVAL / "judge.schema.json")))
+        judge_schema = EVAL / "judge.schema.json"
+        judge_command = config["judge_command"].format(
+            judge_schema=shlex.quote(str(judge_schema)),
+            judge_schema_json=shlex.quote(
+                json.dumps(json.loads(judge_schema.read_text(encoding="utf-8")), separators=(",", ":"))
+            ),
+        )
         oracle = independent_oracle_evidence(scenario, before, after, agent["final"])
         deterministic_failures = deterministic_metric_failures(
             scenario,
@@ -2214,7 +2311,9 @@ def main() -> int:
             raise RuntimeError("configured judge executable or its node runtime is unavailable")
         (judge_tools / Path(judge_executable).name).symlink_to(judge_executable)
         (judge_tools / "node").symlink_to(node_executable)
-        judge_env = judge_environment(judge_home, judge_codex_home, judge_tools)
+        judge_env = judge_environment(
+            judge_home, judge_codex_home, judge_tools, args.agent
+        )
         judge = run_process(
             judge_command,
             judge_prompt_text,

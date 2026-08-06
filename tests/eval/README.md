@@ -6,11 +6,16 @@ The eval runner uses isolated workspaces, natural-language scenarios, complete c
 python3 -m pip install -r tests/eval/requirements.txt
 python3 tests/eval/run.py --list
 python3 tests/eval/run.py --skill iwe-v18 --config codex --model-profile weak
+ANTHROPIC_API_KEY=... python3 tests/eval/run.py --skill iwe-v18 --agent claude --model-profile medium
 python3 tests/eval/run.py --skill iwe-v18 --config codex --model-profile weak --scenario ambiguous-discovery-with-one-follow-up --jobs 1 --samples 1
 python3 tests/eval/run.py --experiment tests/eval/experiments/example.toml --list
 ```
 
 When `--skill` is omitted, the runner uses `default_skill` from root `config.toml`. Before starting agents it verifies the configured local IWE binary against the exact tested version.
+
+`--agent claude` selects the `claude` agent/judge profile. It runs Claude Code in non-interactive bare print mode with `sonnet --effort low` for the tested worker and `opus --effort low` for the judge. Under the Anthropic API, Claude Code's documented aliases resolve to Sonnet 5 and Opus 5. The worker is restricted to the Bash tool so its actions remain observable through the existing command and IWE telemetry contract; the judge has no tools and receives an inline JSON schema. Bare mode requires `ANTHROPIC_API_KEY`; the harness passes it only to the parent Claude process and sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1` so Bash tools, hooks, and MCP subprocesses cannot inherit provider credentials. Claude Code must be installed separately; list mode and deterministic tests do not require it.
+
+The agent implementation determines the evaluator acceptance profile: `claude` requires `medium`, while `codex` requires `weak`. Omitting `--model-profile` selects that canonical profile automatically. Passing a mismatched explicit profile fails before any agent call.
 
 Single-skill runs default to `--jobs 10` and `--samples 1`. Ten concurrent jobs are preferred, so omit `--jobs` for normal runs; pass it only when a lower concurrency limit is required. Use `--samples N` when repeated samples are intentional. Experiment runs take both values from their TOML manifest.
 
