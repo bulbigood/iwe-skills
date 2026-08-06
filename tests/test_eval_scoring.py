@@ -1717,8 +1717,10 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 30
         )
         self.assertIn("**Published scenarios:** `10`", snapshot)
-        self.assertIn("**Published matrix:** `150` agent results / `150` judge results", snapshot)
+        self.assertIn("**Paired samples per scenario and target:** `10`", snapshot)
+        self.assertIn("**Published matrix:** `300` agent results / `300` judge results", snapshot)
         self.assertIn("`gpt-5.6-luna`, medium reasoning", snapshot)
+        self.assertNotRegex(snapshot, r"\b\d+/5\b")
         self.assertNotIn("| Target |", snapshot)
         self.assertIn("Valid / Clean (info)", snapshot)
         self.assertIn("Tool / Resource", snapshot)
