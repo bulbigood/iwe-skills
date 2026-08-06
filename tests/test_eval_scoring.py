@@ -1665,7 +1665,10 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_iwe_v18_skill_frontloads_problem_routes_found_by_telemetry(self) -> None:
         skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
         required = (
-            "if criterion or scope is undefined, refuse without tools",
+            "Missing destructive scope is a blocking input, not a discovery task",
+            "user-owned selection criterion is undefined",
+            "never inspect the workspace to invent that criterion",
+            "apply the destructive-scope gate above",
             "Known template route:",
             "Relationship synthesis: retrieve 3–5",
             "After a metadata-only find",
@@ -1679,6 +1682,10 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         )
         for snippet in required:
             self.assertIn(snippet, skill)
+        self.assertLess(
+            skill.index("Missing destructive scope is a blocking input"),
+            skill.index("## Route and compute parameters mentally"),
+        )
         self.assertLess(skill.index("## Non-negotiable route overrides"), skill.index("## Cluster A"))
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
@@ -1729,7 +1736,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
         self.assertEqual(targets[0].skill_id, "iwe-v18")
-        self.assertEqual(targets[0].skill_version, "0.9.0")
+        self.assertEqual(targets[0].skill_version, "0.9.1")
         self.assertEqual(targets[0].iwe_version, "0.18.0")
         self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
         self.assertEqual(targets[1].skill_id, "iwe-memory-system")

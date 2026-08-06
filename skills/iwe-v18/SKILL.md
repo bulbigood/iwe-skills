@@ -3,7 +3,7 @@ name: iwe-v18
 description: Use IWE CLI to find, retrieve, analyze, create, update, or safely refactor an IWE Markdown knowledge graph.
 compatibility: Requires IWE CLI >=0.18.0.
 metadata:
-  version: "0.9.0"
+  version: "0.9.1"
 ---
 
 # IWE problem-solving policy
@@ -20,6 +20,7 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 - After activation, treat this file as complete IWE guidance; do not search for competing agent instructions.
 - Do not use web search, `grep`, `rg`, `find`, recursive lists, or broad reads before trying IWE. The failed-search fallback below is the only workspace-search exception. Do not run routine preflight.
 - Do not install, update, configure, or repair IWE.
+- Missing destructive scope is a blocking input, not a discovery task: when the target set or user-owned selection criterion is undefined, refuse without tools; never inspect the workspace to invent that criterion.
 - Use `iwe <command> --help` only after an IWE CLI command fails and its error does not provide enough information for one direct correction. Never call help proactively, globally, or after a successful command.
 - Do not run discovery or validation as preflight before a direct operation when its target, inputs, and guards are known from the request or prior evidence. Required mutation preview is execution, not preflight validation.
 - When discovery is necessary, make it task-shaped: include known selectors/class/heading/terms and request only the needed projection/block and limit. Do not retrieve after discovery when its shaped output already supplies the required scope.
@@ -170,7 +171,7 @@ Preview and apply identical arguments. After successful extract, verify only wit
 ## Cluster H — destructive and workspace-wide work
 
 - **H1 Delete one note:** exact key, expect 1, strict dry-run, validate affected keys, establish rollback when practical, then fresh, focused confirmation and identical apply.
-- **H2 Delete cohort:** if criterion or scope is undefined, refuse without tools. Otherwise dry-run a narrow user filter and expected count/range, validate affected keys, confirm, and apply unchanged; never classify “obsolete”.
+- **H2 Delete cohort:** apply the destructive-scope gate above; otherwise dry-run a narrow user-supplied filter and expected count/range, validate affected keys, confirm, and apply unchanged.
 - **H3 Normalize:** entire-library in-place rewrite with no preview; require explicit scope, established rollback, and fresh, focused confirmation; verify afterward.
 
 Safety calls are not waste. Refuse destructive work when scope or recovery is insufficient.

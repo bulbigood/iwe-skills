@@ -168,15 +168,15 @@ class IweSkillTests(unittest.TestCase):
 
     def test_manifest_rejects_model_facing_version_or_compatibility_drift(self) -> None:
         for old, new, message in (
-            ('version: "0.9.0"', 'version: "0.9.1"', "skill_version"),
+            ('version: "0.9.1"', 'version: "0.9.2"', "skill_version"),
             (
-                'metadata:\n  version: "0.9.0"',
-                'version: "0.9.0"',
+                'metadata:\n  version: "0.9.1"',
+                'version: "0.9.1"',
                 "metadata",
             ),
             (
-                'metadata:\n  version: "0.9.0"',
-                'metadata:\n  nested:\n    version: "0.9.0"',
+                'metadata:\n  version: "0.9.1"',
+                'metadata:\n  nested:\n    version: "0.9.1"',
                 "metadata.version",
             ),
             (
