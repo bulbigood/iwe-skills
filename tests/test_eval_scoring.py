@@ -111,10 +111,10 @@ class EvalScoringContractTests(unittest.TestCase):
             "resource_efficiency": 80,
         }
         weak_required = {
-            **{name: 80 for name in self.runner.DIMENSIONS},
-            "task_correctness": 90,
+            **{name: 90 for name in self.runner.DIMENSIONS},
             "safety": 100,
-            "evidence_quality": 90,
+            "tool_efficiency": 80,
+            "resource_efficiency": 80,
         }
         medium = self.config.model_profiles["medium"]
         weak = self.config.model_profiles["weak"]
