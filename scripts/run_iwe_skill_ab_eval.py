@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the production all-scenario iwe-v18 versus both control conditions."""
+"""Run the production all-scenario iwe-v18 evaluation."""
 
 from __future__ import annotations
 
@@ -11,8 +11,6 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
-
 SCRIPTS = Path(__file__).resolve().parent
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
@@ -20,14 +18,12 @@ from skill_manifest import load_skills, verify_runtime_binary
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEPRECATED_SKILL = "iwe-memory-system"
 CURRENT_SKILL = "iwe-v18"
-NO_SKILL_TARGET = "iwe-no-skill"
 DEFAULT_SAMPLES = 10
 DEFAULT_JOBS = 10
 SCENARIOS_FILE = Path("tests/eval/scenarios/iwe.eval.yaml")
-CACHE = Path("tests/eval/.cache/iwe-v18-vs-controls-all-scenarios")
-DEFAULT_RESULTS_FILE = Path("tests/eval/results/2026-08-05-iwe-v18-vs-controls.md")
+CACHE = Path("tests/eval/.cache/iwe-v18-production-all-scenarios")
+DEFAULT_RESULTS_FILE = Path("tests/eval/results/iwe-v18-production.md")
 
 
 @dataclass(frozen=True)
@@ -49,7 +45,7 @@ def positive_int(value: str) -> int:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run iwe-v18 against deprecated-skill and no-skill controls."
+        description="Run the production iwe-v18 evaluation."
     )
     parser.add_argument(
         "--samples",
@@ -78,19 +74,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _deprecated_version(skill_file: Path) -> str:
-    text = skill_file.read_text(encoding="utf-8")
-    if not text.startswith("---\n") or "\n---\n" not in text[4:]:
-        raise ValueError(f"invalid frontmatter in {skill_file}")
-    frontmatter = yaml.safe_load(text.split("\n---\n", 1)[0][4:])
-    metadata = frontmatter.get("metadata") if isinstance(frontmatter, dict) else None
-    version = metadata.get("version") if isinstance(metadata, dict) else None
-    if not isinstance(version, str) or not version:
-        raise ValueError(f"missing metadata.version in {skill_file}")
-    return version
-
-
 def load_scenario_ids(root: Path = ROOT) -> tuple[str, ...]:
+    import yaml
+
     source = yaml.safe_load((root / SCENARIOS_FILE).read_text(encoding="utf-8"))
     scenarios = source.get("scenarios") if isinstance(source, dict) else None
     if not isinstance(scenarios, list) or not scenarios:
@@ -107,15 +93,10 @@ def load_scenario_ids(root: Path = ROOT) -> tuple[str, ...]:
 
 
 def load_targets(root: Path = ROOT) -> tuple[Target, ...]:
-    default_id, skills = load_skills(root)
+    _, skills = load_skills(root)
     if CURRENT_SKILL not in skills:
         raise ValueError(f"{CURRENT_SKILL} is not configured in config.toml")
     current = skills[CURRENT_SKILL]
-    default = skills[default_id]
-    deprecated_path = (root / "skills" / DEPRECATED_SKILL).resolve()
-    if not deprecated_path.is_relative_to(root.resolve()) or not deprecated_path.is_dir():
-        raise ValueError(f"missing deprecated skill directory: {deprecated_path}")
-    deprecated_version = _deprecated_version(deprecated_path / "SKILL.md")
     return (
         Target(
             current.name,
@@ -124,22 +105,6 @@ def load_targets(root: Path = ROOT) -> tuple[Target, ...]:
             current.tested_version,
             current.contract_file,
             current.name,
-        ),
-        Target(
-            DEPRECATED_SKILL,
-            deprecated_path,
-            deprecated_version,
-            default.tested_version,
-            default.contract_file,
-            default.name,
-        ),
-        Target(
-            NO_SKILL_TARGET,
-            None,
-            None,
-            default.tested_version,
-            default.contract_file,
-            default.name,
         ),
     )
 
@@ -153,7 +118,7 @@ def write_experiment(
     cache = (root / CACHE).resolve()
     lines = [
         "schema_version = 1",
-        'name = "iwe-v18-vs-controls-all-scenarios"',
+        'name = "iwe-v18-production-all-scenarios"',
         f"agent_judge_config = {json.dumps(agent)}",
         f"scenarios = {json.dumps(scenario_ids)}",
         f"samples = {samples}",

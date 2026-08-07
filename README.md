@@ -102,13 +102,13 @@ No skill guidance; IWE CLI `0.18.0` is installed and available. `Skill complianc
 | Workspace fallback | **FAIL** | 10/10 / 10/10 | 10/10 / 10/10 | **2/10 (FAIL)** / — | 10/10 | **6/10 (FAIL)** / 10/10 |
 | Out-of-scope code fix | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / — | 10/10 | 10/10 / 10/10 |
 
-Run the production ten-sample comparison across all declared scenarios and all three targets. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
+Run the production ten-sample evaluation for `iwe-v18` across all declared scenarios. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
 
 ```bash
 python3 scripts/run_iwe_skill_ab_eval.py
 ```
 
-[Full three-arm production results](tests/eval/results/2026-08-05-iwe-v18-vs-controls.md)
+The deprecated and no-skill arms are retained only in the [historical three-arm production results](tests/eval/results/2026-08-05-iwe-v18-vs-controls.md); they are not part of current production testing.
 
 ## Documentation
 

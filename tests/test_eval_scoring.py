@@ -1696,21 +1696,19 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         manifest_path = module.write_experiment(1, ROOT)
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(tuple(manifest["scenarios"]), expected)
-        self.assertEqual(manifest["name"], "iwe-v18-vs-controls-all-scenarios")
+        self.assertEqual(manifest["name"], "iwe-v18-production-all-scenarios")
         self.assertEqual(manifest["jobs"], 10)
-        self.assertEqual(len(manifest["targets"]), 3)
-        no_skill = manifest["targets"][2]
-        self.assertEqual(no_skill["id"], "iwe-no-skill")
-        self.assertEqual(no_skill["skill_mode"], "none")
-        self.assertNotIn("skill_path", no_skill)
-        self.assertNotIn("skill_version", no_skill)
+        self.assertEqual(len(manifest["targets"]), 1)
+        self.assertEqual(manifest["targets"][0]["id"], "iwe-v18")
         completed = subprocess.run(
             [sys.executable, str(ROOT / "tests/eval/run.py"),
              "--experiment", str(manifest_path.relative_to(ROOT)), "--list"],
             cwd=ROOT, text=True, capture_output=True, check=False,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("target iwe-no-skill: no skill @ IWE 0.18.0", completed.stdout)
+        self.assertIn("target iwe-v18: skills/iwe-v18 @ IWE 0.18.0 (directory)", completed.stdout)
+        self.assertNotIn("iwe-memory-system", completed.stdout)
+        self.assertNotIn("iwe-no-skill", completed.stdout)
 
     def test_readme_splits_compact_scenario_results_by_skill(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -1733,24 +1731,14 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("Valid / Clean (info)", snapshot)
         self.assertIn("Tool / Resource", snapshot)
 
-    def test_ab_command_maps_default_and_deprecated_skills_to_default_cli(self) -> None:
+    def test_production_command_uses_only_iwe_v18(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
         self.assertEqual(targets[0].skill_id, "iwe-v18")
         self.assertEqual(targets[0].skill_version, "0.9.1")
         self.assertEqual(targets[0].iwe_version, "0.18.0")
         self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
-        self.assertEqual(targets[1].skill_id, "iwe-memory-system")
-        self.assertEqual(targets[1].skill_version, "0.0.67")
-        self.assertEqual(targets[1].iwe_version, targets[0].iwe_version)
-        self.assertEqual(targets[1].contract_file, targets[0].contract_file)
-        self.assertEqual(targets[1].runtime_skill_id, "iwe-v18")
-        self.assertEqual(targets[2].skill_id, "iwe-no-skill")
-        self.assertIsNone(targets[2].skill_path)
-        self.assertIsNone(targets[2].skill_version)
-        self.assertEqual(targets[2].iwe_version, targets[0].iwe_version)
-        self.assertEqual(targets[2].contract_file, targets[0].contract_file)
-        self.assertEqual(targets[2].runtime_skill_id, "iwe-v18")
+        self.assertEqual(len(targets), 1)
 
     def test_ab_command_generates_the_linked_markdown_results(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval_report")
@@ -1768,7 +1756,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         command = module.build_command(Path("manifest.toml"), args.results_file, args.agent)
         self.assertEqual(
             args.results_file,
-            Path("tests/eval/results/2026-08-05-iwe-v18-vs-controls.md"),
+            Path("tests/eval/results/iwe-v18-production.md"),
         )
         self.assertEqual(command[-4:], [
             "--markdown-report", str(args.results_file), "--agent", "codex"
