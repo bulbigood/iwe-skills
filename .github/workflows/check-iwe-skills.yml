@@ -76,6 +76,9 @@ jobs:
         run: test -x "${{ matrix.runtime.directory }}/${{ matrix.runtime.cli }}"
       - name: Verify frozen contract
         run: python3 scripts/sync_iwe_contract.py --skill "${{ matrix.name }}" --check
+      - name: Verify capability and eval coverage
+        if: matrix.name == 'iwe-v18'
+        run: python3 scripts/report_iwe_coverage.py --check
       - name: Run deterministic tests
         env:
           IWE_SKILL: ${{ matrix.name }}

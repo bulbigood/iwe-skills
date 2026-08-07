@@ -47,6 +47,9 @@ Use the request, conversation, and prior IWE output only; do not read sources ju
 | Key, section, inclusion, attachment refactor | `rename`, `extract`, `inline`, `attach` | affected keys |
 | Document removal / global normalization | `delete` / `normalize` | destructive guarded result |
 
+Read `references/advanced-routes.md` only when the request explicitly needs `stats`, `stats similarity`, `squash`, `export`, `normalize`, `init`, `completions`, `docs`, or unresolved command help. All ordinary read/write routes are complete below; never load that reference for them.
+Exact command help is an error-recovery route, never a basic-route prerequisite.
+
 1. **Selector:** exact key → `--key`; typed field/entity class → `--filter`; known graph anchor → relationship flag; incomplete identity → `--fuzzy`; body concepts → `--lexical`.
 2. **Search phrase:** keep distinctive names, nouns, quoted terms, and shared topic; comparisons include every entity plus their relation/topic.
 3. **Count:** exact note/synthesis = 1; explicit N = N; “a few” = 5; otherwise requested facets, capped at 20.
@@ -74,7 +77,7 @@ iwe find --lexical "<distinctive terms>" --limit 5 --project 'key=$key,title=$ti
 - **A7 Reference neighborhood:** references for documents linking to an anchor, referenced-by for documents linking from it; positive distance.
 - **A8 Unknown source plus known heading:** combine descriptor and heading in one lexical query, limit 1, project key/title, use `--blocks '{ $header: "<heading>" }'`. Never query the descriptor or heading alone; never project `$blocks`.
 - **A9 Matching lines:** exact key plus matches only for an actual literal/regex text-pattern request.
-- **A10 Ranked records:** filter/query plus known-field sort (`1` ascending, `-1` descending), projection, and limit.
+- **A10 Ranked records:** filter/query plus `--sort <field>:1` ascending or `--sort <field>:-1` descending, projection, and limit.
 
 If an ambiguous winner needs a body, call 2 retrieves only its key.
 
@@ -89,13 +92,13 @@ iwe retrieve --lexical "<all named entities> <shared topic>" --limit 1 --max-doc
 - **B1 Known note:** one key, one document; 800/1200/2000 tokens for fact/summary/detail.
 - **B2 Topic summary:** lexical topic, requested evidence count or 3, finite per-document and total caps.
 - **B3 Named comparison:** all entities plus shared topic; use the template's 1 document, 4500 document tokens, and 5000 total. Never derive 3 documents from 3 entities or use the 2000 detail budget. Stop if that synthesis covers all entities.
-- **B4 Children bodies:** expand includes only to requested positive depth; use child-edge metadata instead when identities suffice.
-- **B5 Parent context:** expand included-by, normally one level.
-- **B6 Relationship synthesis: retrieve 3–5** bounded documents; cite only edges present in returned references/includes. Expand source bodies only when requested.
-- **B7 Backlinks/reception:** expand referenced-by; suppress unneeded backlink metadata when appropriate.
+- **B4 Children bodies:** add `--expand-includes <positive-depth>`; use `--children` instead when child identities/edges suffice.
+- **B5 Parent context:** add `--expand-included-by <positive-depth>`, normally one level.
+- **B6 Relationship synthesis: retrieve 3–5** bounded documents; use `--expand-references <positive-distance>` only when source bodies are needed and cite only returned edges.
+- **B7 Backlinks/reception:** use `--expand-referenced-by <positive-distance>`; add `--backlinks false` when incoming edge metadata is not requested.
 - **B8 Mixed context:** combine only requested expansion directions; cap to the maximum answerable cited set.
 - **B9 Ambiguous winner:** honor A4; typed retrieve may answer in one call, otherwise find 2–5 typed candidates then retrieve the winner.
-- **B10 Bounded next page:** one second retrieval excluding already returned keys; never re-read old results or raise limits reflexively.
+- **B10 Bounded next page:** one second retrieval with repeated `--exclude <returned-key>`; never re-read old results or raise limits reflexively.
 
 If a synthesis facet is absent, Refine the IWE query once with that facet and shared topic.
 
@@ -105,29 +108,20 @@ If a synthesis facet is absent, Refine the IWE query once with that facet and sh
 - **C2 Graph count:** count roots or one finite relationship scope; never infer content from a count.
 - **C3 Schema overview:** `schema` for field types, coverage, and values in a selected cohort.
 - **C4 One field:** schema narrowed by field when only that field matters.
-- **C5 Validation:** `schema validate` by key/filter; use an explicitly supplied schema file only when requested.
+- **C5 Validation:** `iwe schema validate --key <key> [--key <key>...] --format json`; use a filter only when its exact field selector is already known, and an explicitly supplied schema file only when requested. Exit 0 with empty output means all selected documents are valid; stop.
 - **C6 Binding trace:** schema validation explain mode when binding—not validity—is the question.
-- **C7 Health/connectivity:** `stats` for aggregate graph health; exact key for one-document complexity/connectivity; CSV only for requested tables.
-- **C8 Duplicate review:** `stats similarity`; threshold 0.95 near-exact, 0.85 normal review, 0.70 deliberately broad overlap.
-
 Do not discover before a direct selector.
 
 ## Cluster D — hierarchy and reusable artifacts
 
-- **D1 Workspace hierarchy:** `tree` with requested positive depth; Markdown for direct presentation, JSON for reasoning.
-- **D2 Subtree:** tree from one or more already-known roots.
+- **D1 Workspace hierarchy:** `tree` with requested positive depth; depth counts the root as level 1, so direct children require `--depth 2`. Markdown for direct presentation, JSON for reasoning.
+- **D2 Subtree:** tree from one or more already-known roots; use `--depth 2` for root plus direct children.
 - **D3 Filtered hierarchy:** tree with filter/relationship scope and projected node fields.
-- **D4 Linear inclusion artifact:** `squash` one root to requested inclusion depth.
-- **D5 Graph visualization:** `export` one key/subgraph to DOT with finite depth.
-- **D6 Filtered graph:** export a filter/relationship scope; include headers only for section-level visualization.
-
-Do not retrieve documents before an artifact command.
-
 ## Cluster E — create documents
 
-- **E1 Quick note:** `new` with title/body; suffix collision is acceptable unless explicit identity is required.
-- **E2 Known template:** `create` with variables, `type=<stated class>`, typed frontmatter, strict validation, and collision policy.
-- **E3 Exact complete document:** create explicit key with complete frontmatter/body content, strict, collision fail.
+- **E1 Quick note:** `iwe new '<title>' --content '<body>' --if-exists suffix`; add `--key <key> --if-exists fail` for explicit identity. Piped stdin supplies content.
+- **E2 Known template:** `create` with `--vars-yaml` or `--vars-json`, `type=<stated class>`, typed frontmatter, strict validation, and collision policy.
+- **E3 Exact complete document:** `iwe create <key> --content '<frontmatter-and-body>' --strict --if-exists fail`; use `--content -` for stdin.
 - **E4 Idempotent optional creation:** skip only when already-existing is an acceptable success state.
 - **E5 Deliberate replacement:** override only with explicit overwrite intent; otherwise fail or suffix.
 
@@ -147,10 +141,12 @@ iwe update --key "<key>" --replace-text '{ $header: "<old>", to: "<new>", expect
 - **F4 Whole block replacement:** replace only when the selected block is fully authoritative.
 - **F5 Insert sibling:** insert-before/after according to the literal requested position.
 - **F6 Append child:** append under an exact section/container.
-- **F7 Delete local block:** block delete with exact selector and expected count; this is not document deletion.
+- **F7 Delete local block:** block delete with exact selector and expected count; deleting a complete heading section selects both its header and descendants, for example `--delete '{ $or: [ { $header: "<heading>" }, { $within: "<heading>" } ], expect: <count> }'`. This is not document deletion.
 - **F8 Whole body:** content overwrite only when the complete new body is authoritative.
 
-Call 1 is exact dry-run; call 2 removes only dry-run. Verify one exact key when guarded output cannot prove content/preservation. Ask when key, selector, old text, or expected count is unknown.
+Exact forms: `iwe update --key <key> --unset <field> --expect 1 --strict --dry-run`; block insertion uses `--insert-before '<selector+content>'` or `--insert-after '<selector+content>'`; local removal uses `--delete '<selector+expect>'`; whole-body replacement is `iwe update --key <key> --content '<complete-body>'` or `--content -` from stdin. `update` has no `--format` option. Preview every mutation form except authoritative whole-body input, then apply identical arguments without `--dry-run`; guarded success proves the scoped result, so stop without retrieval.
+
+Call 1 is the exact guarded dry-run; call 2 removes only dry-run. Successful guarded apply proves the scoped edit and preservation, so do not retrieve afterward. Verify one exact key only when apply output is inconclusive or failed. Ask when key, selector, old text, or expected count is unknown.
 
 ## Cluster G — structural graph refactors
 
@@ -161,28 +157,18 @@ iwe extract "<source-key>" --section "<known heading>" --dry-run --format keys
 - **G1 Rename key:** `rename old new`; preview then apply; references are rewritten.
 - **G2 Extract section:** extract by known heading, or by block only when its number is already known.
 - **G3 Section inventory:** extract list is a one-call answer only when inventory is requested.
-- **G4 Safe inline:** inline known inclusion with keep-target; optional quote form only when requested.
+- **G4 Safe inline:** `iwe inline <container> --reference <target> --keep-target --dry-run --format keys`, then identical apply; add `--as-quote` only when requested.
 - **G5 Inline and remove target:** omit keep-target only with explicit deletion intent and focused confirmation.
-- **G6 Attach:** attach one source to one or more already-known configured destinations in one preview/apply pair.
+- **G6 Attach:** `iwe attach --key <source> --to <action> [--to <action>...] --dry-run`, then identical apply.
 - **G7 Attach-action inventory:** attach list only when available actions are the requested outcome.
 
 Preview and apply identical arguments. After successful extract, verify only with one bounded source retrieve when output cannot prove inclusion; never use relationship discovery for extract verification or retrieve the created target.
 
 ## Cluster H — destructive and workspace-wide work
 
-- **H1 Delete one note:** exact key, expect 1, strict dry-run, validate affected keys, establish rollback when practical, then fresh, focused confirmation and identical apply.
+- **H1 Delete one note:** `iwe delete <key> --expect 1 --strict --dry-run --format keys`; validate affected keys, establish rollback when practical, then fresh, focused confirmation and identical apply.
 - **H2 Delete cohort:** apply the destructive-scope gate above; otherwise dry-run a narrow user-supplied filter and expected count/range, validate affected keys, confirm, and apply unchanged.
-- **H3 Normalize:** entire-library in-place rewrite with no preview; require explicit scope, established rollback, and fresh, focused confirmation; verify afterward.
-
 Safety calls are not waste. Refuse destructive work when scope or recovery is insufficient.
-
-## Cluster I — setup, control plane, and recovery
-
-- **I1 Initialization proposal:** `init` dry-run JSON; overrides only from already-supplied library, link, extension, source-format, or date-format choices.
-- **I2 Initialize:** auto-apply accepted detection; static defaults only when explicitly preferred.
-- **I3 Completions:** `completions` for the already-known shell.
-- **I4 Embedded reference:** `docs` query/config/schema only when that reference itself is requested; never as routine task discovery.
-- **I5 Exact command help after error:** after an IWE CLI failure, first apply a direct correction supported by the error. Only if the error is insufficient, inspect that exact command's help once; never use global help or repeat the lookup.
 
 ## Command glossary
 

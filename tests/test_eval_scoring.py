@@ -185,6 +185,22 @@ class EvalScoringContractTests(unittest.TestCase):
             self.assertTrue(scenario.procedure["stop_when"])
             self.assertTrue(scenario.procedure["avoid"])
 
+    def test_scenarios_declare_machine_readable_capability_coverage(self) -> None:
+        scenarios = self.runner.load_scenarios()
+        by_id = {scenario.id: scenario for scenario in scenarios}
+        self.assertEqual(
+            by_id["apply-a-guarded-structured-block-update"].capabilities,
+            ("write.update.block.replace-text", "write.update.block.append"),
+        )
+        self.assertEqual(
+            by_id["apply-a-guarded-structured-block-update"].command_families,
+            ("update",),
+        )
+        for scenario in scenarios:
+            self.assertTrue(scenario.capabilities)
+            if scenario.skill_activation == "required" and scenario.iwe_mode == "real":
+                self.assertTrue(scenario.command_families or scenario.capabilities[0].startswith("behavior."))
+
     def test_destructive_refusal_uses_no_task_tools(self) -> None:
         scenario = next(
             item
@@ -226,6 +242,20 @@ class EvalScoringContractTests(unittest.TestCase):
             "fallback-when-iwe-is-unavailable": ((2, 2), 800),
             "find-workspace-information-after-iwe-miss": ((2, 8), 3000),
             "fix-code-without-activating-iwe": ((2, 5), 2000),
+            "read-one-known-note": ((1, 1), 800),
+            "list-and-sort-typed-notes": ((1, 1), 1000),
+            "count-a-typed-cohort": ((1, 1), 100),
+            "show-a-bounded-subtree": ((1, 1), 1000),
+            "read-one-note-with-children": ((1, 1), 2000),
+            "validate-a-known-schema-scope": ((1, 1), 1000),
+            "create-a-quick-note": ((1, 1), 800),
+            "update-typed-frontmatter": ((2, 2), 1200),
+            "replace-an-authoritative-body": ((1, 1), 1200),
+            "edit-local-blocks": ((2, 2), 1600),
+            "rename-a-note-and-its-links": ((2, 2), 1200),
+            "inline-while-keeping-the-target": ((2, 2), 1600),
+            "attach-to-a-known-destination": ((2, 2), 1200),
+            "preview-one-scoped-deletion": ((1, 1), 800),
         }
         self.assertEqual(set(scenarios), set(expected))
         for scenario_id, (tool_calls, maximum_tokens) in expected.items():
@@ -300,6 +330,20 @@ class EvalScoringContractTests(unittest.TestCase):
                 "fallback-when-iwe-is-unavailable": 2,
                 "find-workspace-information-after-iwe-miss": 8,
                 "fix-code-without-activating-iwe": 5,
+                "read-one-known-note": 1,
+                "list-and-sort-typed-notes": 1,
+                "count-a-typed-cohort": 1,
+                "show-a-bounded-subtree": 1,
+                "read-one-note-with-children": 1,
+                "validate-a-known-schema-scope": 1,
+                "create-a-quick-note": 1,
+                "update-typed-frontmatter": 2,
+                "replace-an-authoritative-body": 1,
+                "edit-local-blocks": 2,
+                "rename-a-note-and-its-links": 2,
+                "inline-while-keeping-the-target": 2,
+                "attach-to-a-known-destination": 2,
+                "preview-one-scoped-deletion": 1,
             },
         )
 
@@ -1691,7 +1735,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
         expected = tuple(item.id for item in load_runner().load_scenarios())
-        self.assertEqual(len(expected), 10)
+        self.assertEqual(len(expected), 24)
         self.assertEqual(module.load_scenario_ids(ROOT), expected)
         manifest_path = module.write_experiment(1, ROOT)
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))

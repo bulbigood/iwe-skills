@@ -1,0 +1,455 @@
+{
+  "schema_version": 1,
+  "core_command_families": [
+    "find",
+    "retrieve",
+    "count",
+    "tree",
+    "schema",
+    "schema.validate",
+    "new",
+    "create",
+    "update",
+    "rename",
+    "extract",
+    "inline",
+    "attach",
+    "delete"
+  ],
+  "capabilities": [
+    {
+      "id": "read.find.exact",
+      "case": "A1",
+      "title": "Exact identity",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.partial",
+      "case": "A2",
+      "title": "Partial identity",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.lexical",
+      "case": "A3",
+      "title": "Body concept",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.typed",
+      "case": "A4",
+      "title": "Typed cohort",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.roots",
+      "case": "A5",
+      "title": "Root documents",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.inclusion",
+      "case": "A6",
+      "title": "Inclusion neighborhood",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.references",
+      "case": "A7",
+      "title": "Reference neighborhood",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.blocks",
+      "case": "A8",
+      "title": "Known heading blocks",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.matches",
+      "case": "A9",
+      "title": "Matching lines",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.find.sort",
+      "case": "A10",
+      "title": "Ranked records",
+      "command_family": "find",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.key",
+      "case": "B1",
+      "title": "Known note",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.topic",
+      "case": "B2",
+      "title": "Topic summary",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.synthesis",
+      "case": "B3",
+      "title": "Named comparison",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.children",
+      "case": "B4",
+      "title": "Children bodies",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.parents",
+      "case": "B5",
+      "title": "Parent context",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.references",
+      "case": "B6",
+      "title": "Reference synthesis",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.backlinks",
+      "case": "B7",
+      "title": "Backlinks",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.mixed",
+      "case": "B8",
+      "title": "Mixed context",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.ambiguous",
+      "case": "B9",
+      "title": "Ambiguous winner",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.retrieve.page",
+      "case": "B10",
+      "title": "Bounded next page",
+      "command_family": "retrieve",
+      "tier": "core"
+    },
+    {
+      "id": "read.count.typed",
+      "case": "C1",
+      "title": "Typed cohort count",
+      "command_family": "count",
+      "tier": "core"
+    },
+    {
+      "id": "read.count.graph",
+      "case": "C2",
+      "title": "Graph count",
+      "command_family": "count",
+      "tier": "core"
+    },
+    {
+      "id": "read.schema.overview",
+      "case": "C3",
+      "title": "Schema overview",
+      "command_family": "schema",
+      "tier": "core"
+    },
+    {
+      "id": "read.schema.field",
+      "case": "C4",
+      "title": "One schema field",
+      "command_family": "schema",
+      "tier": "core"
+    },
+    {
+      "id": "read.schema.validate",
+      "case": "C5",
+      "title": "Schema validation",
+      "command_family": "schema.validate",
+      "tier": "core"
+    },
+    {
+      "id": "read.schema.binding",
+      "case": "C6",
+      "title": "Schema binding trace",
+      "command_family": "schema.validate",
+      "tier": "core"
+    },
+    {
+      "id": "analysis.stats.health",
+      "case": "C7",
+      "title": "Graph health",
+      "command_family": "stats",
+      "tier": "extended"
+    },
+    {
+      "id": "analysis.stats.similarity",
+      "case": "C8",
+      "title": "Duplicate review",
+      "command_family": "stats.similarity",
+      "tier": "extended"
+    },
+    {
+      "id": "read.tree.workspace",
+      "case": "D1",
+      "title": "Workspace hierarchy",
+      "command_family": "tree",
+      "tier": "core"
+    },
+    {
+      "id": "read.tree.subtree",
+      "case": "D2",
+      "title": "Subtree",
+      "command_family": "tree",
+      "tier": "core"
+    },
+    {
+      "id": "read.tree.filtered",
+      "case": "D3",
+      "title": "Filtered hierarchy",
+      "command_family": "tree",
+      "tier": "core"
+    },
+    {
+      "id": "artifact.squash",
+      "case": "D4",
+      "title": "Linear inclusion artifact",
+      "command_family": "squash",
+      "tier": "extended"
+    },
+    {
+      "id": "artifact.export.graph",
+      "case": "D5",
+      "title": "Graph visualization",
+      "command_family": "export",
+      "tier": "extended"
+    },
+    {
+      "id": "artifact.export.filtered",
+      "case": "D6",
+      "title": "Filtered graph",
+      "command_family": "export",
+      "tier": "extended"
+    },
+    {
+      "id": "write.new.quick",
+      "case": "E1",
+      "title": "Quick note",
+      "command_family": "new",
+      "tier": "core"
+    },
+    {
+      "id": "write.create.template",
+      "case": "E2",
+      "title": "Known template",
+      "command_family": "create",
+      "tier": "core"
+    },
+    {
+      "id": "write.create.content",
+      "case": "E3",
+      "title": "Exact complete document",
+      "command_family": "create",
+      "tier": "core"
+    },
+    {
+      "id": "write.create.skip",
+      "case": "E4",
+      "title": "Idempotent creation",
+      "command_family": "create",
+      "tier": "core"
+    },
+    {
+      "id": "write.create.override",
+      "case": "E5",
+      "title": "Deliberate replacement",
+      "command_family": "create",
+      "tier": "core"
+    },
+    {
+      "id": "write.update.frontmatter",
+      "case": "F1",
+      "title": "Set/unset frontmatter",
+      "command_family": "update",
+      "tier": "core"
+    },
+    {
+      "id": "write.update.block.replace-text",
+      "case": "F2",
+      "title": "Heading rename",
+      "command_family": "update",
+      "tier": "core"
+    },
+    {
+      "id": "write.update.text",
+      "case": "F3",
+      "title": "Local text replacement",
+      "command_family": "update",
+      "tier": "core"
+    },
+    {
+      "id": "write.update.block.replace",
+      "case": "F4",
+      "title": "Whole block replacement",
+      "command_family": "update",
+      "tier": "core"
+    },
+    {
+      "id": "write.update.block.insert",
+      "case": "F5",
+      "title": "Insert sibling",
+      "command_family": "update",
+      "tier": "core"
+    },
+    {
+      "id": "write.update.block.append",
+      "case": "F6",
+      "title": "Append child",
+      "command_family": "update",
+      "tier": "core"
+    },
+    {
+      "id": "write.update.block.delete",
+      "case": "F7",
+      "title": "Delete local block",
+      "command_family": "update",
+      "tier": "core"
+    },
+    {
+      "id": "write.update.content",
+      "case": "F8",
+      "title": "Whole body",
+      "command_family": "update",
+      "tier": "core"
+    },
+    {
+      "id": "write.rename",
+      "case": "G1",
+      "title": "Rename key",
+      "command_family": "rename",
+      "tier": "core"
+    },
+    {
+      "id": "write.extract",
+      "case": "G2",
+      "title": "Extract section",
+      "command_family": "extract",
+      "tier": "core"
+    },
+    {
+      "id": "write.extract.list",
+      "case": "G3",
+      "title": "Section inventory",
+      "command_family": "extract",
+      "tier": "core"
+    },
+    {
+      "id": "write.inline.keep",
+      "case": "G4",
+      "title": "Inline preserving target",
+      "command_family": "inline",
+      "tier": "core"
+    },
+    {
+      "id": "write.inline.delete",
+      "case": "G5",
+      "title": "Inline removing target",
+      "command_family": "inline",
+      "tier": "core"
+    },
+    {
+      "id": "write.attach",
+      "case": "G6",
+      "title": "Attach destinations",
+      "command_family": "attach",
+      "tier": "core"
+    },
+    {
+      "id": "write.attach.list",
+      "case": "G7",
+      "title": "Attach action inventory",
+      "command_family": "attach",
+      "tier": "core"
+    },
+    {
+      "id": "write.delete.key",
+      "case": "H1",
+      "title": "Delete one note",
+      "command_family": "delete",
+      "tier": "core"
+    },
+    {
+      "id": "write.delete.cohort",
+      "case": "H2",
+      "title": "Delete cohort",
+      "command_family": "delete",
+      "tier": "core"
+    },
+    {
+      "id": "maintenance.normalize",
+      "case": "H3",
+      "title": "Normalize workspace",
+      "command_family": "normalize",
+      "tier": "extended"
+    },
+    {
+      "id": "setup.init.preview",
+      "case": "I1",
+      "title": "Initialization proposal",
+      "command_family": "init",
+      "tier": "extended"
+    },
+    {
+      "id": "setup.init.apply",
+      "case": "I2",
+      "title": "Initialize",
+      "command_family": "init",
+      "tier": "extended"
+    },
+    {
+      "id": "setup.completions",
+      "case": "I3",
+      "title": "Shell completions",
+      "command_family": "completions",
+      "tier": "extended"
+    },
+    {
+      "id": "control.docs",
+      "case": "I4",
+      "title": "Embedded reference",
+      "command_family": "docs",
+      "tier": "extended"
+    },
+    {
+      "id": "control.help",
+      "case": "I5",
+      "title": "Exact command help",
+      "command_family": "__global__",
+      "tier": "extended"
+    }
+  ]
+}

@@ -55,12 +55,20 @@
     "scenario": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "fixture", "request", "procedure", "efficiency", "excellent"],
+      "required": ["id", "name", "fixture", "request", "capabilities", "command_families", "procedure", "efficiency", "excellent"],
       "properties": {
         "id": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
         "name": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "fixture": {"type": "string", "minLength": 1, "pattern": "\\S"},
         "request": {"type": "string", "minLength": 1, "pattern": "\\S"},
+        "capabilities": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)+$"}
+        },
+        "command_families": {
+          "type": "array", "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z]+(?:\\.[a-z]+)?$"}
+        },
         "skill_activation": {"enum": ["required", "forbidden"]},
         "runtime": {
           "type": "object",

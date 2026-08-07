@@ -222,7 +222,8 @@ class IweSkillTests(unittest.TestCase):
             self.assertGreaterEqual(len(words), 500)
             self.assertLessEqual(len(words), 2_800)
             references = sorted(path.name for path in (spec.path / "references").glob("*.md"))
-            self.assertEqual(references, ["errors.md"])
+            self.assertEqual(references, ["advanced-routes.md", "errors.md"])
+            self.assertIn("references/advanced-routes.md", skill)
             self.assertIn("## Complex IWE queries", skill)
             self.assertIn("references/errors.md", skill)
             self.assertLessEqual(
@@ -345,11 +346,37 @@ class IweSkillTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         metrics = payload["skills"][0]
         self.assertEqual(metrics["external_urls"], 0)
-        self.assertEqual(metrics["reference_files"], 1)
+        self.assertEqual(metrics["reference_files"], 2)
         self.assertLessEqual(metrics["skill_lines"], 270)
         self.assertGreaterEqual(metrics["estimated_tokens"], 800)
         self.assertLessEqual(metrics["estimated_tokens"], 5_000)
         self.assertEqual(metrics["contract_operations"], 22)
+
+    def test_coverage_report_is_complete_and_machine_checkable(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts/report_iwe_coverage.py"), "--json", "--check"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        report = json.loads(result.stdout)
+        self.assertEqual(
+            {key: report["command_families"][key] for key in ("covered", "total", "percent")},
+            {"covered": 22, "total": 22, "percent": 100.0},
+        )
+        self.assertEqual(report["command_families"]["missing"], [])
+        self.assertGreaterEqual(report["core_capabilities"]["total"], 40)
+        self.assertEqual(report["core_capabilities"]["covered"], report["core_capabilities"]["total"])
+        self.assertIn("missing_eval", report["core_capabilities"])
+
+    def test_contract_declares_stdin_input_modes(self) -> None:
+        contract = json.loads((ROOT / "contracts/iwe-v18.json").read_text(encoding="utf-8"))
+        self.assertEqual(contract["commands"]["create"]["stdin_modes"], ["content"])
+        self.assertEqual(contract["commands"]["new"]["stdin_modes"], ["content"])
+        self.assertEqual(contract["commands"]["retrieve"]["stdin_modes"], ["keys"])
+        self.assertEqual(contract["commands"]["update"]["stdin_modes"], ["content"])
 
     def test_skill_preserves_baseline_routes_with_frontloaded_overrides(self) -> None:
         spec = load_skill(root=ROOT)
@@ -372,6 +399,64 @@ class IweSkillTests(unittest.TestCase):
         words = skill.split()
         self.assertGreaterEqual(len(words), 1_900)
         self.assertLessEqual(len(words), 2_800)
+
+    def test_core_routes_are_self_contained_and_rare_routes_are_progressive(self) -> None:
+        skill_path = ROOT / "skills/iwe-v18/SKILL.md"
+        skill = skill_path.read_text(encoding="utf-8")
+        advanced = (skill_path.parent / "references/advanced-routes.md").read_text(encoding="utf-8")
+        for syntax in (
+            "--expand-includes", "--expand-included-by", "--expand-references",
+            "--expand-referenced-by", "--children", "--backlinks false", "--exclude",
+            "create <key> --content", "--vars-json", "update --key <key> --unset",
+            "--insert-before", "--insert-after", "--delete", "--keep-target", "attach --key",
+        ):
+            self.assertIn(syntax, skill)
+        for case in ("**C7", "**C8", "**D4", "**D5", "**D6", "**H3", "**I1", "**I5"):
+            self.assertNotIn(case, skill)
+            self.assertIn(case, advanced)
+        self.assertIn("Read `references/advanced-routes.md` only", skill)
+
+    def test_core_route_examples_execute_against_iwe_0_18(self) -> None:
+        runner_path = ROOT / "tests/eval/run.py"
+        spec = importlib.util.spec_from_file_location("iwe_core_route_smoke", runner_path)
+        assert spec is not None and spec.loader is not None
+        runner = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = runner
+        spec.loader.exec_module(runner)
+        config = json.loads((ROOT / "tests/eval/configs/codex.json").read_text(encoding="utf-8"))
+        fixture = runner.ensure_fixture(config, "pkm-demo", ROOT / "tests/eval/.cache")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            read_workspace = root / "read"
+            shutil.copytree(fixture, read_workspace, ignore=shutil.ignore_patterns(".git"))
+            runner.prepare(read_workspace, "pkm-demo-core-read")
+            read_commands = (
+                ("find", "--filter", "{ type: project }", "--sort", "priority:-1", "--limit", "20", "--project", "key=$key,title=$title,priority=priority", "--format", "json"),
+                ("count", "--filter", "{ type: project }"),
+                ("tree", "--key", "core-alpha", "--depth", "2", "--project", "key=$key,title=$title", "--format", "json"),
+                ("retrieve", "--key", "core-alpha", "--expand-includes", "1", "--limit", "1", "--max-documents", "2", "--max-tokens", "2000", "--max-document-tokens", "1000", "--format", "json"),
+                ("schema", "validate", "--key", "core-alpha", "--key", "core-beta", "--key", "core-gamma", "--format", "json"),
+            )
+            for command in read_commands:
+                result = subprocess.run([str(IWE), *command], cwd=read_workspace, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+            write_workspace = root / "write"
+            shutil.copytree(fixture, write_workspace, ignore=shutil.ignore_patterns(".git"))
+            runner.prepare(write_workspace, "pkm-demo-core-write")
+            write_commands = (
+                ("new", "Release Scratchpad", "--content", "Collect final checks.", "--if-exists", "suffix"),
+                ("update", "--key", "core-edit", "--set", "reviewed=true", "--unset", "temporary", "--expect", "1", "--strict", "--dry-run"),
+                ("update", "--key", "core-body", "--content", "# Core Body\n\nApproved final text."),
+                ("update", "--key", "core-blocks", "--insert-before", "{ $header: Tail, content: Ready., expect: 1 }", "--delete", "{ $or: [ { $header: 'Remove Me' }, { $within: 'Remove Me' } ], expect: 2 }", "--expect", "1", "--strict", "--dry-run"),
+                ("rename", "core-old", "core-renamed", "--dry-run", "--format", "keys"),
+                ("inline", "core-parent", "--reference", "core-child", "--keep-target", "--dry-run", "--format", "keys"),
+                ("attach", "--key", "core-source", "--to", "inbox", "--dry-run"),
+                ("delete", "core-delete", "--expect", "1", "--strict", "--dry-run", "--format", "keys"),
+            )
+            for command in write_commands:
+                result = subprocess.run([str(IWE), *command], cwd=write_workspace, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_eval_configuration_and_scenarios_load(self) -> None:
         runner_path = ROOT / "tests/eval/run.py"
@@ -397,7 +482,7 @@ class IweSkillTests(unittest.TestCase):
             )
             self.assertTrue(all(item["procedure"].values()))
         names = {scenario.name for scenario in scenarios}
-        self.assertEqual(len(scenarios), 10)
+        self.assertEqual(len(scenarios), 24)
         for expected in (
             "Ambiguous discovery with one follow-up",
             "Fallback when IWE is unavailable",
@@ -572,6 +657,20 @@ class IweSkillTests(unittest.TestCase):
             "fallback-when-iwe-is-unavailable": (2, 2, 0, 3200),
             "find-workspace-information-after-iwe-miss": (2, 8, 0, 12000),
             "fix-code-without-activating-iwe": (2, 5, 0, 8000),
+            "read-one-known-note": (1, 1, 0, 3200),
+            "list-and-sort-typed-notes": (1, 1, 0, 4000),
+            "count-a-typed-cohort": (1, 1, 0, 400),
+            "show-a-bounded-subtree": (1, 1, 0, 4000),
+            "read-one-note-with-children": (1, 1, 0, 8000),
+            "validate-a-known-schema-scope": (1, 1, 0, 4000),
+            "create-a-quick-note": (1, 1, 0, 3200),
+            "update-typed-frontmatter": (2, 2, 0, 4800),
+            "replace-an-authoritative-body": (1, 1, 0, 4800),
+            "edit-local-blocks": (2, 2, 0, 6400),
+            "rename-a-note-and-its-links": (2, 2, 0, 4800),
+            "inline-while-keeping-the-target": (2, 2, 0, 6400),
+            "attach-to-a-known-destination": (2, 2, 0, 4800),
+            "preview-one-scoped-deletion": (1, 1, 0, 3200),
         })
 
         update = next(

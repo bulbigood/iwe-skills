@@ -21,6 +21,9 @@
       "help_sha256": "3d09ace2c265be10bd31d15fada8fece1747c6ecad4fde772c81cbbdede44b78"
     },
     "create": {
+      "stdin_modes": [
+        "content"
+      ],
       "arguments": [
         "KEY"
       ],
@@ -39,6 +42,9 @@
       "help_sha256": "5770c83371d0f1e2fa1b8ef1773b75da2881136a4fd3fb977a83ab01e71058c8"
     },
     "new": {
+      "stdin_modes": [
+        "content"
+      ],
       "arguments": [
         "TITLE"
       ],
@@ -53,6 +59,9 @@
       "help_sha256": "3efc2da6e60e796c1a6dfde102b968ba66e0e7463262c10bc24141e9e2f1803d"
     },
     "retrieve": {
+      "stdin_modes": [
+        "keys"
+      ],
       "arguments": [],
       "required_any": [
         "--key",
@@ -316,6 +325,9 @@
       "help_sha256": "24310854de67f7e794eb983b604b97657fb774080ceae079a1cc3741ca8c4900"
     },
     "update": {
+      "stdin_modes": [
+        "content"
+      ],
       "arguments": [],
       "required_any": [
         "--key",

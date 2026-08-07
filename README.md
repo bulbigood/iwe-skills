@@ -2,11 +2,12 @@
 
 A high-efficiency AI-agent skill for using the [IWE knowledge-management system](https://iwe.md/) with minimal tool calls and bounded context.
 
-The maintained `iwe-v18` skill lets an agent search, retrieve, analyze, create, and safely refactor an IWE Markdown knowledge graph through the installed IWE CLI. It is designed to give the agent enough routing knowledge for roughly 95% of normal tasks after reading only `SKILL.md`.
+The maintained `iwe-v18` skill lets an agent search, retrieve, analyze, create, and safely refactor an IWE Markdown knowledge graph through the installed IWE CLI. Its basic and common read/write routes are self-contained in `SKILL.md`; uncommon analytics and control-plane routes use one explicitly triggered reference.
 
 ## Why it is efficient
 
 - **Problem-first routing:** 62 common cases map directly to the narrowest IWE operation instead of making the agent explore CLI help or the filesystem.
+- **Measured coverage:** the [generated coverage report](docs/iwe-v18-coverage-matrix.md) checks all 22 command families and 62 catalogued capabilities against the frozen `0.18.0` contract and scenario metadata.
 - **One-call read paths:** discovery, synthesis, counting, schema inspection, hierarchy rendering, and graph analysis use direct bounded operations whenever possible.
 - **Mental parameter derivation:** the skill teaches the model how to derive selectors, search terms, limits, graph depth, token budgets, typed values, and mutation guards from the request and known context.
 - **Bounded context:** explicit document, result, depth, distance, and token limits prevent unlimited reads and reduce irrelevant or duplicate output.
@@ -102,7 +103,7 @@ No skill guidance; IWE CLI `0.18.0` is installed and available. `Skill complianc
 | Workspace fallback | **FAIL** | 10/10 / 10/10 | 10/10 / 10/10 | **2/10 (FAIL)** / — | 10/10 | **6/10 (FAIL)** / 10/10 |
 | Out-of-scope code fix | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / — | 10/10 | 10/10 / 10/10 |
 
-Run the production ten-sample evaluation for `iwe-v18` across all declared scenarios. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
+Run the production ten-sample evaluation for `iwe-v18` across all 24 declared scenarios. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
 
 ```bash
 python3 scripts/run_iwe_skill_ab_eval.py

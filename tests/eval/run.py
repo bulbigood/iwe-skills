@@ -287,6 +287,8 @@ class Scenario:
     allow_broad_fallback: bool = False
     forbidden_retrieve_keys: tuple[str, ...] = ()
     require_oracle_tool_evidence: bool = False
+    capabilities: tuple[str, ...] = ()
+    command_families: tuple[str, ...] = ()
 
     @property
     def slug(self) -> str:
@@ -374,6 +376,8 @@ def load_scenarios(
             allow_broad_fallback=runtime.get("allow_filesystem_fallback", False),
             forbidden_retrieve_keys=tuple(runtime.get("forbidden_retrieve_keys", [])),
             require_oracle_tool_evidence=runtime.get("require_oracle_tool_evidence", False),
+            capabilities=tuple(item["capabilities"]),
+            command_families=tuple(item["command_families"]),
         ))
     return result
 
@@ -1064,6 +1068,20 @@ def independent_oracle_evidence(
         "discover-and-retrieve-bounded-multi-hop-context": ("marcus", "machiavelli", "nietzsche", "virtue"),
         "query-structured-metadata-without-scanning-files": ("power", "morality"),
         "ambiguous-discovery-with-one-follow-up": ("api",),
+        "read-one-known-note": ("implementation", "checklist"),
+        "list-and-sort-typed-notes": ("priority",),
+        "count-a-typed-cohort": ("project",),
+        "show-a-bounded-subtree": ("core",),
+        "read-one-note-with-children": ("core",),
+        "validate-a-known-schema-scope": ("core",),
+        "create-a-quick-note": ("release", "scratchpad"),
+        "update-typed-frontmatter": ("reviewed", "temporary"),
+        "replace-an-authoritative-body": ("approved", "final"),
+        "edit-local-blocks": ("ready", "tail"),
+        "rename-a-note-and-its-links": ("core", "renamed"),
+        "inline-while-keeping-the-target": ("reusable", "child"),
+        "attach-to-a-known-destination": ("core", "source"),
+        "preview-one-scoped-deletion": ("deletion", "target"),
     }
     authored_keys_by_scenario = {
         "discover-and-retrieve-bounded-multi-hop-context": {
@@ -1147,6 +1165,22 @@ def independent_oracle_evidence(
         "graph/eval-plan.md",
         "src/retry.py",
         "tests/test_retry.py",
+        "graph/core-alpha.md",
+        "graph/core-beta.md",
+        "graph/core-gamma.md",
+        ".iwe/schemas/core.yaml",
+        "graph/core-edit.md",
+        "graph/core-body.md",
+        "graph/core-blocks.md",
+        "graph/core-old.md",
+        "graph/core-renamed.md",
+        "graph/core-referrer.md",
+        "graph/core-child.md",
+        "graph/core-parent.md",
+        "graph/core-source.md",
+        "graph/inbox.md",
+        "graph/core-delete.md",
+        "graph/core-delete-ref.md",
     ):
         if path in after:
             prepared[path] = after[path][:8000]
@@ -1276,6 +1310,60 @@ sections:
     additionalSections: false
 additionalSections: false
 """, encoding="utf-8")
+    elif fixture == "pkm-demo-core-read":
+        graph = workspace / "graph"
+        (graph / "core-alpha.md").write_text(
+            "---\ntype: project\npriority: 2\n---\n\n# Core Alpha\n\nCoordinates the release.\n\n[Core Beta](core-beta.md)\n",
+            encoding="utf-8",
+        )
+        (graph / "core-beta.md").write_text(
+            "---\ntype: note\npriority: 1\n---\n\n# Core Beta\n\nRecords the direct implementation checklist.\n",
+            encoding="utf-8",
+        )
+        (graph / "core-gamma.md").write_text(
+            "---\ntype: project\npriority: 3\n---\n\n# Core Gamma\n\nTracks the higher-priority migration.\n",
+            encoding="utf-8",
+        )
+        config = workspace / ".iwe/config.toml"
+        config.write_text(
+            config.read_text(encoding="utf-8")
+            + '\n[schemas.core]\nmatch = "core-*"\n',
+            encoding="utf-8",
+        )
+        schemas = workspace / ".iwe/schemas"
+        schemas.mkdir(parents=True, exist_ok=True)
+        (schemas / "core.yaml").write_text(
+            "$schema: https://document-schema.org/draft/2026-06/schema\n"
+            "frontmatter:\n"
+            "  type: object\n"
+            "  required: [type, priority]\n"
+            "  properties:\n"
+            "    type: { type: string }\n"
+            "    priority: { type: number }\n",
+            encoding="utf-8",
+        )
+    elif fixture == "pkm-demo-core-write":
+        graph = workspace / "graph"
+        documents = {
+            "core-edit.md": "---\nstatus: draft\ntemporary: remove-me\n---\n\n# Core Edit\n\nBody must remain unchanged.\n",
+            "core-body.md": "---\ntype: memo\nowner: Ada\n---\n\n# Old Body\n\nReplace all of this.\n",
+            "core-blocks.md": "# Core Blocks\n\n## Keep\n\nPreserve.\n\n## Remove Me\n\nDelete this block.\n\n## Tail\n\nFinish.\n",
+            "core-old.md": "# Core Old\n\nRename this note.\n",
+            "core-referrer.md": "# Core Referrer\n\n[Core Old](core-old.md)\n",
+            "core-child.md": "# Core Child\n\nReusable child text.\n",
+            "core-parent.md": "# Core Parent\n\n[Core Child](core-child.md)\n",
+            "core-source.md": "# Core Source\n\nAttach this note.\n",
+            "core-delete.md": "# Core Delete\n\nDeletion target.\n",
+            "core-delete-ref.md": "# Delete Referrer\n\n[Core Delete](core-delete.md)\n",
+        }
+        for name, content in documents.items():
+            (graph / name).write_text(content, encoding="utf-8")
+        config = workspace / ".iwe/config.toml"
+        config.write_text(
+            config.read_text(encoding="utf-8")
+            + '\n[actions.inbox]\ntype = "attach"\ntitle = "Attach to inbox"\nkey_template = "inbox"\ndocument_template = """\n# Inbox\n\n{{content}}\n"""\n',
+            encoding="utf-8",
+        )
     elif fixture == "pkm-demo-workspace-fallback":
         operations = workspace / "config"
         operations.mkdir(exist_ok=True)
@@ -1529,6 +1617,13 @@ def mechanical_errors(
         "refactor-an-inclusion-link-without-breaking-the-graph",
         "create-and-validate-a-schema-bound-document",
         "fix-code-without-activating-iwe",
+        "create-a-quick-note",
+        "update-typed-frontmatter",
+        "replace-an-authoritative-body",
+        "edit-local-blocks",
+        "rename-a-note-and-its-links",
+        "inline-while-keeping-the-target",
+        "attach-to-a-known-destination",
     }
     if scenario.id not in mutating_scenarios:
         if before != after:
@@ -1624,6 +1719,54 @@ def mechanical_errors(
             )
         if not valid:
             errors.append("typed schema-bound meeting was not created")
+    if scenario.id == "create-a-quick-note":
+        created = {
+            key: after[key] for key in after.keys() - before.keys()
+            if key.startswith("graph/") and key.endswith(".md")
+        }
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        valid = [
+            key for key, body in created.items()
+            if re.search(r"^#\s+Release Scratchpad\s*$", body, re.MULTILINE)
+            and "Collect final checks." in body
+        ]
+        if len(valid) != 1 or changed != set(valid):
+            errors.append("quick note creation did not create exactly the requested note")
+    if scenario.id == "update-typed-frontmatter":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        body = after.get("graph/core-edit.md", "")
+        if changed != {"graph/core-edit.md"} or "reviewed: true" not in body or "temporary:" in body:
+            errors.append("typed frontmatter update is not exact")
+        before_body = before.get("graph/core-edit.md", "").split("---\n", 2)[-1]
+        after_body = body.split("---\n", 2)[-1]
+        if before_body != after_body:
+            errors.append("typed frontmatter update changed the body")
+    if scenario.id == "replace-an-authoritative-body":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        expected = "---\ntype: memo\nowner: Ada\n---\n# Core Body\n\nApproved final text."
+        if changed != {"graph/core-body.md"} or after.get("graph/core-body.md") != expected:
+            errors.append("authoritative body replacement is not exact")
+    if scenario.id == "edit-local-blocks":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        expected = "# Core Blocks\n\n## Keep\n\nPreserve.\n\nReady.\n\n## Tail\n\nFinish.\n"
+        if changed != {"graph/core-blocks.md"} or after.get("graph/core-blocks.md") != expected:
+            errors.append("local block edit is not the exact requested transformation")
+    if scenario.id == "rename-a-note-and-its-links":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        expected = {"graph/core-old.md", "graph/core-renamed.md", "graph/core-referrer.md"}
+        referrer = after.get("graph/core-referrer.md", "")
+        if changed != expected or "core-old" in referrer or "core-renamed.md" not in referrer:
+            errors.append("rename did not move the note and rewrite the exact referrer")
+    if scenario.id == "inline-while-keeping-the-target":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        parent = after.get("graph/core-parent.md", "")
+        if changed != {"graph/core-parent.md"} or "Reusable child text." not in parent or "graph/core-child.md" not in after:
+            errors.append("inline did not preserve the target or changed unrelated files")
+    if scenario.id == "attach-to-a-known-destination":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        inbox = after.get("graph/inbox.md", "")
+        if changed != {"graph/inbox.md"} or inbox.count("core-source.md") != 1:
+            errors.append("attach did not create exactly one source inclusion in inbox")
     if scenario.id == "fix-code-without-activating-iwe":
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
         if changed != {"src/retry.py"}:
