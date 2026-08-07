@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -1891,6 +1892,8 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
 
     def test_readme_links_to_full_production_report_without_comparison_tables(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertEqual(readme.splitlines()[0], "# IWE Agent Skills")
+        self.assertFalse(any(re.match(r"^\d+\|", line) for line in readme.splitlines()))
         snapshot = readme.split("## Latest production evaluation", 1)[1].split(
             "## Documentation", 1
         )[0]
@@ -1898,7 +1901,10 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             "[Full production report](tests/eval/results/iwe-v18-production.md)",
             snapshot,
         )
-        self.assertNotIn("| Scenario |", snapshot)
+        self.assertEqual(snapshot.count("| Scenario | Overall |"), 1)
+        self.assertEqual(
+            snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 24
+        )
         self.assertNotIn("| Target |", snapshot)
         self.assertNotIn("iwe-memory-system", snapshot)
         self.assertNotIn("no skill guidance", snapshot.lower())
@@ -1907,6 +1913,11 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertIn("**Overall:** **FAIL**", snapshot)
         self.assertIn("**Scenario aggregates:** `19/24` passed", snapshot)
         self.assertIn("**Valid samples:** `240/240`", snapshot)
+        self.assertIn("Valid / Clean (info)", snapshot)
+        self.assertIn("Correct / Evidence", snapshot)
+        self.assertIn("Request / Skill", snapshot)
+        self.assertIn("Tool / Resource", snapshot)
+        self.assertNotRegex(snapshot, r"\b\d+(?:\.\d+)?\s*(?:avg|average|mean)\b")
 
     def test_production_command_uses_only_iwe_v18(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
