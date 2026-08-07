@@ -973,6 +973,20 @@ def _document_links(text: str) -> list[str]:
     return sorted(links)
 
 
+def _standalone_document_links(text: str) -> list[str]:
+    """Return links whose complete non-blank line is one Markdown/wiki link."""
+    links: set[str] = set()
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not (
+            re.fullmatch(r"\[\[[^\]]+\]\]", stripped)
+            or re.fullmatch(r"\[[^\]]+\]\([^)]+\)", stripped)
+        ):
+            continue
+        links.update(_document_links(stripped))
+    return sorted(links)
+
+
 def _parse_frontmatter(text: str) -> tuple[dict, str]:
     if not text.startswith("---\n"):
         return {}, text
@@ -1102,6 +1116,35 @@ def independent_oracle_evidence(
     }
     terms = terms_by_scenario.get(scenario.id, ())
     authored_keys = authored_keys_by_scenario.get(scenario.id)
+    metadata_relationships: dict[str, dict[str, list[str]]] | None = None
+    if scenario.id == "query-structured-metadata-without-scanning-files":
+        direct_keys = {"power", "morality"}
+        outgoing: dict[str, dict[str, set[str]]] = {}
+        for path, text in sorted(after.items()):
+            if not path.endswith(".md"):
+                continue
+            key = path.removeprefix("graph/").removesuffix(".md")
+            all_links = set(_document_links(text))
+            includes = set(_standalone_document_links(text))
+            outgoing[key] = {
+                "includes": includes,
+                "references": all_links - includes,
+            }
+        metadata_relationships = {}
+        for key in sorted(direct_keys):
+            metadata_relationships[key] = {
+                "includes": sorted(outgoing.get(key, {}).get("includes", set())),
+                "included_by": sorted(
+                    source for source, relations in outgoing.items()
+                    if key in relations["includes"]
+                ),
+                "references": sorted(outgoing.get(key, {}).get("references", set())),
+                "referenced_by": sorted(
+                    source for source, relations in outgoing.items()
+                    if key in relations["references"]
+                ),
+            }
+
     documents = []
     for path, text in sorted(after.items()):
         if not path.endswith(".md"):
@@ -1111,30 +1154,26 @@ def independent_oracle_evidence(
         if authored_keys is not None:
             if key not in authored_keys:
                 continue
+        elif scenario.id == "query-structured-metadata-without-scanning-files" and key not in {"power", "morality"}:
+            continue
         elif terms and not any(term in lowered for term in terms):
             continue
         frontmatter, _ = _parse_frontmatter(text)
         links = _document_links(text)[:12]
-        documents.append({
+        document = {
             "key": key,
             "title": _document_title(text, Path(key).name),
             "frontmatter": frontmatter,
-            "links": links,
-            "source_excerpt": _source_excerpt(text, terms),
-        })
+        }
+        if scenario.id != "query-structured-metadata-without-scanning-files":
+            document.update({
+                "links": links,
+                "source_excerpt": _source_excerpt(text, terms),
+            })
+        documents.append(document)
 
     if scenario.id == "query-structured-metadata-without-scanning-files":
-        direct_keys = {"power", "morality"}
-        documents.sort(
-            key=lambda item: (
-                0 if item["key"] in direct_keys else
-                1 if direct_keys.intersection(item["links"]) else
-                2 if all(term in item["source_excerpt"].casefold() for term in direct_keys) else
-                3,
-                item["key"],
-            )
-        )
-        documents = documents[:20]
+        documents.sort(key=lambda item: item["key"])
     else:
         documents.sort(key=lambda item: item["key"])
         documents = documents[:20]
@@ -1184,7 +1223,7 @@ def independent_oracle_evidence(
     ):
         if path in after:
             prepared[path] = after[path][:8000]
-    return {
+    evidence = {
         "source": "direct independent parsing of fixture snapshots; no tested CLI or skill",
         "matching_documents": documents,
         "authoritative_matches": authoritative_matches,
@@ -1206,6 +1245,9 @@ def independent_oracle_evidence(
             else None
         ),
     }
+    if metadata_relationships is not None:
+        evidence["graph_neighborhoods"] = metadata_relationships
+    return evidence
 
 
 def judge_environment(
@@ -1725,20 +1767,29 @@ def mechanical_errors(
             if key.startswith("graph/") and key.endswith(".md")
         }
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        expected_body = "# Release Scratchpad\n\nCollect final checks."
         valid = [
             key for key, body in created.items()
-            if re.search(r"^#\s+Release Scratchpad\s*$", body, re.MULTILINE)
-            and "Collect final checks." in body
+            if body.rstrip("\n") == expected_body
         ]
         if len(valid) != 1 or changed != set(valid):
             errors.append("quick note creation did not create exactly the requested note")
     if scenario.id == "update-typed-frontmatter":
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
-        body = after.get("graph/core-edit.md", "")
-        if changed != {"graph/core-edit.md"} or "reviewed: true" not in body or "temporary:" in body:
+        before_frontmatter, before_body = _parse_frontmatter(
+            before.get("graph/core-edit.md", "")
+        )
+        after_frontmatter, after_body = _parse_frontmatter(
+            after.get("graph/core-edit.md", "")
+        )
+        expected_frontmatter = dict(before_frontmatter)
+        expected_frontmatter.pop("temporary", None)
+        expected_frontmatter["reviewed"] = True
+        if (
+            changed != {"graph/core-edit.md"}
+            or after_frontmatter != expected_frontmatter
+        ):
             errors.append("typed frontmatter update is not exact")
-        before_body = before.get("graph/core-edit.md", "").split("---\n", 2)[-1]
-        after_body = body.split("---\n", 2)[-1]
         if before_body != after_body:
             errors.append("typed frontmatter update changed the body")
     if scenario.id == "replace-an-authoritative-body":
@@ -1757,16 +1808,47 @@ def mechanical_errors(
         referrer = after.get("graph/core-referrer.md", "")
         if changed != expected or "core-old" in referrer or "core-renamed.md" not in referrer:
             errors.append("rename did not move the note and rewrite the exact referrer")
+        expected_referrer = before.get("graph/core-referrer.md", "").replace(
+            "core-old.md", "core-renamed.md"
+        )
+        if (
+            after.get("graph/core-renamed.md") != before.get("graph/core-old.md")
+            or referrer != expected_referrer
+        ):
+            errors.append("rename changed note or referrer content beyond the key rewrite")
     if scenario.id == "inline-while-keeping-the-target":
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
         parent = after.get("graph/core-parent.md", "")
-        if changed != {"graph/core-parent.md"} or "Reusable child text." not in parent or "graph/core-child.md" not in after:
-            errors.append("inline did not preserve the target or changed unrelated files")
+        child = before.get("graph/core-child.md", "")
+        promoted_child = re.sub(r"^#\s", "## ", child, count=1).rstrip("\n")
+        expected_parent = before.get("graph/core-parent.md", "").replace(
+            "[Core Child](core-child.md)", promoted_child
+        )
+        if (
+            changed != {"graph/core-parent.md"}
+            or after.get("graph/core-child.md") != child
+            or parent != expected_parent
+        ):
+            errors.append("inline did not exactly replace the inclusion while preserving the target")
     if scenario.id == "attach-to-a-known-destination":
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
         inbox = after.get("graph/inbox.md", "")
-        if changed != {"graph/inbox.md"} or inbox.count("core-source.md") != 1:
-            errors.append("attach did not create exactly one source inclusion in inbox")
+        source_inclusions = [
+            line for line in inbox.splitlines()
+            if _standalone_document_links(line) == ["core-source"]
+        ]
+        if changed != {"graph/inbox.md"} or len(source_inclusions) != 1:
+            errors.append("attach did not create exactly one standalone source inclusion")
+        before_inbox = before.get("graph/inbox.md")
+        if before_inbox is not None and len(source_inclusions) == 1:
+            remaining = "\n".join(
+                line for line in inbox.splitlines() if line != source_inclusions[0]
+            )
+            normalize_links = lambda value: re.sub(
+                r"(\[[^\]]+\]\([^)]*?)\.md(\))", r"\1\2", value
+            )
+            if normalize_links(remaining).strip() != normalize_links(before_inbox).strip():
+                errors.append("attach changed existing destination content beyond link normalization")
     if scenario.id == "fix-code-without-activating-iwe":
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
         if changed != {"src/retry.py"}:

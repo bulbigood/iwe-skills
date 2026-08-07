@@ -258,6 +258,19 @@ class EvalScoringContractTests(unittest.TestCase):
             "preview-one-scoped-deletion": ((1, 1), 800),
         }
         self.assertEqual(set(scenarios), set(expected))
+
+        guide = (ROOT / "tests/eval/README.md").read_text(encoding="utf-8")
+        for label in (
+            "Workspace fallback", "Out-of-scope code fix", "Known-note read",
+            "Typed list", "Typed count", "Bounded subtree", "Children read",
+            "Known schema validation", "Quick-note creation", "Typed frontmatter update",
+            "Authoritative body replacement", "Local block edit", "Rename",
+            "Inline preserving target", "Attach", "Deletion preview",
+        ):
+            self.assertIn(f"| {label} |", guide)
+        self.assertNotIn("| CLI incompatibility |", guide)
+        self.assertNotIn("| One-call discovery |", guide)
+        self.assertIn("Use `--samples 10` for the production aggregate decision", guide)
         for scenario_id, (tool_calls, maximum_tokens) in expected.items():
             with self.subTest(scenario=scenario_id):
                 scenario = scenarios[scenario_id]
@@ -1260,7 +1273,7 @@ class EvalScoringContractTests(unittest.TestCase):
         keys = {item["key"] for item in oracle["matching_documents"]}
         self.assertEqual(keys, expected_keys)
 
-    def test_metadata_oracle_parses_markdown_and_wiki_relationships(self) -> None:
+    def test_metadata_oracle_exposes_only_independent_graph_relationships(self) -> None:
         scenario = next(
             item
             for item in self.runner.load_scenarios()
@@ -1269,10 +1282,31 @@ class EvalScoringContractTests(unittest.TestCase):
         fixture = {
             "graph/power.md": "# Power\n\n[Morality](morality.md) and [[moral-systems|systems]].\n",
             "graph/morality.md": "# Morality\n\nPower changes values.\n",
+            "graph/power-dynamics.md": "# Power Dynamics\n\n[Power](power.md)\n",
+            "graph/moral-note.md": "# Moral Note\n\nSee [Morality](morality.md).\n",
         }
         oracle = self.runner.independent_oracle_evidence(scenario, fixture, fixture, "")
-        power = next(item for item in oracle["matching_documents"] if item["key"] == "power")
-        self.assertEqual(power["links"], ["moral-systems", "morality"])
+        self.assertEqual(
+            [item["key"] for item in oracle["matching_documents"]],
+            ["morality", "power"],
+        )
+        self.assertTrue(
+            all("source_excerpt" not in item for item in oracle["matching_documents"])
+        )
+        self.assertEqual(oracle["graph_neighborhoods"], {
+            "morality": {
+                "includes": [],
+                "included_by": [],
+                "references": [],
+                "referenced_by": ["moral-note", "power"],
+            },
+            "power": {
+                "includes": [],
+                "included_by": ["power-dynamics"],
+                "references": ["moral-systems", "morality"],
+                "referenced_by": [],
+            },
+        })
 
     def test_update_postcondition_requires_exact_section_scoped_transformation(self) -> None:
         scenario = next(
@@ -1324,6 +1358,101 @@ class EvalScoringContractTests(unittest.TestCase):
             )
         self.assertIn("refactor changed files outside the source and one new note", errors)
 
+    def test_quick_note_postcondition_rejects_extra_authored_content(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "create-a-quick-note"
+        )
+        after = {
+            "graph/release-scratchpad.md": (
+                "# Release Scratchpad\n\nCollect final checks.\n\n## Extra\n\nNot requested.\n"
+            )
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, {}, after, [], Path(directory), {"iwe_calls": 1}
+            )
+        self.assertIn("quick note creation did not create exactly the requested note", errors)
+
+    def test_typed_frontmatter_postcondition_accepts_semantic_yaml_boolean(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "update-typed-frontmatter"
+        )
+        before = {
+            "graph/core-edit.md": (
+                "---\nstatus: draft\ntemporary: remove-me\n---\n\n"
+                "# Core Edit\n\nBody must remain unchanged.\n"
+            )
+        }
+        after = {
+            "graph/core-edit.md": (
+                "---\nstatus: draft\nreviewed: !!bool 'true'\n---\n\n"
+                "# Core Edit\n\nBody must remain unchanged.\n"
+            )
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, before, after, [], Path(directory), {"iwe_calls": 2}
+            )
+        self.assertEqual(errors, [])
+
+    def test_rename_postcondition_rejects_content_drift(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "rename-a-note-and-its-links"
+        )
+        before = {
+            "graph/core-old.md": "# Core Old\n\nRename this note.\n",
+            "graph/core-referrer.md": "# Core Referrer\n\n[Core Old](core-old.md)\n",
+        }
+        after = {
+            "graph/core-renamed.md": "# Core Old\n\nChanged during rename.\n",
+            "graph/core-referrer.md": "# Core Referrer\n\n[Core Old](core-renamed.md)\n",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, before, after, [], Path(directory), {"iwe_calls": 2}
+            )
+        self.assertIn("rename changed note or referrer content beyond the key rewrite", errors)
+
+    def test_inline_postcondition_rejects_retained_inclusion(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "inline-while-keeping-the-target"
+        )
+        before = {
+            "graph/core-child.md": "# Core Child\n\nReusable child text.\n",
+            "graph/core-parent.md": "# Core Parent\n\n[Core Child](core-child.md)\n",
+        }
+        after = {
+            **before,
+            "graph/core-parent.md": (
+                "# Core Parent\n\n[Core Child](core-child.md)\n\nReusable child text.\n"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, before, after, [], Path(directory), {"iwe_calls": 2}
+            )
+        self.assertIn("inline did not exactly replace the inclusion while preserving the target", errors)
+
+    def test_attach_postcondition_rejects_non_link_occurrence(self) -> None:
+        scenario = next(
+            item for item in self.runner.load_scenarios()
+            if item.id == "attach-to-a-known-destination"
+        )
+        before = {"graph/core-source.md": "# Core Source\n\nAttach this note.\n"}
+        after = {
+            **before,
+            "graph/inbox.md": "# Inbox\n\nThe text core-source.md is not an inclusion.\n",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            errors = self.runner.mechanical_errors(
+                scenario, before, after, [], Path(directory), {"iwe_calls": 2}
+            )
+        self.assertIn("attach did not create exactly one standalone source inclusion", errors)
+
     def test_create_postcondition_accepts_typed_attendees_in_frontmatter(self) -> None:
         scenario = next(
             item
@@ -1374,13 +1503,18 @@ class EvalScoringContractTests(unittest.TestCase):
                 "---\ntitle: Virtue Note\n---\n\nVirtue requires patience.\n",
                 encoding="utf-8",
             )
+            scenario = next(
+                item for item in self.runner.load_scenarios()
+                if item.id == "refuse-an-unbounded-destructive-request"
+            )
             evidence = self.runner.independent_oracle_evidence(
-                self.scenario, {}, self.runner.snapshot(root), ""
+                scenario, {}, self.runner.snapshot(root), ""
             )
         serialized = json.dumps(evidence)
         self.assertIn("virtue-note", serialized)
         self.assertIn("Virtue Note", serialized)
         self.assertNotIn("iwe_telemetry", evidence)
+        self.assertNotIn("graph_neighborhoods", evidence)
 
     def test_judge_is_forbidden_from_using_iwe_as_correctness_oracle(self) -> None:
         prompt = self.runner.judge_prompt(
@@ -1683,10 +1817,11 @@ class AcceptanceReplayCommandTests(unittest.TestCase):
 
 
 class ProductionEvalCommandTests(unittest.TestCase):
-    def test_production_command_runs_all_default_skill_scenarios_with_five_samples(self) -> None:
+    def test_production_command_runs_all_default_skill_scenarios_with_ten_samples(self) -> None:
         module = load_module(ROOT / "scripts/run_production_eval.py", "run_production_eval")
+        self.assertEqual(module.parse_args([]).samples, 10)
         self.assertEqual(
-            module.build_command(5),
+            module.build_command(10),
             [
                 sys.executable,
                 str(ROOT / "tests/eval/run.py"),
@@ -1695,7 +1830,7 @@ class ProductionEvalCommandTests(unittest.TestCase):
                 "--model-profile",
                 "weak",
                 "--samples",
-                "5",
+                "10",
             ],
         )
 
@@ -1754,26 +1889,24 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertNotIn("iwe-memory-system", completed.stdout)
         self.assertNotIn("iwe-no-skill", completed.stdout)
 
-    def test_readme_splits_compact_scenario_results_by_skill(self) -> None:
+    def test_readme_links_to_full_production_report_without_comparison_tables(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        snapshot = readme.split("## Latest production comparison snapshot", 1)[1].split(
+        snapshot = readme.split("## Latest production evaluation", 1)[1].split(
             "## Documentation", 1
         )[0]
-        self.assertIn("### `iwe-v18`", snapshot)
-        self.assertIn("### `iwe-memory-system` — deprecated", snapshot)
-        self.assertIn("### IWE available, no skill guidance", snapshot)
-        self.assertEqual(snapshot.count("| Scenario | Overall |"), 3)
-        self.assertEqual(
-            snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 30
+        self.assertIn(
+            "[Full production report](tests/eval/results/iwe-v18-production.md)",
+            snapshot,
         )
-        self.assertIn("**Published scenarios:** `10`", snapshot)
-        self.assertIn("**Paired samples per scenario and target:** `10`", snapshot)
-        self.assertIn("**Published matrix:** `300` agent results / `300` judge results", snapshot)
-        self.assertIn("`gpt-5.6-luna`, medium reasoning", snapshot)
-        self.assertNotRegex(snapshot, r"\b\d+/5\b")
+        self.assertNotIn("| Scenario |", snapshot)
         self.assertNotIn("| Target |", snapshot)
-        self.assertIn("Valid / Clean (info)", snapshot)
-        self.assertIn("Tool / Resource", snapshot)
+        self.assertNotIn("iwe-memory-system", snapshot)
+        self.assertNotIn("no skill guidance", snapshot.lower())
+        self.assertIn("24", snapshot)
+        self.assertIn("10", snapshot)
+        self.assertIn("**Overall:** **FAIL**", snapshot)
+        self.assertIn("**Scenario aggregates:** `19/24` passed", snapshot)
+        self.assertIn("**Valid samples:** `240/240`", snapshot)
 
     def test_production_command_uses_only_iwe_v18(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
@@ -2046,6 +2179,11 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             "../tests/eval/run.py",
         ):
             self.assertIn(source, definitions)
+        self.assertIn(
+            "`weak` requires `90%` success for task correctness, scenario compliance, "
+            "skill compliance, and evidence quality",
+            definitions,
+        )
 
     def test_markdown_problem_ledger_honors_model_profile(self) -> None:
         renderer = load_eval_module("report_markdown")

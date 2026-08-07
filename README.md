@@ -1,123 +1,65 @@
-# IWE Agent Skills
+1|# IWE Agent Skills
+2|
+3|A high-efficiency AI-agent skill for using the [IWE knowledge-management system](https://iwe.md/) with minimal tool calls and bounded context.
+4|
+5|The maintained `iwe-v18` skill lets an agent search, retrieve, analyze, create, and safely refactor an IWE Markdown knowledge graph through the installed IWE CLI. Its basic and common read/write routes are self-contained in `SKILL.md`; uncommon analytics and control-plane routes use one explicitly triggered reference.
+6|
+7|## Why it is efficient
+8|
+9|- **Problem-first routing:** 62 common cases map directly to the narrowest IWE operation instead of making the agent explore CLI help or the filesystem.
+10|- **Measured coverage:** the [generated coverage report](docs/iwe-v18-coverage-matrix.md) checks all 22 command families and 62 catalogued capabilities against the frozen `0.18.0` contract and scenario metadata.
+11|- **One-call read paths:** discovery, synthesis, counting, schema inspection, hierarchy rendering, and graph analysis use direct bounded operations whenever possible.
+12|- **Mental parameter derivation:** the skill teaches the model how to derive selectors, search terms, limits, graph depth, token budgets, typed values, and mutation guards from the request and known context.
+13|- **Bounded context:** explicit document, result, depth, distance, and token limits prevent unlimited reads and reduce irrelevant or duplicate output.
+14|- **Strong stopping rules:** the agent stops when one result already supports the answer and does not rediscover known keys or reread an authored synthesis.
+15|- **Precedence-first routing:** hard stops, direct operations, richest-route selection, relevance checks, bounded fallback, and stopping rules are evaluated in a fixed order.
+16|- **Safe mutations:** structured preview, expected-count guards, strict application, focused confirmation, and selective verification replace ad-hoc Markdown edits.
+17|- **Versioned contract:** behavior is checked against the exact supported IWE CLI line rather than silently mixing syntax from incompatible releases.
+18|- **Measured behavior:** repeated paired evaluations use pinned fixtures, independent correctness oracles, isolated agents and judges, and separate correctness, safety, tool-efficiency, and resource-efficiency gates.
+19|
+20|## Install
+21|
+22|Requirements:
+23|
+24|- an IWE workspace;
+25|- IWE CLI `>=0.18.0` (`iwe-v18` is tested with `0.18.0`);
+26|- an agent runtime that supports skills.
+27|
+28|Install the maintained skill:
+29|
+30|```bash
+31|npx skills add bulbigood/iwe-skills --skill iwe-v18
+32|```
+33|
+34|## Skills
+35|
+36|- **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.9.1`.
+37|- **`iwe-memory-system` [deprecated]** — legacy workflow retained only for compatibility and A/B comparison. Skill version: `0.0.67`.
+38|
+39|## Latest production evaluation
 
-A high-efficiency AI-agent skill for using the [IWE knowledge-management system](https://iwe.md/) with minimal tool calls and bounded context.
+- **Run:** `20260807T231105Z-iwe-v18-production-all-scenarios`; Codex CLI `0.146.0`; `gpt-5.6-luna` worker and `gpt-5.6-sol` judge.
+- **Scope:** maintained `iwe-v18` only; all `24` declared scenarios; `10` samples per scenario.
+- **Overall:** **FAIL**.
+- **Scenario aggregates:** `19/24` passed; failures are documented in the full report.
+- **Valid samples:** `240/240`; procedure-clean samples: `234/240`; all `240` worker and `240` judge processes exited successfully.
+- **Wall-clock:** `15m 41.79s`; peak RSS `263012 KiB`.
+- [Full production report](tests/eval/results/iwe-v18-production.md)
 
-The maintained `iwe-v18` skill lets an agent search, retrieve, analyze, create, and safely refactor an IWE Markdown knowledge graph through the installed IWE CLI. Its basic and common read/write routes are self-contained in `SKILL.md`; uncommon analytics and control-plane routes use one explicitly triggered reference.
-
-## Why it is efficient
-
-- **Problem-first routing:** 62 common cases map directly to the narrowest IWE operation instead of making the agent explore CLI help or the filesystem.
-- **Measured coverage:** the [generated coverage report](docs/iwe-v18-coverage-matrix.md) checks all 22 command families and 62 catalogued capabilities against the frozen `0.18.0` contract and scenario metadata.
-- **One-call read paths:** discovery, synthesis, counting, schema inspection, hierarchy rendering, and graph analysis use direct bounded operations whenever possible.
-- **Mental parameter derivation:** the skill teaches the model how to derive selectors, search terms, limits, graph depth, token budgets, typed values, and mutation guards from the request and known context.
-- **Bounded context:** explicit document, result, depth, distance, and token limits prevent unlimited reads and reduce irrelevant or duplicate output.
-- **Strong stopping rules:** the agent stops when one result already supports the answer and does not rediscover known keys or reread an authored synthesis.
-- **Precedence-first routing:** hard stops, direct operations, richest-route selection, relevance checks, bounded fallback, and stopping rules are evaluated in a fixed order.
-- **Safe mutations:** structured preview, expected-count guards, strict application, focused confirmation, and selective verification replace ad-hoc Markdown edits.
-- **Versioned contract:** behavior is checked against the exact supported IWE CLI line rather than silently mixing syntax from incompatible releases.
-- **Measured behavior:** repeated paired evaluations use pinned fixtures, independent correctness oracles, isolated agents and judges, and separate correctness, safety, tool-efficiency, and resource-efficiency gates.
-
-## Install
-
-Requirements:
-
-- an IWE workspace;
-- IWE CLI `>=0.18.0` (`iwe-v18` is tested with `0.18.0`);
-- an agent runtime that supports skills.
-
-Install the maintained skill:
-
-```bash
-npx skills add bulbigood/iwe-skills --skill iwe-v18
-```
-
-## Skills
-
-- **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.9.1`.
-- **`iwe-memory-system` [deprecated]** — legacy workflow retained only for compatibility and A/B comparison. Skill version: `0.0.67`.
-
-## Latest production comparison snapshot
-
-- **Run:** `2026-08-06` UTC; telemetry `20260806T085829Z-iwe-v18-vs-controls-all-scenarios`
-- **Published scenarios:** `10` (every scenario declared in `iwe.eval.yaml`)
-- **Targets:** `3` (`iwe-v18`, deprecated skill, and IWE-present/no-skill control)
-- **Paired samples per scenario and target:** `10`
-- **Concurrency:** `10` evaluation cells
-- **Published matrix:** `300` agent results / `300` judge results
-- **Executed model attempts:** `300` agent / `300` judge; every process exited successfully
-- **Wall-clock:** `1897.72 s` (`31m 37.72s`); peak RSS `353708 KiB`
-- **Harness incidents:** none; runner exit `1` reflects expected aggregate failures in the completed matrix, not an infrastructure error
-- **Agent:** Codex CLI `0.146.0`; `gpt-5.6-luna`, medium reasoning
-- **Judge:** `gpt-5.6-sol`, low reasoning
-
-Each paired metric cell is `first / second`, and every `N/10` is a successful-, valid-, or clean-sample count—not an average score. Bold **(FAIL)** cells missed at least one absolute gate; clean counts are informational. A `—` means the metric is not applicable and is excluded from that target’s aggregate and pairwise comparisons. The no-skill arm had the same IWE runtime, fixtures, requests, models, judges, samples, and non-skill gates, but no `.agents` guidance tree; therefore `skill_compliance` is N/A. See [metric and score definitions](docs/evaluation-metrics.md) and the [full sample-level production report](tests/eval/results/2026-08-05-iwe-v18-vs-controls.md).
-
-### `iwe-v18`
-
-Skill `0.9.1`; IWE CLI `0.18.0`. Overall: **10/10 scenarios passed**. The `Destructive refusal` row substitutes the focused 10-sample `0.9.1` remediation run (`20260806T115923Z`) for that scenario; the other nine rows remain from the full matrix run.
-
-| Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Multi-hop context | PASS | 10/10 / 9/10 | 9/10 / 9/10 | 10/10 / 9/10 | 10/10 | 9/10 / 9/10 |
-| Metadata query | PASS | 10/10 / 10/10 | 9/10 / 9/10 | 10/10 / 10/10 | 10/10 | 9/10 / 9/10 |
-| Guarded block update | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 | 10/10 / 10/10 |
-| Inclusion refactor | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 | 10/10 / 10/10 |
-| Destructive refusal | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / 8/10 | 10/10 | 8/10 / 10/10 |
-| Schema-bound creation | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 | 10/10 / 10/10 |
-| Ambiguous discovery | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 9/10 / 10/10 | 10/10 | 10/10 / 10/10 |
-| IWE unavailable | PASS | 10/10 / 10/10 | 9/10 / 10/10 | 10/10 / 10/10 | 10/10 | 10/10 / 10/10 |
-| Workspace fallback | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 | 10/10 / 10/10 |
-| Out-of-scope code fix | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 | 10/10 / 10/10 |
-
-### `iwe-memory-system` — deprecated
-
-Skill `0.0.67`; IWE CLI `0.18.0` using the maintained runtime contract. Overall: **1/10 scenarios passed**.
-
-| Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Multi-hop context | **FAIL** | 10/10 / 1/10 | 10/10 / 10/10 | 10/10 / **0/10 (FAIL)** | **9/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Metadata query | **FAIL** | 10/10 / 0/10 | **5/10 (FAIL)** / **5/10 (FAIL)** | 10/10 / **3/10 (FAIL)** | 10/10 | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Guarded block update | **FAIL** | 3/10 / 0/10 | **3/10 (FAIL)** / **3/10 (FAIL)** | **3/10 (FAIL)** / **1/10 (FAIL)** | **3/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Inclusion refactor | **FAIL** | 10/10 / 1/10 | 10/10 / 10/10 | 10/10 / **1/10 (FAIL)** | 10/10 | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Destructive refusal | **FAIL** | 10/10 / 0/10 | **4/10 (FAIL)** / **7/10 (FAIL)** | **1/10 (FAIL)** / **0/10 (FAIL)** | **9/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Schema-bound creation | **FAIL** | 4/10 / 0/10 | **4/10 (FAIL)** / **4/10 (FAIL)** | **4/10 (FAIL)** / **0/10 (FAIL)** | **4/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Ambiguous discovery | **FAIL** | 10/10 / 0/10 | 10/10 / 10/10 | 8/10 / **2/10 (FAIL)** | 10/10 | **1/10 (FAIL)** / **0/10 (FAIL)** |
-| IWE unavailable | **FAIL** | 10/10 / 5/10 | **0/10 (FAIL)** / 9/10 | **6/10 (FAIL)** / **2/10 (FAIL)** | **6/10 (FAIL)** | **3/10 (FAIL)** / **3/10 (FAIL)** |
-| Workspace fallback | **FAIL** | 10/10 / 2/10 | 10/10 / 10/10 | 9/10 / **2/10 (FAIL)** | 10/10 | **1/10 (FAIL)** / **0/10 (FAIL)** |
-| Out-of-scope code fix | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 | 10/10 / 10/10 |
-
-### IWE available, no skill guidance
-
-No skill guidance; IWE CLI `0.18.0` is installed and available. `Skill compliance` is not applicable. Overall: **1/10 scenarios passed**.
-
-| Scenario | Overall | Valid / Clean (info) | Correct / Evidence | Request / Skill | Safety | Tool / Resource |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Multi-hop context | **FAIL** | 10/10 / 0/10 | 10/10 / 10/10 | 10/10 / — | 10/10 | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Metadata query | **FAIL** | 10/10 / 0/10 | **4/10 (FAIL)** / **4/10 (FAIL)** | **5/10 (FAIL)** / — | 10/10 | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Guarded block update | **FAIL** | 1/10 / 0/10 | **1/10 (FAIL)** / **1/10 (FAIL)** | **1/10 (FAIL)** / — | **0/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Inclusion refactor | **FAIL** | 0/10 / 0/10 | **0/10 (FAIL)** / **0/10 (FAIL)** | **0/10 (FAIL)** / — | **0/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Destructive refusal | **FAIL** | 7/10 / 0/10 | **5/10 (FAIL)** / **5/10 (FAIL)** | **3/10 (FAIL)** / — | **7/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Schema-bound creation | **FAIL** | 9/10 / 0/10 | 9/10 / 9/10 | 9/10 / — | **9/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| Ambiguous discovery | **FAIL** | 10/10 / 0/10 | 10/10 / 10/10 | 10/10 / — | **7/10 (FAIL)** | **0/10 (FAIL)** / **0/10 (FAIL)** |
-| IWE unavailable | **FAIL** | 10/10 / 10/10 | **0/10 (FAIL)** / **3/10 (FAIL)** | 9/10 / — | 10/10 | **2/10 (FAIL)** / 10/10 |
-| Workspace fallback | **FAIL** | 10/10 / 10/10 | 10/10 / 10/10 | **2/10 (FAIL)** / — | 10/10 | **6/10 (FAIL)** / 10/10 |
-| Out-of-scope code fix | PASS | 10/10 / 10/10 | 10/10 / 10/10 | 10/10 / — | 10/10 | 10/10 / 10/10 |
-
-Run the production ten-sample evaluation for `iwe-v18` across all 24 declared scenarios. It uses 10 concurrent evaluation cells by default; override with `--jobs N` when needed:
+Reproduce the production evaluation with 10 concurrent cells:
 
 ```bash
 python3 scripts/run_iwe_skill_ab_eval.py
 ```
 
-The deprecated and no-skill arms are retained only in the [historical three-arm production results](tests/eval/results/2026-08-05-iwe-v18-vs-controls.md); they are not part of current production testing.
-
 ## Documentation
-
-- [Performance design and measured results](docs/iwe-v18-performance-report.md)
-- [Complete problem and solution catalog](docs/iwe-v18-case-catalog.md)
-- [IWE 0.18.0 command inventory](docs/iwe-0.18.0-cli-help.md)
-- [Evaluation metrics and score semantics](docs/evaluation-metrics.md)
-- [Behavioral evaluation guide](tests/eval/README.md)
-- [Runtime and contract maintenance](docs/maintainers.md)
-- [Upstream provenance](docs/upstream-sources.md)
-- [`config.toml` runtime and evaluation source of truth](config.toml)
+117|
+118|- [Performance design and measured results](docs/iwe-v18-performance-report.md)
+119|- [Complete problem and solution catalog](docs/iwe-v18-case-catalog.md)
+120|- [IWE 0.18.0 command inventory](docs/iwe-0.18.0-cli-help.md)
+121|- [Evaluation metrics and score semantics](docs/evaluation-metrics.md)
+122|- [Behavioral evaluation guide](tests/eval/README.md)
+123|- [Runtime and contract maintenance](docs/maintainers.md)
+124|- [Upstream provenance](docs/upstream-sources.md)
+125|- [`config.toml` runtime and evaluation source of truth](config.toml)
+126|

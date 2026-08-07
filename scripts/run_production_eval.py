@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SAMPLES = 5
+DEFAULT_SAMPLES = 10
 
 
 def positive_int(value: str) -> int:
