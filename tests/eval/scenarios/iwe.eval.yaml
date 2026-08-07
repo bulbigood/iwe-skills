@@ -34,11 +34,12 @@ scenarios:
   fixture: seventeen-centuries
   capabilities: [read.find.references]
   command_families: [find]
-  request: I need a quick picture of the notes connecting power and morality. Give me a short explanation and a compact list
-    of the supporting note keys and relationships.
+  request: I need a quick text-only summary of the graph neighborhoods for notes `power` and `morality`. Briefly explain the
+    returned directions and give me a compact list of the supporting note keys and relationships. Do not summarize their prose
+    or create a diagram/artifact.
   procedure:
     ideal:
-    - Run one bounded structured query that identifies notes and graph relationships about both concepts.
+    - Run one bounded structured query that identifies both exact notes and their graph relationships.
     - Summarize only relationships supported by the returned structured evidence.
     acceptable_variations:
     - An equivalent bounded structured query covering the same concepts is acceptable.
@@ -51,8 +52,8 @@ scenarios:
     task_tool_calls: [1, 1]
     task_tool_output_bytes: [0, 16000]
   excellent:
-    task_correctness: Identifies relevant documents about power and morality, explains actual graph relationships, and returns
-      a valid compact evidence list.
+    task_correctness: Identifies power and morality, accurately explains only their returned graph neighborhoods, and returns
+      a complete compact evidence list.
     scenario_compliance: Provides the requested explanation and compact supporting list without external sources or irrelevant
       workspace changes.
     evidence_quality: The listed keys and relationships agree with independently parsed fixture documents and links.
@@ -452,7 +453,7 @@ scenarios:
   request: Replace the complete body of `core-body` with `# Core Body\n\nApproved final text.` Keep its frontmatter unchanged.
   procedure:
     ideal: [Use the exact-key whole-body replacement mode with the complete authoritative body.]
-    acceptable_variations: [Inline content or stdin is acceptable.]
+    acceptable_variations: [Any exact inline literal preserving the requested bytes is acceptable.]
     stop_when: [The exact requested body is written and frontmatter is preserved.]
     avoid: [Local block operators, metadata changes, or unrelated files.]
   efficiency: {task_tool_calls: [1, 1], task_tool_output_bytes: [0, 4800]}

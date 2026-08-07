@@ -23,6 +23,7 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 - Missing destructive scope is a blocking input, not a discovery task: when the target set or user-owned selection criterion is undefined, refuse without tools; never inspect the workspace to invent that criterion.
 - Use `iwe <command> --help` only after an IWE CLI command fails and its error does not provide enough information for one direct correction. Never call help proactively, globally, or after a successful command.
 - Do not run discovery or validation as preflight before a direct operation when its target, inputs, and guards are known from the request or prior evidence. Required mutation preview is execution, not preflight validation.
+- If an exact mutation key, selectors, replacement content, and expected counts are supplied, call 1 must be the guarded dry-run. Do not inspect the target first.
 - When discovery is necessary, make it task-shaped: include known selectors/class/heading/terms and request only the needed projection/block and limit. Do not retrieve after discovery when its shaped output already supplies the required scope.
 - Default result limit: 20. Use a smaller request-derived limit.
 - A stated class is a hard filter: “project note” requires `--filter '{ type: project }'`; never use untyped lexical top-1. For creation, a stated semantic class sets `type=<class>`.
@@ -34,18 +35,7 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 
 Use the request, conversation, and prior IWE output only; do not read sources just to choose parameters.
 
-| Need | Direct route | Output |
-|---|---|---|
-| Keys, titles, fields, relationships, blocks, lines | `find` | projected JSON or keys |
-| Full prose, synthesis, finite related context | `retrieve` | bounded JSON |
-| Quantity | `count` | integer |
-| Inclusion hierarchy / flattened hierarchy | `tree` / `squash` | JSON, Markdown |
-| Schema shape / validation / binding | `schema` / `schema validate` | JSON |
-| Graph health / duplicates / visualization | `stats` / `stats similarity` / `export` | JSON, CSV, DOT |
-| New simple / typed document | `new` / `create` | created path |
-| Metadata or local body edit | `update` | guarded mutation |
-| Key, section, inclusion, attachment refactor | `rename`, `extract`, `inline`, `attach` | affected keys |
-| Document removal / global normalization | `delete` / `normalize` | destructive guarded result |
+Use the clusters below as the routing table: `find` returns compact records, `retrieve` returns bounded prose, read-only analysis uses `count`, `tree`, or `schema`, and writes use the named structural command rather than manual file editing.
 
 Read `references/advanced-routes.md` only when the request explicitly needs `stats`, `stats similarity`, `squash`, `export`, `normalize`, `init`, `completions`, `docs`, or unresolved command help. All ordinary read/write routes are complete below; never load that reference for them.
 Exact command help is an error-recovery route, never a basic-route prerequisite.
@@ -74,7 +64,7 @@ iwe find --lexical "<distinctive terms>" --limit 5 --project 'key=$key,title=$ti
 - **A4 Typed cohort:** Semantic entity class (project/task/person/meeting) means `type`; combine its filter with lexical terms.
 - **A5 Roots:** roots selector for flat entry-point list; use tree only when hierarchy is requested.
 - **A6 Inclusion neighborhood:** included-by for descendants, includes for containers; positive request-derived depth.
-- **A7 Reference neighborhood:** references for documents linking to an anchor, referenced-by for documents linking from it; positive distance.
+- **A7 Reference neighborhood:** for known anchors, query them directly and add relationship fields in one call, for example `iwe find --key <key> --key <key> --limit 2 --add-fields 'references=$references,referencedBy=$referencedBy,includes=$includes,includedBy=$includedBy' --format json`. Direction is literal: references current→target; referencedBy source→current; includes current→child; includedBy parent→current. For a relationship-only request, explain only this graph picture and stop; do not lexical-search or retrieve bodies.
 - **A8 Unknown source plus known heading:** combine descriptor and heading in one lexical query, limit 1, project key/title, use `--blocks '{ $header: "<heading>" }'`. Never query the descriptor or heading alone; never project `$blocks`.
 - **A9 Matching lines:** exact key plus matches only for an actual literal/regex text-pattern request.
 - **A10 Ranked records:** filter/query plus `--sort <field>:1` ascending or `--sort <field>:-1` descending, projection, and limit.
@@ -92,7 +82,7 @@ iwe retrieve --lexical "<all named entities> <shared topic>" --limit 1 --max-doc
 - **B1 Known note:** one key, one document; 800/1200/2000 tokens for fact/summary/detail.
 - **B2 Topic summary:** lexical topic, requested evidence count or 3, finite per-document and total caps.
 - **B3 Named comparison:** all entities plus shared topic; use the template's 1 document, 4500 document tokens, and 5000 total. Never derive 3 documents from 3 entities or use the 2000 detail budget. Stop if that synthesis covers all entities.
-- **B4 Children bodies:** add `--expand-includes <positive-depth>`; use `--children` instead when child identities/edges suffice.
+- **B4 Children bodies:** add `--expand-includes <positive-depth>`; use `--children` instead when child identities/edges suffice. `--max-documents` includes the seed, so one seed plus one direct child requires at least 2; report both requested bodies and keys, then stop.
 - **B5 Parent context:** add `--expand-included-by <positive-depth>`, normally one level.
 - **B6 Relationship synthesis: retrieve 3–5** bounded documents; use `--expand-references <positive-distance>` only when source bodies are needed and cite only returned edges.
 - **B7 Backlinks/reception:** use `--expand-referenced-by <positive-distance>`; add `--backlinks false` when incoming edge metadata is not requested.
@@ -142,9 +132,9 @@ iwe update --key "<key>" --replace-text '{ $header: "<old>", to: "<new>", expect
 - **F5 Insert sibling:** insert-before/after according to the literal requested position.
 - **F6 Append child:** append under an exact section/container.
 - **F7 Delete local block:** block delete with exact selector and expected count; deleting a complete heading section selects both its header and descendants, for example `--delete '{ $or: [ { $header: "<heading>" }, { $within: "<heading>" } ], expect: <count> }'`. This is not document deletion.
-- **F8 Whole body:** content overwrite only when the complete new body is authoritative.
+- **F8 Whole body:** content overwrite only when the complete new body is authoritative. Pass an exact request-supplied literal inline; use stdin only when the complete body actually arrives via stdin, because shell newline behavior can otherwise alter authoritative bytes.
 
-Exact forms: `iwe update --key <key> --unset <field> --expect 1 --strict --dry-run`; block insertion uses `--insert-before '<selector+content>'` or `--insert-after '<selector+content>'`; local removal uses `--delete '<selector+expect>'`; whole-body replacement is `iwe update --key <key> --content '<complete-body>'` or `--content -` from stdin. `update` has no `--format` option. Preview every mutation form except authoritative whole-body input, then apply identical arguments without `--dry-run`; guarded success proves the scoped result, so stop without retrieval.
+Exact forms: `iwe update --key <key> --unset <field> --expect 1 --strict --dry-run`; block insertion uses `--insert-before '<selector+content>'` or `--insert-after '<selector+content>'`; local removal uses `--delete '<selector+expect>'`; whole-body replacement is `iwe update --key <key> --content '<complete-body>'`. `update` has no `--format` option. Preview every mutation form except authoritative whole-body input, then apply identical arguments without `--dry-run`; guarded success proves the scoped result, so stop without retrieval.
 
 Call 1 is the exact guarded dry-run; call 2 removes only dry-run. Successful guarded apply proves the scoped edit and preservation, so do not retrieve afterward. Verify one exact key only when apply output is inconclusive or failed. Ask when key, selector, old text, or expected count is unknown.
 
