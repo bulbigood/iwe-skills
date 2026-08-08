@@ -103,23 +103,34 @@ Change is the passing-sample rate for the second arm minus the first arm, in per
 | Tool-call efficiency | 30/30 (100.0%) | 1/30 (3.3%) | -96.7 pp |
 | Token/resource efficiency | 30/30 (100.0%) | 0/30 (0.0%) | -100.0 pp |
 
-## Worker performance medians
+## Worker performance summary
 
-Medians use every worker sample across all selected scenarios. Token counts are provider-reported.
+Median and mean use every worker sample across all selected scenarios. Token counts are provider-reported.
 Change is `iwe-no-skill` relative to `iwe-v18`; positive values mean greater consumption.
 
-| Metric | iwe-v18 median | iwe-no-skill median | iwe-no-skill change |
-| --- | ---: | ---: | ---: |
-| Input tokens | 46127.5 | 100809 | +118.5% |
-| Output tokens | 632.5 | 1244.5 | +96.8% |
-| Tool calls | 2 | 3 | +50.0% |
-| Wall time (seconds) | 21.278 | 35.353 | +66.1% |
-| Samples included | 30 | 30 | — |
+| Metric | Statistic | iwe-v18 | iwe-no-skill | iwe-no-skill change |
+| --- | --- | ---: | ---: | ---: |
+| Input tokens | Median | 46127.5 | 100809 | +118.5% |
+| Input tokens | Mean | 47567.5 | 117618.3 | +147.3% |
+| Output tokens | Median | 632.5 | 1244.5 | +96.8% |
+| Output tokens | Mean | 658.4 | 1370.4 | +108.1% |
+| Tool calls | Median | 2 | 3 | +50.0% |
+| Tool calls | Mean | 2.1 | 4.4 | +111.3% |
+| Wall time (seconds) | Median | 21.278 | 35.353 | +66.1% |
+| Wall time (seconds) | Mean | 21.784 | 38.964 | +78.9% |
+| Samples included | Count | 30 | 30 | — |
 
 ## Paired efficiency comparison
 
-Deltas are left target minus right target for valid paired cells; lower raw usage and time are better.
-No averaging is applied.
+Primary timing uses matched worker cells. Positive savings mean the right arm took longer than the left arm.
+Bootstrap intervals are deterministic, stratified by scenario, and use 10,000 resamples.
+
+| Timing scope | Pairs | iwe-v18 faster | Median saving | Mean saving | Stratified bootstrap 95% CI |
+| --- | ---: | ---: | ---: | ---: | --- |
+| All scenarios | 30 | 26/30 | 11.572 s | 17.180 s | mean 13.814…20.637 s; median 5.723…14.046 s |
+| `ambiguous-discovery-with-one-follow-up` | 10 | 7/10 | 1.699 s | 0.833 s | — |
+| `discover-and-retrieve-bounded-multi-hop-context` | 10 | 9/10 | 11.572 s | 9.440 s | — |
+| `query-structured-metadata-without-scanning-files` | 10 | 10/10 | 43.515 s | 41.267 s | — |
 
 ### `ambiguous-discovery-with-one-follow-up` — iwe-v18 − iwe-no-skill
 
@@ -160,7 +171,7 @@ No averaging is applied.
 
 | Raw paired diagnostic | Per-sample deltas |
 | --- | --- |
-| Worker wall time (seconds) | `-19.246, -72.669, -45.860, -41.170, -50.578, -29.616, -27.944, -27.849, -51.693` |
+| Worker wall time (seconds) | `-19.246, -72.669, -45.860, -46.046, -41.170, -50.578, -29.616, -27.944, -27.849, -51.693` |
 | Task tool calls | `-3, -9, -6, -3, -4, -3, -5, -5, -8` |
 | Task tool-output bytes | `-179609, -121868, -117294, -376981, -307544, -270086, -45508, -121153, -109678` |
 | Estimated task-input tokens (bytes/4) | `-44902, -30467, -29323, -94245, -76886, -67521, -11377, -30288, -27419` |

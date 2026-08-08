@@ -95,7 +95,7 @@ def compare_results(
             valid_pairs = [(a, b) for a, b in zip(left_rows, right_rows)
                            if a["verdict"].get("valid", False) and b["verdict"].get("valid", False)]
             timed_pairs = [
-                (a, b) for a, b in valid_pairs
+                (a, b) for a, b in zip(left_rows, right_rows)
                 if isinstance(a.get("agent", {}).get("wall_seconds"), (int, float))
                 and isinstance(b.get("agent", {}).get("wall_seconds"), (int, float))
             ]

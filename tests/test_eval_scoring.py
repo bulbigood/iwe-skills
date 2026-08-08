@@ -1873,13 +1873,13 @@ version = "0.18.0"
     def test_pairwise_comparison_preserves_worker_time_deltas(self) -> None:
         compare = load_eval_module("compare")
 
-        def result(target: str, seconds: float) -> dict:
+        def result(target: str, seconds: float, *, valid: bool = True) -> dict:
             return {
                 "target_id": target,
                 "scenario_id": "s",
                 "sample": 1,
                 "pair_id": "pair-1",
-                "verdict": {"valid": True, "metric_scores": {}, "metric_failures": {}},
+                "verdict": {"valid": valid, "metric_scores": {}, "metric_failures": {}},
                 "agent": {
                     "wall_seconds": seconds,
                     "metrics": {"task_tool_calls": 2, "task_tool_output_bytes": 100},
@@ -1902,6 +1902,7 @@ version = "0.18.0"
         self.assertIn("## Paired efficiency comparison", markdown)
         self.assertIn("guided − control", markdown)
         self.assertIn("Tool-call efficiency | 0 / 1 / 0", markdown)
+        self.assertIn("All scenarios | 1 | 1/1 | 2.500 s | 2.500 s", markdown)
         self.assertIn("Worker wall time (seconds) | `-2.500`", markdown)
         self.assertIn("Task tool-output bytes | `0`", markdown)
 
@@ -1925,16 +1926,21 @@ version = "0.18.0"
         self.assertEqual(summary["guided"], {
             "samples": 3,
             "input_tokens_median": 200,
+            "input_tokens_mean": 200,
             "output_tokens_median": 20,
+            "output_tokens_mean": 20,
             "tool_calls_median": 2,
+            "tool_calls_mean": 2,
             "wall_seconds_median": 3.0,
+            "wall_seconds_mean": 3.0,
         })
         renderer = load_eval_module("report_markdown")
         markdown = "\n".join(renderer._performance_table(summary))
-        self.assertIn("| Input tokens | 200 | 800 | +300.0% |", markdown)
-        self.assertIn("| Output tokens | 20 | 80 | +300.0% |", markdown)
-        self.assertIn("| Tool calls | 2 | 8 | +300.0% |", markdown)
-        self.assertIn("| Wall time (seconds) | 3.000 | 7.000 | +133.3% |", markdown)
+        self.assertIn("| Input tokens | Median | 200 | 800 | +300.0% |", markdown)
+        self.assertIn("| Output tokens | Median | 20 | 80 | +300.0% |", markdown)
+        self.assertIn("| Tool calls | Median | 2 | 8 | +300.0% |", markdown)
+        self.assertIn("| Wall time (seconds) | Median | 3.000 | 7.000 | +133.3% |", markdown)
+        self.assertIn("| Wall time (seconds) | Mean | 3.000 | 7.000 | +133.3% |", markdown)
 
     def test_quality_comparison_reports_all_production_metrics_as_percentage_points(self) -> None:
         runner = load_runner()

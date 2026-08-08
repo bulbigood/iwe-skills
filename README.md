@@ -56,7 +56,7 @@ python3 scripts/run_iwe_skill_ab_eval.py
 - **Run:** `20260808T164507Z`; `iwe-v18` guidance versus the same IWE `0.18.0` runtime without skill guidance.
 - **Scope:** 3 retrieval-heavy scenarios, 10 samples per arm and scenario; `60` worker calls and `60` judge calls in six balanced 10-worker waves. Guidance activation and reference reads are included in the guided arm's costs.
 - **Quality:** `iwe-v18` passed all 3 scenario aggregates; the no-guidance arm failed all 3 on efficiency. `59/60` samples were valid; one no-guidance sample was invalidated for a prohibited documentation command.
-- **Median no-guidance overhead:** input tokens `+118.5%`, output tokens `+96.8%`, tool calls `+50.0%`, worker wall time `+66.1%`.
+- **Worker timing:** guidance was faster in `26/30` matched pairs; median paired saving `11.6 s` and mean saving `17.2 s` (stratified bootstrap 95% CI for the mean: `13.8–20.6 s`). Arm-level no-guidance wall-time overhead was `+66.1%` by median and `+78.9%` by mean.
 - [Full guidance-efficiency A/B report](tests/eval/results/iwe-v18-guidance-efficiency-ab.md)
 
 Reproduce the focused A/B evaluation:

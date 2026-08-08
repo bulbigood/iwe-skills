@@ -1711,21 +1711,22 @@ def parse_process_output(executable_name: str, stdout: str) -> dict:
 
 
 def performance_summary(results: list[dict], target_ids: tuple[str, ...]) -> dict[str, dict]:
-    """Return per-target medians over every declared worker sample."""
+    """Return per-target descriptive statistics over every worker sample."""
     summary: dict[str, dict] = {}
     for target_id in target_ids:
         rows = [row for row in results if row.get("target_id") == target_id]
         if not rows:
             raise ValueError(f"no performance samples for target {target_id}")
         fields = {
-            "input_tokens_median": [row["agent"]["token_usage"]["input_tokens"] for row in rows],
-            "output_tokens_median": [row["agent"]["token_usage"]["output_tokens"] for row in rows],
-            "tool_calls_median": [row["agent"]["metrics"]["task_tool_calls"] for row in rows],
-            "wall_seconds_median": [row["agent"]["wall_seconds"] for row in rows],
+            "input_tokens": [row["agent"]["token_usage"]["input_tokens"] for row in rows],
+            "output_tokens": [row["agent"]["token_usage"]["output_tokens"] for row in rows],
+            "tool_calls": [row["agent"]["metrics"]["task_tool_calls"] for row in rows],
+            "wall_seconds": [row["agent"]["wall_seconds"] for row in rows],
         }
         summary[target_id] = {
             "samples": len(rows),
-            **{name: statistics.median(values) for name, values in fields.items()},
+            **{f"{name}_median": statistics.median(values) for name, values in fields.items()},
+            **{f"{name}_mean": statistics.mean(values) for name, values in fields.items()},
         }
     return summary
 

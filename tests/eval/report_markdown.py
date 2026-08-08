@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+import random
+import statistics
 from pathlib import Path
 
 
@@ -118,10 +120,43 @@ def _comparison_tables(comparisons: list[dict]) -> list[str]:
     lines = [
         "## Paired efficiency comparison",
         "",
-        "Deltas are left target minus right target for valid paired cells; lower raw usage and time are better.",
-        "No averaging is applied.",
+        "Primary timing uses matched worker cells. Positive savings mean the right arm took longer than the left arm.",
+        "Bootstrap intervals are deterministic, stratified by scenario, and use 10,000 resamples.",
         "",
     ]
+    scenario_savings = {
+        comparison["scenario_id"]: [
+            -value for value in comparison["efficiency"].get("worker_wall_seconds_deltas", [])
+        ]
+        for comparison in comparisons
+    }
+    all_savings = [value for values in scenario_savings.values() for value in values]
+    if all_savings:
+        left_target = comparisons[0]["left_target_id"]
+        rng = random.Random(20260808)
+        mean_bootstrap: list[float] = []
+        median_bootstrap: list[float] = []
+        groups = list(scenario_savings.values())
+        for _ in range(10_000):
+            sample = [rng.choice(group) for group in groups for _ in group]
+            mean_bootstrap.append(statistics.mean(sample))
+            median_bootstrap.append(statistics.median(sample))
+        mean_bootstrap.sort()
+        median_bootstrap.sort()
+        lines.extend([
+            f"| Timing scope | Pairs | {left_target} faster | Median saving | Mean saving | Stratified bootstrap 95% CI |",
+            "| --- | ---: | ---: | ---: | ---: | --- |",
+            f"| All scenarios | {len(all_savings)} | {sum(value > 0 for value in all_savings)}/{len(all_savings)} | "
+            f"{statistics.median(all_savings):.3f} s | {statistics.mean(all_savings):.3f} s | "
+            f"mean {mean_bootstrap[249]:.3f}…{mean_bootstrap[9749]:.3f} s; "
+            f"median {median_bootstrap[249]:.3f}…{median_bootstrap[9749]:.3f} s |",
+        ])
+        for scenario_id, values in scenario_savings.items():
+            lines.append(
+                f"| `{scenario_id}` | {len(values)} | {sum(value > 0 for value in values)}/{len(values)} | "
+                f"{statistics.median(values):.3f} s | {statistics.mean(values):.3f} s | — |"
+            )
+        lines.append("")
     for comparison in comparisons:
         left = comparison["left_target_id"]
         right = comparison["right_target_id"]
@@ -188,13 +223,13 @@ def _performance_table(performance: dict[str, dict]) -> list[str]:
     baseline = performance[baseline_id]
     comparison = performance[comparison_id]
     lines = [
-        "## Worker performance medians",
+        "## Worker performance summary",
         "",
-        "Medians use every worker sample across all selected scenarios. Token counts are provider-reported.",
+        "Median and mean use every worker sample across all selected scenarios. Token counts are provider-reported.",
         f"Change is `{comparison_id}` relative to `{baseline_id}`; positive values mean greater consumption.",
         "",
-        f"| Metric | {baseline_id} median | {comparison_id} median | {comparison_id} change |",
-        "| --- | ---: | ---: | ---: |",
+        f"| Metric | Statistic | {baseline_id} | {comparison_id} | {comparison_id} change |",
+        "| --- | --- | ---: | ---: | ---: |",
     ]
     rows = (
         ("Input tokens", "input_tokens_median", False),
@@ -202,14 +237,15 @@ def _performance_table(performance: dict[str, dict]) -> list[str]:
         ("Tool calls", "tool_calls_median", False),
         ("Wall time (seconds)", "wall_seconds_median", True),
     )
-    for label, field, seconds in rows:
-        lines.append(
-            f"| {label} | {_median_cell(baseline[field], seconds=seconds)} | "
-            f"{_median_cell(comparison[field], seconds=seconds)} | "
-            f"{_relative_change(baseline[field], comparison[field])} |"
-        )
+    for label, median_key, seconds in rows:
+        for statistic, key in (("Median", median_key), ("Mean", median_key.replace("_median", "_mean"))):
+            lines.append(
+                f"| {label} | {statistic} | {_median_cell(baseline[key], seconds=seconds)} | "
+                f"{_median_cell(comparison[key], seconds=seconds)} | "
+                f"{_relative_change(baseline[key], comparison[key])} |"
+            )
     lines.append(
-        f"| Samples included | {baseline['samples']} | {comparison['samples']} | — |"
+        f"| Samples included | Count | {baseline['samples']} | {comparison['samples']} | — |"
     )
     lines.append("")
     return lines
