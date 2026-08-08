@@ -3,7 +3,7 @@ name: iwe-v18
 description: Use IWE CLI to find, retrieve, analyze, create, update, or safely refactor an IWE Markdown knowledge graph.
 compatibility: Requires IWE CLI >=0.18.0.
 metadata:
-  version: "0.9.8"
+  version: "0.9.9"
 ---
 
 # IWE problem-solving policy
@@ -12,6 +12,9 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 
 ## Non-negotiable route overrides
 
+- For prose/summary from unknown documents, call one bounded `retrieve`. Do not precede it with metadata `find` or filesystem fallback.
+- Section, both are required: `--replace '{ $header: "H", content: "<complete supplied heading block>", expect: 1 }' --delete '{ $within: "H", expect: N }'`.
+- `attach` takes no `--format`; preview/apply differ by `--dry-run`.
 - After a metadata-only find, compare every returned key/title with the request-derived distinctive terms before any retrieve. Generic type words do not establish relevance. If no candidate overlaps, do not retrieve merely to inspect or assess relevance. Treat that result as a terminal IWE miss and continue only with the allowed bounded fallback.
 - After a terminal IWE miss on a workspace or project request, begin local recovery with one hidden-aware search for the narrowest literal field or property token; do not require related terms on one line. After one content miss, refine once or use a narrowly globbed filename, then read only the candidate source.
 - After an IWE execution failure: When the request already names a source path and section or field, use one bounded direct read of only that named scope. Do not search, list, glob, or rediscover that path, heading, section, or field.
@@ -40,7 +43,7 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 
 Use the request, conversation, and prior IWE output only; do not read sources just to choose parameters.
 
-Use the clusters below as the routing table: `find` returns compact records, `retrieve` returns bounded prose, read-only analysis uses `count`, `tree`, or `schema`, and writes use the named structural command rather than manual file editing.
+Routes:
 
 Read `references/advanced-routes.md` only when the request explicitly needs `stats`, `stats similarity`, `squash`, `export`, `normalize`, `init`, `completions`, `docs`, or unresolved command help. All ordinary read/write routes are complete below; never load that reference for them.
 Exact command help is an error-recovery route, never a basic-route prerequisite.
@@ -133,7 +136,7 @@ iwe update --key "<key>" --replace-text '{ $header: "<old>", to: "<new>", expect
 - **F1 Frontmatter:** set/unset typed fields; exact key or narrow cohort filter.
 - **F2 Heading rename:** replace-text selected by exact header; omit `from` only for whole own-text replacement.
 - **F3 Local text replacement:** within/text selector plus exact from/to.
-- **F4 Whole block:** in each preview/apply command, both are required: `--replace '{ $header: "H", content: "## H\n\nnew", expect: 1 }' --delete '{ $within: "H", expect: N }'`.
+- **F4 Whole block:** follow the section override.
 - **F5 Insert sibling:** insert-before/after according to the literal requested position.
 - **F6 Append child:** append under an exact section/container.
 - **F7 Delete local block:** block delete with exact selector and expected count; deleting a complete heading section selects both its header and descendants, for example `--delete '{ $or: [ { $header: "<heading>" }, { $within: "<heading>" } ], expect: <count> }'`.
@@ -154,7 +157,7 @@ iwe extract "<source-key>" --section "<known heading>" --dry-run --format keys
 - **G3 Section inventory:** extract list is a one-call answer only when inventory is requested.
 - **G4 Safe inline:** `iwe inline <container> --reference <target> --keep-target --dry-run --format keys`, then identical apply; add `--as-quote` only when requested.
 - **G5 Inline and remove target:** omit keep-target only with explicit deletion intent and focused confirmation.
-- **G6 Attach:** `iwe attach --key <source> --to <action> [--to <action>...] --dry-run`, then identical apply.
+- **G6 Attach:** `iwe attach --key <source> --to <action> --dry-run`; then apply without dry-run.
 - **G7 Attach-action inventory:** attach list only when available actions are the requested outcome.
 
 Preview and apply identical arguments. After successful extract, verify only with one bounded source retrieve when output cannot prove inclusion; never use relationship discovery for extract verification or retrieve the created target.

@@ -33,16 +33,16 @@ npx skills add iwe-org/skills --skill iwe-v18
 
 ## Skills
 
-- **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.9.8`.
+- **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.9.9`.
 - **`iwe-memory-system` [deprecated]** — legacy workflow retained only for compatibility and A/B comparison. Skill version: `0.0.67`.
 
 ## Latest production evaluation
 
-- **Run:** `20260808T022337Z-iwe-v18-production-all-scenarios`; Codex CLI `0.146.0`; `gpt-5.6-luna` worker and `gpt-5.6-sol` judge.
-- **Scope:** maintained `iwe-v18` only; all `24` declared scenarios; `10` samples per scenario.
-- **Overall:** **PASS — `24/24` scenario aggregates**.
-- **Integrity:** `240/240` valid samples; safety `240/240`; procedure-clean `237/240`.
-- **Execution:** `240` worker calls and `240` judge calls.
+- **Run:** `20260808T111334Z`; weak production profile.
+- **Scope:** maintained `iwe-v18` only; all `32` declared scenarios; `10` samples per scenario.
+- **Overall:** **PASS — `32/32` scenario aggregates**.
+- **Integrity:** `320/320` valid samples; safety `320/320`.
+- **Execution:** `320` worker calls and `320` judge calls.
 - [Full production report](tests/eval/results/iwe-v18-production.md)
 
 Reproduce the production evaluation with 10 concurrent cells:

@@ -168,15 +168,15 @@ class IweSkillTests(unittest.TestCase):
 
     def test_manifest_rejects_model_facing_version_or_compatibility_drift(self) -> None:
         for old, new, message in (
-            ('version: "0.9.8"', 'version: "0.9.9"', "skill_version"),
+            ('version: "0.9.9"', 'version: "0.9.10"', "skill_version"),
             (
-                'metadata:\n  version: "0.9.8"',
-                'version: "0.9.8"',
+                'metadata:\n  version: "0.9.9"',
+                'version: "0.9.9"',
                 "metadata",
             ),
             (
-                'metadata:\n  version: "0.9.8"',
-                'metadata:\n  nested:\n    version: "0.9.8"',
+                'metadata:\n  version: "0.9.9"',
+                'metadata:\n  nested:\n    version: "0.9.9"',
                 "metadata.version",
             ),
             (
@@ -446,6 +446,10 @@ class IweSkillTests(unittest.TestCase):
             "--vars-yaml",
             "--filter '{ type: project }'",
             "After a metadata-only find",
+            "call one bounded `retrieve`",
+            "Do not precede it with metadata `find`",
+            "complete supplied heading block",
+            "`attach` takes no `--format`",
             "do not retrieve merely to inspect or assess relevance",
             "use one bounded direct read",
         ):

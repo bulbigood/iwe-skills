@@ -576,7 +576,7 @@ scenarios:
   fixture: pkm-demo-core-read
   capabilities: [read.retrieve.topic]
   command_families: [retrieve]
-  request: Briefly summarize the staged migration approach described here and name the source key.
+  request: Briefly summarize the migration approach coordinated through the blue-lantern handoff and name the source key.
   procedure:
     ideal: [Use one bounded topic retrieval with enough content for a short answer.]
     acceptable_variations: [Any one-pass bounded retrieval selecting the authored relevant note is acceptable.]
@@ -584,7 +584,7 @@ scenarios:
     avoid: [Metadata discovery before retrieval, unrelated documents, or a second retrieval.]
   efficiency: {task_tool_calls: [1, 1], task_tool_output_bytes: [0, 4800]}
   excellent:
-    task_correctness: Accurately summarizes staged cutovers and rollback checkpoints from core-gamma.
+    task_correctness: Accurately summarizes staged cutovers and rollback checkpoints under the blue-lantern handoff from core-gamma.
     scenario_compliance: Gives a brief source-backed summary and names the source key.
     evidence_quality: The summary agrees with the independently parsed core-gamma body.
 
@@ -647,7 +647,7 @@ scenarios:
   command_families: [update]
   request: In `core-block-replace`, remove the whole `## Rollback\n\nUse the emergency procedure.` section and put `## Rollback\n\nRestore the previous release.` in its place. Preserve every other section.
   procedure:
-    ideal: [Preview one exact guarded whole-block replacement, then apply it unchanged.]
+    ideal: [Preview one atomic update that replaces the heading block and deletes its old descendants, then apply it unchanged.]
     acceptable_variations: [Equivalent exact structural selection of the Rollback section is acceptable.]
     stop_when: [The complete section matches the supplied block and neighboring sections are unchanged.]
     avoid: [Whole-body replacement, text-only substitution, manual editing, or post-apply retrieval.]
