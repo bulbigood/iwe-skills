@@ -7,6 +7,7 @@ import argparse
 import difflib
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -44,7 +45,7 @@ def synchronized_contract(contract: dict, iwe: str, tested_version: str) -> dict
     for name, command in commands.items():
         help_text = run(iwe, *command_args(name), "--help")
         for flag in command.get("supported_flags", []):
-            if flag not in help_text:
+            if not re.search(rf"(?<![\w-]){re.escape(flag)}(?![\w-])", help_text):
                 raise ValueError(f"{name} contract flag is absent from CLI help: {flag}")
         command["help_sha256"] = hashlib.sha256(
             (help_text + "\n").encode("utf-8")
