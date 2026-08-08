@@ -60,6 +60,52 @@ def _profile_tables(target: dict) -> list[str]:
     return lines
 
 
+def _aggregate_metric_tables(targets: dict[str, dict], outcomes: list[dict]) -> list[str]:
+    target_ids = tuple(dict.fromkeys(outcome["target_id"] for outcome in outcomes))
+    lines: list[str] = []
+    for target_id in target_ids:
+        target = targets[target_id]
+        target_outcomes = [item for item in outcomes if item["target_id"] == target_id]
+        heading = "## Aggregate metrics"
+        if len(target_ids) > 1:
+            heading += f" — `{target_id}`"
+        lines.extend([
+            heading,
+            "",
+            "| Metric | Passing samples | Minimum sample score | "
+            "Required passing samples per scenario | Verdict |",
+            "| --- | ---: | ---: | ---: | --- |",
+        ])
+        for name, label in METRIC_LABELS.items():
+            metrics = [outcome["metrics"][name] for outcome in target_outcomes]
+            applicable = [metric for metric in metrics if metric.get("applicable", True)]
+            if not applicable:
+                lines.append(f"| {label} | — | — | — | N/A |")
+                continue
+            passing = sum(metric["successful_samples"] for metric in applicable)
+            total = sum(metric["total_samples"] for metric in applicable)
+            requirements = {
+                (
+                    metric["required_successes"],
+                    metric["total_samples"],
+                    metric["required_success_percent"],
+                )
+                for metric in applicable
+            }
+            if len(requirements) == 1:
+                required, samples, percent = requirements.pop()
+                requirement = f"{required}/{samples} ({percent}%)"
+            else:
+                requirement = "varies"
+            passed = all(metric["pass"] for metric in applicable)
+            lines.append(
+                f"| {label} | {passing}/{total} | {target['minimum_score'][name]}/5 | "
+                f"{requirement} | **{'PASS' if passed else 'FAIL'}** |"
+            )
+        lines.append("")
+    return lines
+
+
 def _profile_metric_failures(report: dict) -> dict:
     profile = report.get("evaluation_profile")
     if isinstance(profile, dict) and isinstance(profile.get("metric_failures"), dict):
@@ -225,6 +271,7 @@ def render_markdown(
     for target in targets.values():
         lines.extend(_profile_tables(target))
     outcomes = _outcomes_with_scenario_ids(summary["scenarios"], report_dir)
+    lines.extend(_aggregate_metric_tables(targets, outcomes))
     for outcome in outcomes:
         target = targets[outcome["target_id"]]
         runtime = target["runtime"]

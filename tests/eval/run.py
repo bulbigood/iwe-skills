@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import codecs
 import concurrent.futures
 import datetime as dt
 import difflib
@@ -443,9 +444,42 @@ def _command_payload(command: str) -> str:
     return command
 
 
+def _normalize_ansi_c_quotes(command: str) -> str:
+    """Convert Bash ``$'...'`` words into POSIX-shell-quoted equivalents."""
+    normalized: list[str] = []
+    index = 0
+    while index < len(command):
+        if not command.startswith("$'", index):
+            normalized.append(command[index])
+            index += 1
+            continue
+        end = index + 2
+        escaped = False
+        while end < len(command):
+            character = command[end]
+            if character == "'" and not escaped:
+                break
+            if character == "\\" and not escaped:
+                escaped = True
+            else:
+                escaped = False
+            end += 1
+        if end >= len(command):
+            return command
+        raw = command[index + 2:end]
+        try:
+            decoded = codecs.decode(raw, "unicode_escape")
+        except UnicodeDecodeError:
+            return command
+        normalized.append(shlex.quote(decoded))
+        index = end + 1
+    return "".join(normalized)
+
+
 def _observed_iwe_invocations(command: str) -> list[list[str]]:
     try:
-        lexer = shlex.shlex(_command_payload(command), posix=True, punctuation_chars=";&|")
+        payload = _normalize_ansi_c_quotes(_command_payload(command))
+        lexer = shlex.shlex(payload, posix=True, punctuation_chars=";&|")
         lexer.whitespace_split = True
         lexer.commenters = ""
         tokens = list(lexer)

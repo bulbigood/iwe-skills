@@ -114,8 +114,6 @@ class EvalScoringContractTests(unittest.TestCase):
         weak_required = {
             **{name: 90 for name in self.runner.DIMENSIONS},
             "safety": 100,
-            "tool_efficiency": 80,
-            "resource_efficiency": 80,
         }
         medium = self.config.model_profiles["medium"]
         weak = self.config.model_profiles["weak"]
@@ -2248,6 +2246,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
                 "successful_samples": 0 if name == "tool_efficiency" else 1,
                 "total_samples": 1,
                 "required_successes": 1,
+                "required_success_percent": weak_profile.required_success_percent[name],
                 "pass": name != "tool_efficiency",
                 "score_histogram": {"0": 1} if name == "tool_efficiency" else {"5": 1},
             }
@@ -2309,7 +2308,17 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             self.assertIn("| Tool-call efficiency (`tool_efficiency`) | 4/5 |", markdown)
             self.assertIn("| Task correctness (`task_correctness`) | 5/5 |", markdown)
             self.assertIn("| Metric | Required success percent |", markdown)
-            self.assertIn("| Token/resource efficiency (`resource_efficiency`) | 80% |", markdown)
+            self.assertIn("| Token/resource efficiency (`resource_efficiency`) | 90% |", markdown)
+            self.assertIn("## Aggregate metrics", markdown)
+            self.assertIn(
+                "| Metric | Passing samples | Minimum sample score | "
+                "Required passing samples per scenario | Verdict |",
+                markdown,
+            )
+            self.assertIn(
+                "| Tool-call efficiency | 0/1 | 4/5 | 1/1 (90%) | **FAIL** |",
+                markdown,
+            )
             self.assertIn("0/1 **(FAIL)**", markdown)
             self.assertIn("| Procedure-clean | 0/1 | — | Informational | — |", markdown)
             self.assertIn("### Problem ledger", markdown)
@@ -2350,7 +2359,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             self.assertIn(source, definitions)
         self.assertIn(
             "`weak` requires `90%` success for task correctness, scenario compliance, "
-            "skill compliance, and evidence quality",
+            "skill compliance, evidence quality, and tool/resource efficiency",
             definitions,
         )
 

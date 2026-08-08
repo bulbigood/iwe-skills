@@ -1165,6 +1165,32 @@ class IweSkillTests(unittest.TestCase):
         self.assertEqual(zsh_metrics["iwe_telemetry_extra"], 0)
         self.assertEqual(zsh_metrics["iwe_telemetry_mismatch"], 0)
         self.assertEqual(zsh_metrics["iwe_telemetry_invalid"], 0)
+        ansi_content = "# Core Body\n\nApproved final text."
+        ansi_metrics = module.command_metrics(
+            [{
+                "command": (
+                    "/bin/bash -lc \"iwe update --key core-body --content "
+                    "$'# Core Body\\\\n\\\\nApproved final text.' --expect 1 --strict\""
+                ),
+                "exit_code": 0,
+                "output": "updated\n",
+            }],
+            [{
+                "args": [
+                    "update", "--key", "core-body", "--content", ansi_content,
+                    "--expect", "1", "--strict",
+                ],
+                "exit_code": 0,
+                "stdout_bytes": 8,
+                "emitted_stdout_bytes": 8,
+                "stderr_bytes": 0,
+                "result_count": None,
+                "stdout": "updated\n",
+                "stderr": "",
+            }],
+        )
+        self.assertEqual(ansi_metrics["iwe_telemetry_mismatch"], 0)
+        self.assertEqual(ansi_metrics["iwe_telemetry_invalid"], 0)
         missing = module.command_metrics(
             [{"command": "iwe find --lexical virtue --limit 1 --format json", "output": "[]"}],
             [],

@@ -86,8 +86,8 @@ scenario_compliance = 90
 skill_compliance = 90
 safety = 100
 evidence_quality = 90
-tool_efficiency = 80
-resource_efficiency = 80
+tool_efficiency = 90
+resource_efficiency = 90
 
 [eval.default_excellent]
 skill_compliance = "Uses the installed IWE runtime contract directly, optimistically, and with bounded operations; no forbidden fallback, web access, or IWE docs occurs."

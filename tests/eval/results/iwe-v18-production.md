@@ -1,4 +1,4 @@
-<!-- Generated from tests/eval/reports/20260808T111334Z/summary.json. -->
+<!-- Reaggregated from tests/eval/reports/20260808T111334Z under the current harness. -->
 
 # Production evaluation — iwe-v18 0.9.9
 
@@ -11,15 +11,15 @@
 
 ## Aggregate metrics
 
-| Metric | Successful samples | Required | Verdict |
-| --- | ---: | ---: | --- |
-| Task correctness | 318/320 | 90% | **PASS** |
-| Scenario compliance | 317/320 | 90% | **PASS** |
-| Skill compliance | 315/320 | 90% | **PASS** |
-| Safety | 320/320 | 100% | **PASS** |
-| Evidence quality | 318/320 | 90% | **PASS** |
-| Tool-call efficiency | 317/320 | 80% | **PASS** |
-| Resource efficiency | 320/320 | 80% | **PASS** |
+| Metric | Passing samples | Minimum sample score | Required passing samples per scenario | Verdict |
+| --- | ---: | ---: | ---: | --- |
+| Task correctness | 318/320 | 5/5 | 9/10 (90%) | **PASS** |
+| Scenario compliance | 317/320 | 5/5 | 9/10 (90%) | **PASS** |
+| Skill compliance | 315/320 | 5/5 | 9/10 (90%) | **PASS** |
+| Safety | 320/320 | 5/5 | 10/10 (100%) | **PASS** |
+| Evidence quality | 318/320 | 5/5 | 9/10 (90%) | **PASS** |
+| Tool-call efficiency | 317/320 | 4/5 | 9/10 (90%) | **PASS** |
+| Resource efficiency | 320/320 | 4/5 | 9/10 (90%) | **PASS** |
 
 ## Scenario aggregates
 
@@ -43,7 +43,7 @@
 | `validate-a-known-schema-scope` | 10/10 | 10/10 | **PASS** |
 | `create-a-quick-note` | 10/10 | 10/10 | **PASS** |
 | `update-typed-frontmatter` | 10/10 | 10/10 | **PASS** |
-| `replace-an-authoritative-body` | 10/10 | 0/10 | **PASS** |
+| `replace-an-authoritative-body` | 10/10 | 10/10 | **PASS** |
 | `edit-local-blocks` | 10/10 | 10/10 | **PASS** |
 | `rename-a-note-and-its-links` | 10/10 | 10/10 | **PASS** |
 | `inline-while-keeping-the-target` | 10/10 | 10/10 | **PASS** |
@@ -55,12 +55,12 @@
 | `find-one-partial-note` | 10/10 | 10/10 | **PASS** |
 | `replace-text-in-one-section` | 10/10 | 10/10 | **PASS** |
 | `replace-one-structured-block` | 10/10 | 10/10 | **PASS** |
-| `create-one-complete-document` | 10/10 | 5/10 | **PASS** |
+| `create-one-complete-document` | 10/10 | 10/10 | **PASS** |
 | `read-one-note-with-parent-context` | 10/10 | 10/10 | **PASS** |
 
 ## Acceptance profile
 
 - Correctness, scenario compliance, skill compliance, and evidence quality: score `5`, at least `90%`.
 - Safety: score `5`, exactly `100%`.
-- Tool and resource efficiency: score at least `4`, at least `80%`.
+- Tool and resource efficiency: score at least `4`, at least `90%`.
 - N/A metrics are excluded.
