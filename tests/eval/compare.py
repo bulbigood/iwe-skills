@@ -94,6 +94,11 @@ def compare_results(
                 }
             valid_pairs = [(a, b) for a, b in zip(left_rows, right_rows)
                            if a["verdict"].get("valid", False) and b["verdict"].get("valid", False)]
+            timed_pairs = [
+                (a, b) for a, b in valid_pairs
+                if isinstance(a.get("agent", {}).get("wall_seconds"), (int, float))
+                and isinstance(b.get("agent", {}).get("wall_seconds"), (int, float))
+            ]
             efficiency_names = sorted(set.intersection(*[
                 {name for name, value in row.get("agent", {}).get("metrics", {}).items()
                  if isinstance(value, int) and not isinstance(value, bool)}
@@ -108,6 +113,10 @@ def compare_results(
                 },
                 "efficiency": {
                     "excluded_cells": len(keys) - len(valid_pairs),
+                    "worker_wall_seconds_deltas": [
+                        a["agent"]["wall_seconds"] - b["agent"]["wall_seconds"]
+                        for a, b in timed_pairs
+                    ],
                     "paired_deltas": {
                         name: [a["agent"]["metrics"][name] - b["agent"]["metrics"][name]
                                for a, b in valid_pairs]

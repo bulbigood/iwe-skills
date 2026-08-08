@@ -14,6 +14,8 @@ import os
 import re
 import shlex
 import shutil
+import signal
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -1626,12 +1628,23 @@ def parse_process_output(executable_name: str, stdout: str) -> dict:
     final = ""
     commands: list[dict] = []
     pending_bash: dict[str, str] = {}
+    token_usage: dict[str, int] = {}
     for line in stdout.splitlines():
         try:
             event = json.loads(line)
         except json.JSONDecodeError:
             continue
         if executable_name == "claude":
+            usage = event.get("usage")
+            if isinstance(usage, dict):
+                token_usage = {
+                    "input_tokens": int(usage.get("input_tokens", 0)),
+                    "cached_input_tokens": int(
+                        usage.get("cache_read_input_tokens", 0)
+                        + usage.get("cache_creation_input_tokens", 0)
+                    ),
+                    "output_tokens": int(usage.get("output_tokens", 0)),
+                }
             message = event.get("message", {})
             content = message.get("content", []) if isinstance(message, dict) else []
             if event.get("type") == "assistant" and isinstance(content, list):
@@ -1658,12 +1671,39 @@ def parse_process_output(executable_name: str, stdout: str) -> dict:
                 elif event.get("result") is not None:
                     final = str(event["result"])
             continue
+        usage = event.get("usage")
+        if isinstance(usage, dict):
+            token_usage = {
+                "input_tokens": int(usage.get("input_tokens", 0)),
+                "cached_input_tokens": int(usage.get("cached_input_tokens", 0)),
+                "output_tokens": int(usage.get("output_tokens", 0)),
+            }
         item = event.get("item", {})
         if event.get("type") == "item.completed" and item.get("type") == "agent_message":
             final = str(item.get("text", ""))
         if event.get("type") == "item.completed" and item.get("type") == "command_execution":
             commands.append({"command": str(item.get("command", "")), "exit_code": int(item.get("exit_code") or 0), "output": str(item.get("aggregated_output", ""))})
-    return {"final": final or stdout, "commands": commands}
+    return {"final": final or stdout, "commands": commands, "token_usage": token_usage}
+
+
+def performance_summary(results: list[dict], target_ids: tuple[str, ...]) -> dict[str, dict]:
+    """Return per-target medians over every declared worker sample."""
+    summary: dict[str, dict] = {}
+    for target_id in target_ids:
+        rows = [row for row in results if row.get("target_id") == target_id]
+        if not rows:
+            raise ValueError(f"no performance samples for target {target_id}")
+        fields = {
+            "input_tokens_median": [row["agent"]["token_usage"]["input_tokens"] for row in rows],
+            "output_tokens_median": [row["agent"]["token_usage"]["output_tokens"] for row in rows],
+            "tool_calls_median": [row["agent"]["metrics"]["task_tool_calls"] for row in rows],
+            "wall_seconds_median": [row["agent"]["wall_seconds"] for row in rows],
+        }
+        summary[target_id] = {
+            "samples": len(rows),
+            **{name: statistics.median(values) for name, values in fields.items()},
+        }
+    return summary
 
 
 def run_process(command: str, prompt: str, cwd: Path, timeout: int, env: dict[str, str]) -> dict:
@@ -2796,11 +2836,15 @@ def main() -> int:
         comparisons = compare_results(
             results,
             tuple(target.id for target in experiment.targets),
-            DIMENSIONS,
+            experiment.comparison_metrics or DIMENSIONS,
             expected_pairs,
             excluded_dimensions_by_target=excluded_dimensions_by_target,
         )
         summary["comparisons"] = comparisons
+        if experiment.comparison_metrics:
+            summary["performance"] = performance_summary(
+                results, tuple(target.id for target in experiment.targets)
+            )
         snapshot_document = {
             "schema_version": 1, "name": experiment.name,
             "scenarios": [scenario.id for scenario in scenarios],

@@ -106,6 +106,160 @@ def _aggregate_metric_tables(targets: dict[str, dict], outcomes: list[dict]) -> 
     return lines
 
 
+def _format_deltas(values: list[int | float], *, precision: int | None = None) -> str:
+    if precision is not None:
+        return ", ".join(f"{value:.{precision}f}" for value in values)
+    return ", ".join(str(value) for value in values)
+
+
+def _comparison_tables(comparisons: list[dict]) -> list[str]:
+    if not comparisons:
+        return []
+    lines = [
+        "## Paired efficiency comparison",
+        "",
+        "Deltas are left target minus right target for valid paired cells; lower raw usage and time are better.",
+        "No averaging is applied.",
+        "",
+    ]
+    for comparison in comparisons:
+        left = comparison["left_target_id"]
+        right = comparison["right_target_id"]
+        lines.extend([
+            f"### `{comparison['scenario_id']}` — {left} − {right}",
+            "",
+            "| Judge metric | Left wins / ties / losses | Success-rate delta |",
+            "| --- | ---: | ---: |",
+        ])
+        for name, metric in comparison["metrics"].items():
+            if not metric.get("applicable", True):
+                continue
+            lines.append(
+                f"| {METRIC_LABELS.get(name, name)} | {metric['left_wins']} / "
+                f"{metric['ties']} / {metric['left_losses']} | "
+                f"{metric['success_rate_delta_percentage_points']:+g} pp |"
+            )
+        efficiency = comparison["efficiency"]
+        lines.extend([
+            "",
+            "| Raw paired diagnostic | Per-sample deltas |",
+            "| --- | --- |",
+            "| Worker wall time (seconds) | `"
+            + _format_deltas(efficiency.get("worker_wall_seconds_deltas", []), precision=3)
+            + "` |",
+        ])
+        raw_labels = {
+            "task_tool_calls": "Task tool calls",
+            "task_tool_output_bytes": "Task tool-output bytes",
+            "estimated_task_input_tokens": "Estimated task-input tokens (bytes/4)",
+        }
+        for name, label in raw_labels.items():
+            if name in efficiency.get("paired_deltas", {}):
+                lines.append(
+                    f"| {label} | `"
+                    + _format_deltas(efficiency["paired_deltas"][name])
+                    + "` |"
+                )
+        lines.extend([
+            f"| Excluded invalid pairs | `{efficiency['excluded_cells']}` |",
+            "",
+        ])
+    return lines
+
+
+def _median_cell(value: int | float, *, seconds: bool = False) -> str:
+    if seconds:
+        return f"{value:.3f}"
+    return str(int(value)) if float(value).is_integer() else f"{value:.1f}"
+
+
+def _relative_change(baseline: int | float, comparison: int | float) -> str:
+    if baseline == 0:
+        return "N/A"
+    return f"{(comparison - baseline) * 100 / baseline:+.1f}%"
+
+
+def _performance_table(performance: dict[str, dict]) -> list[str]:
+    if not performance:
+        return []
+    if len(performance) != 2:
+        raise ValueError("performance comparison requires exactly two arms")
+    baseline_id, comparison_id = performance
+    baseline = performance[baseline_id]
+    comparison = performance[comparison_id]
+    lines = [
+        "## Worker performance medians",
+        "",
+        "Medians use every worker sample across all selected scenarios. Token counts are provider-reported.",
+        f"Change is `{comparison_id}` relative to `{baseline_id}`; positive values mean greater consumption.",
+        "",
+        f"| Metric | {baseline_id} median | {comparison_id} median | {comparison_id} change |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    rows = (
+        ("Input tokens", "input_tokens_median", False),
+        ("Output tokens", "output_tokens_median", False),
+        ("Tool calls", "tool_calls_median", False),
+        ("Wall time (seconds)", "wall_seconds_median", True),
+    )
+    for label, field, seconds in rows:
+        lines.append(
+            f"| {label} | {_median_cell(baseline[field], seconds=seconds)} | "
+            f"{_median_cell(comparison[field], seconds=seconds)} | "
+            f"{_relative_change(baseline[field], comparison[field])} |"
+        )
+    lines.append(
+        f"| Samples included | {baseline['samples']} | {comparison['samples']} | — |"
+    )
+    lines.append("")
+    return lines
+
+
+def _quality_comparison_table(
+    outcomes: list[dict], target_ids: tuple[str, str]
+) -> list[str]:
+    baseline_id, comparison_id = target_ids
+    lines = [
+        "## Quality and efficiency acceptance",
+        "",
+        "Change is the passing-sample rate for the second arm minus the first arm, in percentage points.",
+        "",
+        f"| Metric | {baseline_id} | {comparison_id} | Change |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    by_target = {
+        target_id: [outcome for outcome in outcomes if outcome["target_id"] == target_id]
+        for target_id in target_ids
+    }
+    for name, label in METRIC_LABELS.items():
+        cells: list[tuple[int, int] | None] = []
+        for target_id in target_ids:
+            metrics = [outcome["metrics"][name] for outcome in by_target[target_id]]
+            applicable = [metric for metric in metrics if metric.get("applicable", True)]
+            if not applicable:
+                cells.append(None)
+            else:
+                cells.append((
+                    sum(metric["successful_samples"] for metric in applicable),
+                    sum(metric["total_samples"] for metric in applicable),
+                ))
+        rendered = [
+            "N/A" if cell is None else f"{cell[0]}/{cell[1]} ({cell[0] * 100 / cell[1]:.1f}%)"
+            for cell in cells
+        ]
+        if None in cells:
+            change = "N/A"
+        else:
+            baseline, comparison = cells
+            assert baseline is not None and comparison is not None
+            change = (
+                f"{comparison[0] * 100 / comparison[1] - baseline[0] * 100 / baseline[1]:+.1f} pp"
+            )
+        lines.append(f"| {label} | {rendered[0]} | {rendered[1]} | {change} |")
+    lines.append("")
+    return lines
+
+
 def _profile_metric_failures(report: dict) -> dict:
     profile = report.get("evaluation_profile")
     if isinstance(profile, dict) and isinstance(profile.get("metric_failures"), dict):
@@ -272,6 +426,10 @@ def render_markdown(
         lines.extend(_profile_tables(target))
     outcomes = _outcomes_with_scenario_ids(summary["scenarios"], report_dir)
     lines.extend(_aggregate_metric_tables(targets, outcomes))
+    if len(targets) == 2:
+        lines.extend(_quality_comparison_table(outcomes, tuple(targets)))
+    lines.extend(_performance_table(summary.get("performance", {})))
+    lines.extend(_comparison_tables(summary.get("comparisons", [])))
     for outcome in outcomes:
         target = targets[outcome["target_id"]]
         runtime = target["runtime"]

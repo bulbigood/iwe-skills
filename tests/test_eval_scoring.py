@@ -89,8 +89,37 @@ class EvalScoringContractTests(unittest.TestCase):
 
         self.assertEqual(result["exit"], 124)
         self.assertIn("turn.started", result["stdout"])
-        self.assertIn("timed out after 30 seconds", result["stderr"])
+        self.assertIn("timed out", result["stderr"])
         self.assertEqual(result["commands"], [])
+
+    def test_agent_event_parsing_captures_provider_token_usage(self) -> None:
+        codex = self.runner.parse_process_output(
+            "codex",
+            "\n".join([
+                json.dumps({"type": "turn.completed", "usage": {
+                    "input_tokens": 1200, "cached_input_tokens": 300, "output_tokens": 80,
+                }}),
+                json.dumps({"type": "item.completed", "item": {
+                    "type": "agent_message", "text": "done",
+                }}),
+            ]),
+        )
+        self.assertEqual(codex["token_usage"], {
+            "input_tokens": 1200,
+            "cached_input_tokens": 300,
+            "output_tokens": 80,
+        })
+        claude = self.runner.parse_process_output(
+            "claude",
+            json.dumps({
+                "type": "result",
+                "result": "done",
+                "usage": {"input_tokens": 900, "cache_read_input_tokens": 200, "output_tokens": 70},
+            }),
+        )
+        self.assertEqual(claude["token_usage"]["input_tokens"], 900)
+        self.assertEqual(claude["token_usage"]["cached_input_tokens"], 200)
+        self.assertEqual(claude["token_usage"]["output_tokens"], 70)
 
     def test_global_config_declares_complete_medium_and_weak_profiles(self) -> None:
         self.assertEqual(set(self.config.score_scale), set(range(6)))
@@ -1828,6 +1857,94 @@ version = "0.18.0"
         self.assertNotIn("mean", json.dumps(comparison).lower())
         self.assertNotIn("weighted", json.dumps(comparison).lower())
 
+    def test_pairwise_comparison_preserves_worker_time_deltas(self) -> None:
+        compare = load_eval_module("compare")
+
+        def result(target: str, seconds: float) -> dict:
+            return {
+                "target_id": target,
+                "scenario_id": "s",
+                "sample": 1,
+                "pair_id": "pair-1",
+                "verdict": {"valid": True, "metric_scores": {}, "metric_failures": {}},
+                "agent": {
+                    "wall_seconds": seconds,
+                    "metrics": {"task_tool_calls": 2, "task_tool_output_bytes": 100},
+                },
+            }
+
+        comparison = compare.compare_results(
+            [result("guided", 3.25), result("control", 5.75)],
+            ("guided", "control"),
+            ("tool_efficiency", "resource_efficiency"),
+            {("s", 1): "pair-1"},
+        )[0]
+        self.assertEqual(comparison["efficiency"]["worker_wall_seconds_deltas"], [-2.5])
+        self.assertEqual(
+            comparison["efficiency"]["paired_deltas"]["task_tool_output_bytes"],
+            [0],
+        )
+        renderer = load_eval_module("report_markdown")
+        markdown = "\n".join(renderer._comparison_tables([comparison]))
+        self.assertIn("## Paired efficiency comparison", markdown)
+        self.assertIn("guided − control", markdown)
+        self.assertIn("Tool-call efficiency | 0 / 1 / 0", markdown)
+        self.assertIn("Worker wall time (seconds) | `-2.500`", markdown)
+        self.assertIn("Task tool-output bytes | `0`", markdown)
+
+    def test_performance_summary_uses_all_sample_medians_per_arm(self) -> None:
+        rows = []
+        for target, values in {
+            "guided": [(100, 10, 1, 2.0), (300, 30, 3, 4.0), (200, 20, 2, 3.0)],
+            "control": [(900, 90, 9, 8.0), (700, 70, 7, 6.0), (800, 80, 8, 7.0)],
+        }.items():
+            for sample, (input_tokens, output_tokens, calls, wall) in enumerate(values, 1):
+                rows.append({
+                    "target_id": target,
+                    "sample": sample,
+                    "agent": {
+                        "token_usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+                        "metrics": {"task_tool_calls": calls},
+                        "wall_seconds": wall,
+                    },
+                })
+        summary = load_runner().performance_summary(rows, ("guided", "control"))
+        self.assertEqual(summary["guided"], {
+            "samples": 3,
+            "input_tokens_median": 200,
+            "output_tokens_median": 20,
+            "tool_calls_median": 2,
+            "wall_seconds_median": 3.0,
+        })
+        renderer = load_eval_module("report_markdown")
+        markdown = "\n".join(renderer._performance_table(summary))
+        self.assertIn("| Input tokens | 200 | 800 | +300.0% |", markdown)
+        self.assertIn("| Output tokens | 20 | 80 | +300.0% |", markdown)
+        self.assertIn("| Tool calls | 2 | 8 | +300.0% |", markdown)
+        self.assertIn("| Wall time (seconds) | 3.000 | 7.000 | +133.3% |", markdown)
+
+    def test_quality_comparison_reports_all_production_metrics_as_percentage_points(self) -> None:
+        runner = load_runner()
+        renderer = load_eval_module("report_markdown")
+        outcomes = []
+        for target, successes in (("iwe-v18", 9), ("iwe-no-skill", 7)):
+            metrics = {}
+            for name in runner.DIMENSIONS:
+                metrics[name] = {
+                    "applicable": not (target == "iwe-no-skill" and name == "skill_compliance"),
+                    "successful_samples": successes,
+                    "total_samples": 10,
+                }
+            outcomes.append({"target_id": target, "metrics": metrics})
+        markdown = "\n".join(renderer._quality_comparison_table(
+            outcomes, ("iwe-v18", "iwe-no-skill")
+        ))
+        self.assertIn("## Quality and efficiency acceptance", markdown)
+        self.assertIn("| Task correctness | 9/10 (90.0%) | 7/10 (70.0%) | -20.0 pp |", markdown)
+        self.assertIn("| Skill compliance | 9/10 (90.0%) | N/A | N/A |", markdown)
+        for label in renderer.METRIC_LABELS.values():
+            self.assertIn(f"| {label} |", markdown)
+
     def test_pairwise_comparison_marks_excluded_target_metric_not_applicable(self) -> None:
         compare = load_eval_module("compare")
         rows = [{
@@ -2000,6 +2117,48 @@ class ProductionEvalCommandTests(unittest.TestCase):
 
 
 class PairedSkillEvalCommandTests(unittest.TestCase):
+
+    def test_guidance_efficiency_ab_profile_is_two_arm_three_scenario_ten_sample(self) -> None:
+        module = load_module(
+            ROOT / "scripts/run_iwe_guidance_efficiency_ab.py",
+            "run_iwe_guidance_efficiency_ab",
+        )
+        self.assertEqual(module.SAMPLES, 10)
+        self.assertEqual(module.SCENARIOS, (
+            "discover-and-retrieve-bounded-multi-hop-context",
+            "query-structured-metadata-without-scanning-files",
+            "ambiguous-discovery-with-one-follow-up",
+        ))
+        self.assertEqual(module.COMPARISON_METRICS, (
+            "tool_efficiency", "resource_efficiency",
+        ))
+        with mock.patch.object(module, "verify_runtime_binary", return_value=Path("/bin/true")):
+            manifest_path = module.write_experiment(root=ROOT, jobs=3, agent="codex")
+        manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(manifest["samples"], 10)
+        self.assertEqual(manifest["jobs"], 3)
+        self.assertEqual(tuple(manifest["scenarios"]), module.SCENARIOS)
+        self.assertEqual(tuple(manifest["comparison_metrics"]), module.COMPARISON_METRICS)
+        self.assertEqual([target["id"] for target in manifest["targets"]], [
+            "iwe-v18", "iwe-no-skill",
+        ])
+        self.assertNotIn("skill_mode", manifest["targets"][0])
+        self.assertEqual(manifest["targets"][1]["skill_mode"], "none")
+        self.assertNotIn("skill_path", manifest["targets"][1])
+        self.assertNotIn("skill_version", manifest["targets"][1])
+        self.assertEqual(
+            manifest["targets"][0]["runtime"], manifest["targets"][1]["runtime"]
+        )
+        experiment = load_eval_module("experiment").load_experiment(manifest_path, ROOT)
+        scenarios = [
+            scenario for scenario in load_runner().load_scenarios()
+            if scenario.id in experiment.scenario_ids
+        ]
+        cells = load_runner().build_matrix(experiment, scenarios)
+        self.assertEqual(len(cells), 60)
+        self.assertEqual(len({cell.pair_id for cell in cells}), 30)
+        command = module.build_command(manifest_path, Path("result.md"), "codex", list_only=True)
+        self.assertIn("--list", command)
     def test_iwe_v18_skill_frontloads_problem_routes_found_by_telemetry(self) -> None:
         skill = (ROOT / "skills/iwe-v18/SKILL.md").read_text(encoding="utf-8")
         required = (

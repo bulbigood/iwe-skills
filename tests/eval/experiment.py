@@ -67,6 +67,7 @@ class Experiment:
     samples: int
     jobs: int
     agent_judge_config: str
+    comparison_metrics: tuple[str, ...] | None
     targets: tuple[EvalTarget, ...]
 
 
@@ -156,5 +157,8 @@ def load_experiment(path: Path, root: Path) -> Experiment:
         targets.append(EvalTarget(raw["id"], skill_path, declared, contract_file, RuntimeTarget(
             runtime_raw["cli"], runtime_raw["source"], runtime_directory, version
         )))
+    comparison_metrics = document.get("comparison_metrics")
     return Experiment(document["name"], tuple(document["scenarios"]), document["samples"],
-                      document["jobs"], document["agent_judge_config"], tuple(targets))
+                      document["jobs"], document["agent_judge_config"],
+                      tuple(comparison_metrics) if comparison_metrics is not None else None,
+                      tuple(targets))

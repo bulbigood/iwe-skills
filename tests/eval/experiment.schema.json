@@ -10,6 +10,10 @@
     "samples": {"type": "integer", "minimum": 1},
     "jobs": {"type": "integer", "minimum": 1},
     "agent_judge_config": {"type": "string", "pattern": "^[A-Za-z0-9_-]+$"},
+    "comparison_metrics": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {"enum": ["task_correctness", "scenario_compliance", "skill_compliance", "safety", "evidence_quality", "tool_efficiency", "resource_efficiency"]}
+    },
     "targets": {
       "type": "array", "minItems": 1,
       "items": {
