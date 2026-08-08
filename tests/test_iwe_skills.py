@@ -168,15 +168,15 @@ class IweSkillTests(unittest.TestCase):
 
     def test_manifest_rejects_model_facing_version_or_compatibility_drift(self) -> None:
         for old, new, message in (
-            ('version: "0.9.7"', 'version: "0.9.8"', "skill_version"),
+            ('version: "0.9.8"', 'version: "0.9.9"', "skill_version"),
             (
-                'metadata:\n  version: "0.9.7"',
-                'version: "0.9.7"',
+                'metadata:\n  version: "0.9.8"',
+                'version: "0.9.8"',
                 "metadata",
             ),
             (
-                'metadata:\n  version: "0.9.7"',
-                'metadata:\n  nested:\n    version: "0.9.7"',
+                'metadata:\n  version: "0.9.8"',
+                'metadata:\n  nested:\n    version: "0.9.8"',
                 "metadata.version",
             ),
             (
@@ -544,7 +544,7 @@ class IweSkillTests(unittest.TestCase):
             )
             self.assertTrue(all(item["procedure"].values()))
         names = {scenario.name for scenario in scenarios}
-        self.assertEqual(len(scenarios), 24)
+        self.assertEqual(len(scenarios), 32)
         for expected in (
             "Ambiguous discovery with one follow-up",
             "Fallback when IWE is unavailable",
@@ -747,6 +747,14 @@ class IweSkillTests(unittest.TestCase):
             "inline-while-keeping-the-target": (2, 2, 0, 6400),
             "attach-to-a-known-destination": (2, 2, 0, 4800),
             "preview-one-scoped-deletion": (1, 1, 0, 3200),
+            "find-notes-by-body-concept": (1, 1, 0, 2400),
+            "summarize-one-topic": (1, 1, 0, 4800),
+            "find-one-exact-note-without-body": (1, 1, 0, 1600),
+            "find-one-partial-note": (1, 1, 0, 1600),
+            "replace-text-in-one-section": (2, 2, 0, 4800),
+            "replace-one-structured-block": (2, 2, 0, 5600),
+            "create-one-complete-document": (1, 1, 0, 2400),
+            "read-one-note-with-parent-context": (1, 1, 0, 6400),
         })
 
         update = next(

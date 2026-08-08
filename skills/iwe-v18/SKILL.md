@@ -3,7 +3,7 @@ name: iwe-v18
 description: Use IWE CLI to find, retrieve, analyze, create, update, or safely refactor an IWE Markdown knowledge graph.
 compatibility: Requires IWE CLI >=0.18.0.
 metadata:
-  version: "0.9.7"
+  version: "0.9.8"
 ---
 
 # IWE problem-solving policy
@@ -16,6 +16,7 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 - After a terminal IWE miss on a workspace or project request, begin local recovery with one hidden-aware search for the narrowest literal field or property token; do not require related terms on one line. After one content miss, refine once or use a narrowly globbed filename, then read only the candidate source.
 - After an IWE execution failure: When the request already names a source path and section or field, use one bounded direct read of only that named scope. Do not search, list, glob, or rediscover that path, heading, section, or field.
 - When a requested retrieval expansion returns a seed and related documents, report the requested content for the seed and every returned document. Do not reduce the seed or an expansion to only its key or title.
+- A bounded lexical find suffices for identity-only output. Stop; never verify via body reads or file search.
 
 ## Hard execution rules
 
@@ -63,15 +64,15 @@ iwe find --lexical "<distinctive terms>" --limit 5 --project 'key=$key,title=$ti
 ```
 
 - **A1 Exact identity:** key selector, limit 1, key/title projection.
-- **A2 Partial identity:** fuzzy distinctive title/key fragment, limit 1–5.
-- **A3 Body concept:** lexical content nouns and compact projection.
+- **A2 Partial identity:** fuzzy title/key fragment, limit 1–5.
+- **A3 Body concept:** lexical nouns and compact projection.
 - **A4 Typed cohort:** Semantic entity class (project/task/person/meeting) means `type`; combine its filter with lexical terms.
 - **A5 Roots:** roots selector for flat entry-point list; use tree only when hierarchy is requested.
-- **A6 Inclusion neighborhood:** included-by for descendants, includes for containers; positive request-derived depth.
+- **A6 Inclusion neighborhood:** included-by for descendants, includes for containers; positive depth.
 - **A7 Reference neighborhood:** for known anchors, query them directly and add relationship fields in one call, for example `iwe find --key <key> --key <key> --limit 2 --add-fields 'references=$references,referencedBy=$referencedBy,includes=$includes,includedBy=$includedBy' --format json`. Direction is literal: references current→target; referencedBy source→current; includes current→child; includedBy parent→current. For a relationship-only request, explain only this graph picture and stop; do not lexical-search or retrieve bodies.
 - **A8 Unknown source plus known heading:** combine descriptor and heading in one lexical query, limit 1, project key/title, use `--blocks '{ $header: "<heading>" }'`. Never query the descriptor or heading alone; never project `$blocks`.
 - **A9 Matching lines:** exact key plus matches only for an actual literal/regex text-pattern request.
-- **A10 Ranked records:** filter/query plus `--sort <field>:1` ascending or `--sort <field>:-1` descending, projection, and limit.
+- **A10 Ranked records:** filter/query plus `--sort <field>:1` or `--sort <field>:-1`, projection, and limit.
 
 If an ambiguous winner needs a body, call 2 retrieves only its key.
 
@@ -132,11 +133,11 @@ iwe update --key "<key>" --replace-text '{ $header: "<old>", to: "<new>", expect
 - **F1 Frontmatter:** set/unset typed fields; exact key or narrow cohort filter.
 - **F2 Heading rename:** replace-text selected by exact header; omit `from` only for whole own-text replacement.
 - **F3 Local text replacement:** within/text selector plus exact from/to.
-- **F4 Whole block replacement:** replace only when the selected block is fully authoritative.
+- **F4 Whole block:** in each preview/apply command, both are required: `--replace '{ $header: "H", content: "## H\n\nnew", expect: 1 }' --delete '{ $within: "H", expect: N }'`.
 - **F5 Insert sibling:** insert-before/after according to the literal requested position.
 - **F6 Append child:** append under an exact section/container.
-- **F7 Delete local block:** block delete with exact selector and expected count; deleting a complete heading section selects both its header and descendants, for example `--delete '{ $or: [ { $header: "<heading>" }, { $within: "<heading>" } ], expect: <count> }'`. This is not document deletion.
-- **F8 Whole body:** content overwrite only when the complete new body is authoritative. Pass an exact request-supplied literal inline; use stdin only when the complete body actually arrives via stdin, because shell newline behavior can otherwise alter authoritative bytes.
+- **F7 Delete local block:** block delete with exact selector and expected count; deleting a complete heading section selects both its header and descendants, for example `--delete '{ $or: [ { $header: "<heading>" }, { $within: "<heading>" } ], expect: <count> }'`.
+- **F8 Whole body:** overwrite only for complete authoritative input; use an inline literal or actual stdin.
 
 Exact forms: `iwe update --key <key> --unset <field> --expect 1 --strict --dry-run`; block insertion uses `--insert-before '<selector+content>'` or `--insert-after '<selector+content>'`; local removal uses `--delete '<selector+expect>'`; whole-body replacement is `iwe update --key <key> --content '<complete-body>'`. `update` has no `--format` option. Preview every mutation form except authoritative whole-body input, then apply identical arguments without `--dry-run`; guarded success proves the scoped result, so stop without retrieval.
 

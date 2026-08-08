@@ -202,6 +202,72 @@ class EvalScoringContractTests(unittest.TestCase):
             if scenario.skill_activation == "required" and scenario.iwe_mode == "real":
                 self.assertTrue(scenario.command_families or scenario.capabilities[0].startswith("behavior."))
 
+    def test_p0_scenarios_have_frequency_first_routes_and_budgets(self) -> None:
+        scenarios = {item.id: item for item in self.runner.load_scenarios()}
+        expected = {
+            "find-notes-by-body-concept": ("read.find.lexical", "find", (1, 1)),
+            "summarize-one-topic": ("read.retrieve.topic", "retrieve", (1, 1)),
+            "find-one-exact-note-without-body": ("read.find.exact", "find", (1, 1)),
+            "find-one-partial-note": ("read.find.partial", "find", (1, 1)),
+            "replace-text-in-one-section": ("write.update.text", "update", (2, 2)),
+            "replace-one-structured-block": ("write.update.block.replace", "update", (2, 2)),
+            "create-one-complete-document": ("write.create.content", "create", (1, 1)),
+            "read-one-note-with-parent-context": ("read.retrieve.parents", "retrieve", (1, 1)),
+        }
+        for scenario_id, (capability, family, calls) in expected.items():
+            with self.subTest(scenario=scenario_id):
+                scenario = scenarios[scenario_id]
+                self.assertEqual(scenario.capabilities, (capability,))
+                self.assertEqual(scenario.command_families, (family,))
+                self.assertEqual((scenario.min_tool_calls, scenario.max_tool_calls), calls)
+                lowered = scenario.request.casefold()
+                for leaked in ("iwe", "tool call", "rubric", "judge", "--key", "--dry-run"):
+                    self.assertNotIn(leaked, lowered)
+
+    def test_p0_fixtures_supply_independent_read_and_write_oracles(self) -> None:
+        scenarios = {item.id: item for item in self.runner.load_scenarios()}
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            (workspace / "graph").mkdir()
+            (workspace / ".iwe").mkdir()
+            (workspace / ".iwe/config.toml").write_text(
+                '[library]\npath = "graph"\n', encoding="utf-8"
+            )
+            self.runner.prepare(workspace, "pkm-demo-core-read")
+            read_snapshot = self.runner.snapshot(workspace)
+            for scenario_id in (
+                "find-notes-by-body-concept",
+                "summarize-one-topic",
+                "find-one-exact-note-without-body",
+                "find-one-partial-note",
+                "read-one-note-with-parent-context",
+            ):
+                evidence = self.runner.independent_oracle_evidence(
+                    scenarios[scenario_id], read_snapshot, read_snapshot, "ignored"
+                )
+                self.assertTrue(evidence["matching_documents"], scenario_id)
+
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            (workspace / "graph").mkdir()
+            (workspace / ".iwe").mkdir()
+            (workspace / ".iwe/config.toml").write_text(
+                '[library]\npath = "graph"\n', encoding="utf-8"
+            )
+            self.runner.prepare(workspace, "pkm-demo-core-write")
+            before = self.runner.snapshot(workspace)
+            exact_after = dict(before)
+            exact_after["graph/core-local-text.md"] = before["graph/core-local-text.md"].replace(
+                "three regions", "four regions"
+            )
+            errors = self.runner.mechanical_errors(
+                scenarios["replace-text-in-one-section"], before, exact_after, [], workspace
+            )
+            self.assertEqual(errors, [])
+            self.assertTrue(self.runner.mechanical_errors(
+                scenarios["replace-text-in-one-section"], before, before, [], workspace
+            ))
+
     def test_destructive_refusal_uses_no_task_tools(self) -> None:
         scenario = next(
             item
@@ -257,6 +323,14 @@ class EvalScoringContractTests(unittest.TestCase):
             "inline-while-keeping-the-target": ((2, 2), 1600),
             "attach-to-a-known-destination": ((2, 2), 1200),
             "preview-one-scoped-deletion": ((1, 1), 800),
+            "find-notes-by-body-concept": ((1, 1), 600),
+            "summarize-one-topic": ((1, 1), 1200),
+            "find-one-exact-note-without-body": ((1, 1), 400),
+            "find-one-partial-note": ((1, 1), 400),
+            "replace-text-in-one-section": ((2, 2), 1200),
+            "replace-one-structured-block": ((2, 2), 1400),
+            "create-one-complete-document": ((1, 1), 600),
+            "read-one-note-with-parent-context": ((1, 1), 1600),
         }
         self.assertEqual(set(scenarios), set(expected))
 
@@ -358,6 +432,14 @@ class EvalScoringContractTests(unittest.TestCase):
                 "inline-while-keeping-the-target": 2,
                 "attach-to-a-known-destination": 2,
                 "preview-one-scoped-deletion": 1,
+                "find-notes-by-body-concept": 1,
+                "summarize-one-topic": 1,
+                "find-one-exact-note-without-body": 1,
+                "find-one-partial-note": 1,
+                "replace-text-in-one-section": 2,
+                "replace-one-structured-block": 2,
+                "create-one-complete-document": 1,
+                "read-one-note-with-parent-context": 1,
             },
         )
 
@@ -1936,6 +2018,9 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             "Never emit a workspace-wide file inventory",
             "never use relationship discovery for extract verification",
             "corrected argv is the failed argv minus only that flag/value",
+            "bounded lexical find suffices for identity-only output",
+            "both are required: `--replace",
+            "--delete '{ $within:",
         )
         for snippet in required:
             self.assertIn(snippet, skill)
@@ -1947,7 +2032,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
     def test_ab_command_uses_every_declared_scenario(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_all_scenarios")
         expected = tuple(item.id for item in load_runner().load_scenarios())
-        self.assertEqual(len(expected), 24)
+        self.assertEqual(len(expected), 32)
         self.assertEqual(module.load_scenario_ids(ROOT), expected)
         manifest_path = module.write_experiment(1, ROOT)
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
@@ -1996,7 +2081,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
         self.assertEqual(targets[0].skill_id, "iwe-v18")
-        self.assertEqual(targets[0].skill_version, "0.9.7")
+        self.assertEqual(targets[0].skill_version, "0.9.8")
         self.assertEqual(targets[0].iwe_version, "0.18.0")
         self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
         self.assertEqual(len(targets), 1)

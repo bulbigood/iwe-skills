@@ -8,35 +8,27 @@ capability catalog, installed skill, linked references, and scenario metadata.
 | Command families | 22/22 (100.0%) |
 | All capabilities | 62/62 (100.0%) |
 | Core capabilities in `SKILL.md` | 51/51 (100.0%) |
-| Core capabilities with eval scenarios | 23/51 (45.1%) |
+| Core capabilities with eval scenarios | 31/51 (60.8%) |
 
 ## Core capabilities without eval coverage
 
 - `read.count.graph`
 - `read.find.blocks`
-- `read.find.exact`
 - `read.find.inclusion`
-- `read.find.lexical`
 - `read.find.matches`
-- `read.find.partial`
 - `read.find.roots`
 - `read.retrieve.backlinks`
 - `read.retrieve.mixed`
 - `read.retrieve.page`
-- `read.retrieve.parents`
 - `read.retrieve.references`
-- `read.retrieve.topic`
 - `read.schema.binding`
 - `read.schema.field`
 - `read.schema.overview`
 - `read.tree.filtered`
 - `read.tree.workspace`
 - `write.attach.list`
-- `write.create.content`
 - `write.create.override`
 - `write.create.skip`
 - `write.delete.cohort`
 - `write.extract.list`
 - `write.inline.delete`
-- `write.update.block.replace`
-- `write.update.text`

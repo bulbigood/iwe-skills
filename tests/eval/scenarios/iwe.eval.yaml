@@ -553,3 +553,150 @@ scenarios:
     scenario_compliance: Performs only the requested preview.
     evidence_quality: Output agrees with independently parsed target and reference links.
     safety: Uses exact-key strict guarded dry-run and leaves every file unchanged.
+
+- id: find-notes-by-body-concept
+  name: Find notes by body concept
+  fixture: pkm-demo-core-read
+  capabilities: [read.find.lexical]
+  command_families: [find]
+  request: What's the highest-ranked result for `blue-lantern handoff`? Give only key and title.
+  procedure:
+    ideal: [Use one bounded content search projected to key and title.]
+    acceptable_variations: [Equivalent compact structured output is acceptable.]
+    stop_when: [Every matching note key and title is available.]
+    avoid: [Fuzzy identity search, loading note bodies, or a follow-up query.]
+  efficiency: {task_tool_calls: [1, 1], task_tool_output_bytes: [0, 2400]}
+  excellent:
+    task_correctness: Returns only core-gamma with its correct title.
+    scenario_compliance: Returns only key and title for the highest-ranked result.
+    evidence_quality: The result agrees with independent body-text matching over the fixture.
+
+- id: summarize-one-topic
+  name: Summarize one topic
+  fixture: pkm-demo-core-read
+  capabilities: [read.retrieve.topic]
+  command_families: [retrieve]
+  request: Briefly summarize the staged migration approach described here and name the source key.
+  procedure:
+    ideal: [Use one bounded topic retrieval with enough content for a short answer.]
+    acceptable_variations: [Any one-pass bounded retrieval selecting the authored relevant note is acceptable.]
+    stop_when: [The migration approach and its source key are supported.]
+    avoid: [Metadata discovery before retrieval, unrelated documents, or a second retrieval.]
+  efficiency: {task_tool_calls: [1, 1], task_tool_output_bytes: [0, 4800]}
+  excellent:
+    task_correctness: Accurately summarizes staged cutovers and rollback checkpoints from core-gamma.
+    scenario_compliance: Gives a brief source-backed summary and names the source key.
+    evidence_quality: The summary agrees with the independently parsed core-gamma body.
+
+- id: find-one-exact-note-without-body
+  name: Find one exact note without body
+  fixture: pkm-demo-core-read
+  capabilities: [read.find.exact]
+  command_families: [find]
+  request: Give me the title and priority of `core-alpha`. Nothing else.
+  procedure:
+    ideal: [Use one exact-key projected lookup without loading the body.]
+    acceptable_variations: [Equivalent compact structured output is acceptable.]
+    stop_when: [The requested title and priority are available.]
+    avoid: [Discovery, body retrieval, unrelated fields, or verification.]
+  efficiency: {task_tool_calls: [1, 1], task_tool_output_bytes: [0, 1600]}
+  excellent:
+    task_correctness: Returns title Core Alpha and priority 2.
+    scenario_compliance: Returns only the two requested fields for core-alpha.
+    evidence_quality: Values agree with independently parsed title and frontmatter.
+
+- id: find-one-partial-note
+  name: Find one partial note
+  fixture: pkm-demo-core-read
+  capabilities: [read.find.partial]
+  command_families: [find]
+  request: I only remember `Core Gam` from the title. What is the note's key and full title?
+  procedure:
+    ideal: [Use one bounded partial-identity lookup projected to key and title.]
+    acceptable_variations: [An equivalent typo-tolerant identity lookup is acceptable.]
+    stop_when: [One matching key and full title are available.]
+    avoid: [Body-content search, retrieving the note, or broad candidate output.]
+  efficiency: {task_tool_calls: [1, 1], task_tool_output_bytes: [0, 1600]}
+  excellent:
+    task_correctness: Returns key core-gamma and title Core Gamma.
+    scenario_compliance: Resolves the partial title without loading prose or unrelated candidates.
+    evidence_quality: Identity agrees with the independently parsed fixture document.
+
+- id: replace-text-in-one-section
+  name: Replace text in one section
+  fixture: pkm-demo-core-write
+  capabilities: [write.update.text]
+  command_families: [update]
+  request: In `core-local-text` under Deployment, replace `Runs in three regions.` with `Runs in four regions.` Preserve everything else.
+  procedure:
+    ideal: [Preview one exact guarded local-text replacement, then apply it unchanged.]
+    acceptable_variations: [Equivalent section-scoped selectors are acceptable.]
+    stop_when: [The requested phrase is replaced once and unrelated content is preserved.]
+    avoid: [Reading first, replacing the whole body, manual file editing, or post-apply retrieval.]
+  efficiency: {task_tool_calls: [2, 2], task_tool_output_bytes: [0, 4800]}
+  excellent:
+    task_correctness: Replaces only the requested sentence inside Deployment.
+    scenario_compliance: Performs exactly the requested local edit and preserves all other bytes.
+    evidence_quality: The independent diff proves the exact one-phrase replacement.
+    safety: Uses an exact document, section, text, and match-count guard with preview before apply.
+
+- id: replace-one-structured-block
+  name: Replace one structured block
+  fixture: pkm-demo-core-write
+  capabilities: [write.update.block.replace]
+  command_families: [update]
+  request: In `core-block-replace`, remove the whole `## Rollback\n\nUse the emergency procedure.` section and put `## Rollback\n\nRestore the previous release.` in its place. Preserve every other section.
+  procedure:
+    ideal: [Preview one exact guarded whole-block replacement, then apply it unchanged.]
+    acceptable_variations: [Equivalent exact structural selection of the Rollback section is acceptable.]
+    stop_when: [The complete section matches the supplied block and neighboring sections are unchanged.]
+    avoid: [Whole-body replacement, text-only substitution, manual editing, or post-apply retrieval.]
+  efficiency: {task_tool_calls: [2, 2], task_tool_output_bytes: [0, 5600]}
+  excellent:
+    task_correctness: Replaces the complete Rollback section with the supplied heading and paragraph.
+    scenario_compliance: Changes only that structured section and preserves all neighbors.
+    evidence_quality: The independent diff proves exact block replacement and preservation.
+    safety: Uses exact document and block guards with preview before apply.
+
+- id: create-one-complete-document
+  name: Create one complete document
+  fixture: pkm-demo-core-write
+  capabilities: [write.create.content]
+  command_families: [create]
+  request: |-
+    Create `projects/release-checklist` with this complete content and fail if it already exists:
+    ---
+    type: checklist
+    owner: Ada
+    ---
+    # Release Checklist
+
+    Verify backups.
+  procedure:
+    ideal: [Create the exact complete document once with strict validation and a fail-on-collision policy.]
+    acceptable_variations: [Inline or stdin content delivery is acceptable when the resulting bytes are exact.]
+    stop_when: [Exactly one document exists at the requested key with the supplied complete content.]
+    avoid: [Template discovery, preflight reads, overwrite, auxiliary files, or verification retrieval.]
+  efficiency: {task_tool_calls: [1, 1], task_tool_output_bytes: [0, 2400]}
+  excellent:
+    task_correctness: Creates projects/release-checklist with exactly the supplied frontmatter and body.
+    scenario_compliance: Uses the explicit key and fails rather than replacing an existing collision.
+    evidence_quality: The independently read created file matches the supplied complete document.
+    safety: Creates only the requested file with strict validation and fail-on-collision behavior.
+
+- id: read-one-note-with-parent-context
+  name: Read one note with parent context
+  fixture: pkm-demo-core-read
+  capabilities: [read.retrieve.parents]
+  command_families: [retrieve]
+  request: Tell me what `core-beta` says and what its direct parent says. Name both keys.
+  procedure:
+    ideal: [Retrieve the exact seed and one direct parent in a single bounded operation.]
+    acceptable_variations: [Any one-call bounded parent expansion returning exactly both documents is acceptable.]
+    stop_when: [The seed and direct parent content and keys are available.]
+    avoid: [Relationship discovery first, unrelated documents, unlimited expansion, or a second read.]
+  efficiency: {task_tool_calls: [1, 1], task_tool_output_bytes: [0, 6400]}
+  excellent:
+    task_correctness: Accurately reports core-beta and its direct parent core-alpha.
+    scenario_compliance: Uses one bounded parent-context read and names both keys.
+    evidence_quality: Content and parent relationship agree with independently parsed fixture files.

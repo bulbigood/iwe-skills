@@ -1104,6 +1104,14 @@ def independent_oracle_evidence(
         "inline-while-keeping-the-target": ("reusable", "child"),
         "attach-to-a-known-destination": ("core", "source"),
         "preview-one-scoped-deletion": ("deletion", "target"),
+        "find-notes-by-body-concept": ("blue-lantern", "handoff"),
+        "summarize-one-topic": ("staged", "cutovers", "rollback", "checkpoints"),
+        "find-one-exact-note-without-body": ("core alpha",),
+        "find-one-partial-note": ("core gamma",),
+        "read-one-note-with-parent-context": ("core alpha", "core beta", "implementation", "release"),
+        "replace-text-in-one-section": ("regions", "deployment"),
+        "replace-one-structured-block": ("rollback", "release"),
+        "create-one-complete-document": ("release", "checklist", "backups"),
     }
     authored_keys_by_scenario = {
         "discover-and-retrieve-bounded-multi-hop-context": {
@@ -1231,6 +1239,9 @@ def independent_oracle_evidence(
         "graph/inbox.md",
         "graph/core-delete.md",
         "graph/core-delete-ref.md",
+        "graph/core-local-text.md",
+        "graph/core-block-replace.md",
+        "graph/projects/release-checklist.md",
     ):
         if path in after:
             prepared[path] = after[path][:8000]
@@ -1374,7 +1385,7 @@ additionalSections: false
             encoding="utf-8",
         )
         (graph / "core-gamma.md").write_text(
-            "---\ntype: project\npriority: 3\n---\n\n# Core Gamma\n\nTracks the higher-priority migration.\n",
+            "---\ntype: project\npriority: 3\n---\n\n# Core Gamma\n\nTracks the higher-priority migration. The rollout uses staged cutovers and rollback checkpoints under the blue-lantern handoff.\n",
             encoding="utf-8",
         )
         config = workspace / ".iwe/config.toml"
@@ -1408,6 +1419,8 @@ additionalSections: false
             "core-source.md": "# Core Source\n\nAttach this note.\n",
             "core-delete.md": "# Core Delete\n\nDeletion target.\n",
             "core-delete-ref.md": "# Delete Referrer\n\n[Core Delete](core-delete.md)\n",
+            "core-local-text.md": "# Core Local Text\n\n## Deployment\n\nRuns in three regions.\n\n## Operations\n\nPreserve this paragraph.\n",
+            "core-block-replace.md": "# Core Block Replace\n\n## Preparation\n\nKeep snapshots.\n\n## Rollback\n\nUse the emergency procedure.\n\n## Follow-up\n\nRecord the outcome.\n",
         }
         for name, content in documents.items():
             (graph / name).write_text(content, encoding="utf-8")
@@ -1677,6 +1690,9 @@ def mechanical_errors(
         "rename-a-note-and-its-links",
         "inline-while-keeping-the-target",
         "attach-to-a-known-destination",
+        "replace-text-in-one-section",
+        "replace-one-structured-block",
+        "create-one-complete-document",
     }
     if scenario.id not in mutating_scenarios:
         if before != after:
@@ -1860,6 +1876,33 @@ def mechanical_errors(
             )
             if normalize_links(remaining).strip() != normalize_links(before_inbox).strip():
                 errors.append("attach changed existing destination content beyond link normalization")
+    if scenario.id == "replace-text-in-one-section":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        expected = before.get("graph/core-local-text.md", "").replace(
+            "three regions", "four regions", 1
+        )
+        if changed != {"graph/core-local-text.md"} or after.get("graph/core-local-text.md") != expected:
+            errors.append("local text replacement is not the exact requested transformation")
+    if scenario.id == "replace-one-structured-block":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        expected = (
+            "# Core Block Replace\n\n## Preparation\n\nKeep snapshots.\n\n"
+            "## Rollback\n\nRestore the previous release.\n\n"
+            "## Follow-up\n\nRecord the outcome.\n"
+        )
+        if changed != {"graph/core-block-replace.md"} or after.get("graph/core-block-replace.md") != expected:
+            errors.append("structured block replacement is not the exact requested transformation")
+    if scenario.id == "create-one-complete-document":
+        changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
+        expected = (
+            "---\ntype: checklist\nowner: Ada\n---\n"
+            "# Release Checklist\n\nVerify backups."
+        )
+        if (
+            changed != {"graph/projects/release-checklist.md"}
+            or after.get("graph/projects/release-checklist.md", "").rstrip("\n") != expected
+        ):
+            errors.append("complete document creation is not exact")
     if scenario.id == "fix-code-without-activating-iwe":
         changed = {key for key in before.keys() | after.keys() if before.get(key) != after.get(key)}
         if changed != {"src/retry.py"}:
@@ -1893,6 +1936,9 @@ RESULT_POSTCONDITION_PREFIXES = (
     "rename did not move the note and rewrite the exact referrer",
     "inline did not exactly replace the inclusion while preserving the target",
     "attach did not create exactly one standalone source inclusion",
+    "local text replacement is not the exact requested transformation",
+    "structured block replacement is not the exact requested transformation",
+    "complete document creation is not exact",
     "focused retry test does not pass after the agent run",
 )
 

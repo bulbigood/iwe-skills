@@ -197,6 +197,14 @@ Every resource range starts at zero: returning less relevant context is not a re
 | Inline preserving target | 2 | 1,600 | Preview and identical apply return focused parent/target evidence. |
 | Attach | 2 | 1,200 | Preview and identical apply return only the configured destination and source scope. |
 | Deletion preview | 1 | 800 | One strict exact-key dry run returns the target and affected referrer. |
+| Lexical body lookup | 1 | 600 | One projected body-content query returns only the matching key and title. |
+| Topic summary | 1 | 1,200 | One bounded retrieval supplies the relevant note and enough content for a brief source-backed summary. |
+| Exact metadata lookup | 1 | 400 | One exact-key projection returns only title and priority without loading prose. |
+| Partial identity lookup | 1 | 400 | One bounded identity query returns one key/title pair without body retrieval. |
+| Local text replacement | 2 | 1,200 | One guarded preview and identical apply perform one phrase replacement without extra reads. |
+| Structured block replacement | 2 | 1,400 | One guarded preview and identical apply replace one complete section and its descendants. |
+| Complete document creation | 1 | 600 | One strict fail-on-collision create writes the supplied authoritative content. |
+| Parent context read | 1 | 1,600 | One bounded parent expansion returns the seed and direct parent content. |
 
 ## Deterministic postconditions
 

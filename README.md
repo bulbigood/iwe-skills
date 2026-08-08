@@ -33,7 +33,7 @@ npx skills add iwe-org/skills --skill iwe-v18
 
 ## Skills
 
-- **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.9.7`.
+- **`iwe-v18`** — maintained skill for IWE CLI `>=0.18.0`; tested with `0.18.0`. Skill version: `0.9.8`.
 - **`iwe-memory-system` [deprecated]** — legacy workflow retained only for compatibility and A/B comparison. Skill version: `0.0.67`.
 
 ## Latest production evaluation
