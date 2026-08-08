@@ -15,6 +15,7 @@
       "items": {"enum": ["task_correctness", "scenario_compliance", "skill_compliance", "safety", "evidence_quality", "tool_efficiency", "resource_efficiency"]}
     },
     "guidance_accounting": {"enum": ["exclude_activation", "include_activation"]},
+    "worker_scheduling": {"enum": ["streaming", "balanced_waves"]},
     "targets": {
       "type": "array", "minItems": 1,
       "items": {

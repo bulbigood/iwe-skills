@@ -2147,13 +2147,14 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             "tool_efficiency", "resource_efficiency",
         ))
         with mock.patch.object(module, "verify_runtime_binary", return_value=Path("/bin/true")):
-            manifest_path = module.write_experiment(root=ROOT, jobs=3, agent="codex")
+            manifest_path = module.write_experiment(root=ROOT, jobs=10, agent="codex")
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(manifest["samples"], 10)
-        self.assertEqual(manifest["jobs"], 3)
+        self.assertEqual(manifest["jobs"], 10)
         self.assertEqual(tuple(manifest["scenarios"]), module.SCENARIOS)
         self.assertEqual(tuple(manifest["comparison_metrics"]), module.COMPARISON_METRICS)
         self.assertEqual(manifest["guidance_accounting"], "include_activation")
+        self.assertEqual(manifest["worker_scheduling"], "balanced_waves")
         self.assertEqual([target["id"] for target in manifest["targets"]], [
             "iwe-v18", "iwe-no-skill",
         ])
@@ -2166,6 +2167,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         )
         experiment = load_eval_module("experiment").load_experiment(manifest_path, ROOT)
         self.assertEqual(experiment.guidance_accounting, "include_activation")
+        self.assertEqual(experiment.worker_scheduling, "balanced_waves")
         scenarios = [
             scenario for scenario in load_runner().load_scenarios()
             if scenario.id in experiment.scenario_ids
@@ -2173,6 +2175,17 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         cells = load_runner().build_matrix(experiment, scenarios)
         self.assertEqual(len(cells), 60)
         self.assertEqual(len({cell.pair_id for cell in cells}), 30)
+        waves = load_runner().balanced_waves(cells, experiment.jobs)
+        self.assertEqual(len(waves), 6)
+        for wave in waves:
+            self.assertEqual(len(wave), 10)
+            self.assertEqual([cell.target_id for cell in wave].count("iwe-v18"), 5)
+            self.assertEqual([cell.target_id for cell in wave].count("iwe-no-skill"), 5)
+            for pair_index in range(5):
+                pair = wave[pair_index * 2 : pair_index * 2 + 2]
+                self.assertEqual(pair[0].pair_id, pair[1].pair_id)
+                expected = ["iwe-v18", "iwe-no-skill"] if pair[0].sample_index % 2 else ["iwe-no-skill", "iwe-v18"]
+                self.assertEqual([cell.target_id for cell in pair], expected)
         command = module.build_command(manifest_path, Path("result.md"), "codex", list_only=True)
         self.assertIn("--list", command)
     def test_iwe_v18_skill_frontloads_problem_routes_found_by_telemetry(self) -> None:
@@ -2214,6 +2227,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertEqual(manifest["jobs"], 10)
         experiment = load_eval_module("experiment").load_experiment(manifest_path, ROOT)
         self.assertEqual(experiment.guidance_accounting, "exclude_activation")
+        self.assertEqual(experiment.worker_scheduling, "streaming")
         self.assertEqual(len(manifest["targets"]), 1)
         self.assertEqual(manifest["targets"][0]["id"], "iwe-v18")
         completed = subprocess.run(

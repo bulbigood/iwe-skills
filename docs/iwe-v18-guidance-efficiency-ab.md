@@ -19,6 +19,8 @@ The profile uses 10 paired samples for each of three retrieval-heavy scenarios:
 
 This produces `2 arms × 3 scenarios × 10 samples = 60` worker calls and 60 judge calls. Pair IDs match arms within each scenario/sample cell.
 
+Workers run in six balanced waves of 10: each wave contains five complete A/B pairs, hence five workers per arm. Odd samples submit guided/control and even samples control/guided. Every workspace is prepared before its worker reaches the wave start barrier; all 10 workers finish before judges begin, and the next worker wave starts only after the current wave's judges finish. The resulting wall time estimates latency under balanced 10-way shared load rather than isolated latency.
+
 ## Measurements
 
 The report evaluates the same complete production metric set for each arm:

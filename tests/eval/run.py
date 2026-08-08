@@ -19,10 +19,12 @@ import statistics
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import yaml
 from jsonschema import Draft202012Validator
@@ -125,6 +127,28 @@ def build_matrix(experiment, scenarios) -> list[MatrixCell]:
     if len(cells) != expected or len(identities) != expected:
         raise ValueError("incomplete or duplicate evaluation matrix")
     return cells
+
+
+def balanced_waves(cells: list[MatrixCell], jobs: int) -> list[list[MatrixCell]]:
+    """Group complete A/B pairs into equal-arm waves with counterbalanced order."""
+    if jobs < 2 or jobs % 2:
+        raise ValueError("balanced_waves requires an even jobs value of at least 2")
+    pairs: list[list[MatrixCell]] = []
+    for offset in range(0, len(cells), 2):
+        pair = cells[offset : offset + 2]
+        if len(pair) != 2 or pair[0].pair_id != pair[1].pair_id:
+            raise ValueError("balanced_waves requires adjacent complete two-target pairs")
+        if pair[0].sample_index % 2 == 0:
+            pair = list(reversed(pair))
+        pairs.append(pair)
+    pairs_per_wave = jobs // 2
+    waves = [
+        [cell for pair in pairs[offset : offset + pairs_per_wave] for cell in pair]
+        for offset in range(0, len(pairs), pairs_per_wave)
+    ]
+    if any(len(wave) != jobs for wave in waves):
+        raise ValueError("balanced_waves requires complete waves")
+    return waves
 
 
 def select_scenarios(scenarios: list["Scenario"], requested_ids: list[str] | None) -> list["Scenario"]:
@@ -2603,6 +2627,10 @@ def main() -> int:
     report_dir = EVAL / "reports" / (dt.datetime.now(dt.UTC).strftime("%Y%m%dT%H%M%SZ") + suffix)
     report_dir.mkdir(parents=True)
 
+    worker_start_barrier: threading.Barrier | None = None
+    worker_end_barrier: threading.Barrier | None = None
+    worker_wave_id: int | None = None
+
     def execute(task) -> dict:
         if isinstance(task, MatrixCell):
             scenario, sample = task.scenario, task.sample_index
@@ -2648,7 +2676,12 @@ def main() -> int:
             skill_installed=local_skill is not None,
             activation_path=activation_path,
         )
+        if worker_start_barrier is not None:
+            worker_start_barrier.wait()
         agent = run_process(config["agent_command"], prompt, workspace, config["timeout_seconds"], env)
+        if worker_end_barrier is not None:
+            worker_end_barrier.wait()
+        agent["wave_id"] = worker_wave_id
         telemetry = load_iwe_telemetry(temporary / "iwe-telemetry.jsonl")
         agent["iwe_telemetry"] = telemetry
         agent["metrics"] = command_metrics(
@@ -2813,8 +2846,19 @@ def main() -> int:
     tasks = build_matrix(experiment, scenarios) if experiment else [
         (scenario, sample) for scenario in scenarios for sample in range(1, samples + 1)
     ]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, len(tasks))) as executor:
-        results = list(executor.map(execute, tasks))
+    if experiment and experiment.worker_scheduling == "balanced_waves":
+        results = []
+        matrix_tasks = cast(list[MatrixCell], tasks)
+        for worker_wave_id, wave in enumerate(balanced_waves(matrix_tasks, jobs), start=1):
+            worker_start_barrier = threading.Barrier(len(wave))
+            worker_end_barrier = threading.Barrier(len(wave))
+            with concurrent.futures.ThreadPoolExecutor(max_workers=len(wave)) as executor:
+                results.extend(executor.map(execute, wave))
+        worker_start_barrier = worker_end_barrier = None
+        worker_wave_id = None
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(jobs, len(tasks))) as executor:
+            results = list(executor.map(execute, tasks))
     excluded_dimensions_by_target = {
         target.id: ({"skill_compliance"} if not target.has_skill else set())
         for target in experiment.targets
@@ -2833,6 +2877,7 @@ def main() -> int:
         "guidance_accounting": (
             experiment.guidance_accounting if experiment else "exclude_activation"
         ),
+        "worker_scheduling": experiment.worker_scheduling if experiment else "streaming",
         "model_profile": model_profile.name,
         "minimum_score": model_profile.minimum_score,
         "required_success_percent": model_profile.required_success_percent,
@@ -2868,7 +2913,9 @@ def main() -> int:
             "schema_version": 1, "name": experiment.name,
             "scenarios": [scenario.id for scenario in scenarios],
             "samples": samples, "jobs": jobs,
+            "comparison_metrics": list(experiment.comparison_metrics or ()),
             "guidance_accounting": experiment.guidance_accounting,
+            "worker_scheduling": experiment.worker_scheduling,
             "model_profile": model_profile.name,
             "minimum_score": model_profile.minimum_score,
             "required_success_percent": model_profile.required_success_percent,

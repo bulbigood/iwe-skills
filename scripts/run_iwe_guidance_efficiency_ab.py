@@ -81,6 +81,7 @@ def write_experiment(
         f"scenarios = {json.dumps(SCENARIOS)}",
         f"comparison_metrics = {json.dumps(COMPARISON_METRICS)}",
         'guidance_accounting = "include_activation"',
+        'worker_scheduling = "balanced_waves"',
         f"samples = {SAMPLES}",
         f"jobs = {jobs}",
         "",
