@@ -928,6 +928,16 @@ class IweSkillTests(unittest.TestCase):
         metrics = module.command_metrics(commands, tested_skill="iwe-v18")
         self.assertEqual(metrics["raw_tool_calls"], 7)
         self.assertEqual(metrics["task_tool_calls"], 6)
+        included = module.command_metrics(
+            commands,
+            tested_skill="iwe-v18",
+            exclude_skill_activation=False,
+        )
+        self.assertEqual(included["task_tool_calls"], 7)
+        self.assertEqual(
+            included["task_tool_output_bytes"] - metrics["task_tool_output_bytes"],
+            len("skill body".encode("utf-8")),
+        )
         combined_only = module.command_metrics([commands[-2]], tested_skill="iwe-v18")
         self.assertEqual(combined_only["task_tool_calls"], 1)
         non_range_sed = module.command_metrics(

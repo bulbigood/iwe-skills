@@ -39,7 +39,7 @@ The arm-level performance table reports the median across all 30 worker samples 
 
 - provider-reported input tokens;
 - provider-reported output tokens;
-- task tool-call events, excluding at most one exact standalone skill activation read;
+- total task tool-call events, including the required skill activation read and every reference read in the guided arm;
 - worker wall-clock seconds.
 
 For these performance metrics, the change column is `(iwe-no-skill median − iwe-v18 median) / iwe-v18 median × 100`. Positive values mean that the no-guidance arm consumed more; a zero guided baseline renders the relative change as N/A.

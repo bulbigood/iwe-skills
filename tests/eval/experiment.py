@@ -68,6 +68,7 @@ class Experiment:
     jobs: int
     agent_judge_config: str
     comparison_metrics: tuple[str, ...] | None
+    guidance_accounting: str
     targets: tuple[EvalTarget, ...]
 
 
@@ -161,4 +162,5 @@ def load_experiment(path: Path, root: Path) -> Experiment:
     return Experiment(document["name"], tuple(document["scenarios"]), document["samples"],
                       document["jobs"], document["agent_judge_config"],
                       tuple(comparison_metrics) if comparison_metrics is not None else None,
+                      document.get("guidance_accounting", "exclude_activation"),
                       tuple(targets))

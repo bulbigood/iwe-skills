@@ -80,6 +80,7 @@ def write_experiment(
         f"agent_judge_config = {json.dumps(agent)}",
         f"scenarios = {json.dumps(SCENARIOS)}",
         f"comparison_metrics = {json.dumps(COMPARISON_METRICS)}",
+        'guidance_accounting = "include_activation"',
         f"samples = {SAMPLES}",
         f"jobs = {jobs}",
         "",

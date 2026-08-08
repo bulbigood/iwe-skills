@@ -418,6 +418,7 @@ def render_markdown(
         f"- Agent calls: `{experiment['estimated_agent_calls']}`",
         f"- Judge calls: `{experiment['estimated_judge_calls']}`",
         f"- Agent/judge configuration: `{experiment['agent_judge_config']}`",
+        f"- Guidance accounting: `{experiment.get('guidance_accounting', 'exclude_activation')}`",
         "",
         "[Metric and score definitions](../../../docs/evaluation-metrics.md)",
         "",

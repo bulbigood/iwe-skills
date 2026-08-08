@@ -1713,6 +1713,19 @@ class EvalScoringContractTests(unittest.TestCase):
             [],
         )
         self.assertIn("Do not invoke IWE", prompt)
+
+    def test_judge_prompt_declares_included_guidance_accounting(self) -> None:
+        prompt = self.runner.judge_prompt(
+            self.runner.load_skill(root=ROOT),
+            self.scenario,
+            {"metrics": {}, "iwe_telemetry": [], "commands": [], "final": "[]"},
+            {},
+            {},
+            [],
+            include_guidance_activation=True,
+        )
+        self.assertIn("includes the skill activation read and its returned bytes", prompt)
+        self.assertIn("Reference reads are included", prompt)
         self.assertIn("not independent proof", prompt)
         self.assertIn("Independent oracle evidence", prompt)
         self.assertIn("Ideal semantic procedure", prompt)
@@ -2139,6 +2152,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertEqual(manifest["jobs"], 3)
         self.assertEqual(tuple(manifest["scenarios"]), module.SCENARIOS)
         self.assertEqual(tuple(manifest["comparison_metrics"]), module.COMPARISON_METRICS)
+        self.assertEqual(manifest["guidance_accounting"], "include_activation")
         self.assertEqual([target["id"] for target in manifest["targets"]], [
             "iwe-v18", "iwe-no-skill",
         ])
@@ -2150,6 +2164,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             manifest["targets"][0]["runtime"], manifest["targets"][1]["runtime"]
         )
         experiment = load_eval_module("experiment").load_experiment(manifest_path, ROOT)
+        self.assertEqual(experiment.guidance_accounting, "include_activation")
         scenarios = [
             scenario for scenario in load_runner().load_scenarios()
             if scenario.id in experiment.scenario_ids
@@ -2196,6 +2211,8 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertEqual(tuple(manifest["scenarios"]), expected)
         self.assertEqual(manifest["name"], "iwe-v18-production-all-scenarios")
         self.assertEqual(manifest["jobs"], 10)
+        experiment = load_eval_module("experiment").load_experiment(manifest_path, ROOT)
+        self.assertEqual(experiment.guidance_accounting, "exclude_activation")
         self.assertEqual(len(manifest["targets"]), 1)
         self.assertEqual(manifest["targets"][0]["id"], "iwe-v18")
         completed = subprocess.run(
