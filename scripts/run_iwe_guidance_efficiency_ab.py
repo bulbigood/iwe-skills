@@ -19,7 +19,7 @@ from skill_manifest import load_skills, verify_runtime_binary
 ROOT = Path(__file__).resolve().parents[1]
 CURRENT_SKILL = "iwe-v18"
 SAMPLES = 10
-DEFAULT_JOBS = 6
+DEFAULT_JOBS = 10
 SCENARIOS = (
     "discover-and-retrieve-bounded-multi-hop-context",
     "query-structured-metadata-without-scanning-files",

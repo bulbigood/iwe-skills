@@ -2136,6 +2136,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             ROOT / "scripts/run_iwe_guidance_efficiency_ab.py",
             "run_iwe_guidance_efficiency_ab",
         )
+        self.assertEqual(module.DEFAULT_JOBS, 10)
         self.assertEqual(module.SAMPLES, 10)
         self.assertEqual(module.SCENARIOS, (
             "discover-and-retrieve-bounded-multi-hop-context",

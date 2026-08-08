@@ -60,4 +60,4 @@ Run the paid experiment:
 python3 scripts/run_iwe_guidance_efficiency_ab.py
 ```
 
-The default concurrency is 6 and can be changed with `--jobs`. The sample count and selected scenarios are intentionally fixed by this profile.
+The default concurrency is 10 and can be changed with `--jobs`. The sample count and selected scenarios are intentionally fixed by this profile.
