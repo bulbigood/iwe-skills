@@ -2213,7 +2213,7 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertEqual(readme.splitlines()[0], "# IWE Agent Skills")
         self.assertFalse(any(re.match(r"^\d+\|", line) for line in readme.splitlines()))
         snapshot = readme.split("## Latest production evaluation", 1)[1].split(
-            "## Documentation", 1
+            "## Latest guidance-efficiency A/B evaluation", 1
         )[0]
         self.assertIn(
             "[Full production report](tests/eval/results/iwe-v18-production.md)",
@@ -2233,6 +2233,15 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertNotIn("Request / Skill", snapshot)
         self.assertNotIn("Tool / Resource", snapshot)
         self.assertNotRegex(snapshot, r"\b\d+(?:\.\d+)?\s*(?:avg|average|mean)\b")
+        ab_snapshot = readme.split("## Latest guidance-efficiency A/B evaluation", 1)[1].split(
+            "## Documentation", 1
+        )[0]
+        self.assertIn(
+            "[Full guidance-efficiency A/B report](tests/eval/results/iwe-v18-guidance-efficiency-ab.md)",
+            ab_snapshot,
+        )
+        self.assertIn("`60` worker calls and `60` judge calls", ab_snapshot)
+        self.assertNotIn("| Metric |", ab_snapshot)
 
     def test_production_command_uses_only_iwe_v18(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
