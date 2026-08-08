@@ -28,7 +28,7 @@ Requirements:
 Install the maintained skill:
 
 ```bash
-npx skills add bulbigood/iwe-skills --skill iwe-v18
+npx skills add iwe-org/skills --skill iwe-v18
 ```
 
 ## Skills
