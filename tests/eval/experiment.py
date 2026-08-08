@@ -46,6 +46,7 @@ class EvalTarget:
     skill_version: str | None
     contract_file: Path
     runtime: RuntimeTarget
+    agents_file: Path | None = None
 
     @property
     def has_skill(self) -> bool:
@@ -126,6 +127,10 @@ def load_experiment(path: Path, root: Path) -> Experiment:
             if has_skill else None
         )
         contract_file = _repo_path(root, raw["contract_file"], "contract_file", kind="file")
+        agents_file = (
+            _repo_path(root, raw["agents_file"], "agents_file", kind="file")
+            if raw.get("agents_file") is not None else None
+        )
         declared = raw.get("skill_version")
         if skill_path is not None:
             frontmatter = _frontmatter(skill_path / "SKILL.md")
@@ -156,9 +161,11 @@ def load_experiment(path: Path, root: Path) -> Experiment:
             raise ValueError(
                 f"target {raw['id']} must use directory runtime source for unambiguous multi-version evaluation"
             )
-        targets.append(EvalTarget(raw["id"], skill_path, declared, contract_file, RuntimeTarget(
-            runtime_raw["cli"], runtime_raw["source"], runtime_directory, version
-        )))
+        targets.append(EvalTarget(
+            raw["id"], skill_path, declared, contract_file,
+            RuntimeTarget(runtime_raw["cli"], runtime_raw["source"], runtime_directory, version),
+            agents_file,
+        ))
     comparison_metrics = document.get("comparison_metrics")
     return Experiment(document["name"], tuple(document["scenarios"]), document["samples"],
                       document["jobs"], document["agent_judge_config"],

@@ -837,7 +837,12 @@ def load_iwe_telemetry(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
-def efficiency_errors(scenario: Scenario, metrics: dict[str, int]) -> list[str]:
+def efficiency_errors(
+    scenario: Scenario,
+    metrics: dict[str, int],
+    *,
+    allow_filesystem_fallback: bool = False,
+) -> list[str]:
     errors: list[str] = []
     if metrics["unbounded_read_calls"]:
         errors.append("unbounded IWE discovery or retrieval used")
@@ -859,11 +864,11 @@ def efficiency_errors(scenario: Scenario, metrics: dict[str, int]) -> list[str]:
     broad_read_calls = metrics["broad_workspace_reads"]
     if (
         filesystem_tool_calls
-        and not scenario.allow_fallback
+        and not (scenario.allow_fallback or allow_filesystem_fallback)
         and scenario.skill_activation != "forbidden"
     ):
         errors.append("forbidden fallback tool used")
-    if broad_read_calls and not scenario.allow_fallback:
+    if broad_read_calls and not (scenario.allow_fallback or allow_filesystem_fallback):
         errors.append("forbidden fallback tool used")
     if scenario.iwe_mode == "unavailable":
         if not scenario.allow_fallback:
@@ -876,8 +881,14 @@ def procedure_errors(
     commands: list[dict],
     metrics: dict[str, int],
     telemetry: list[dict] | None = None,
+    *,
+    allow_filesystem_fallback: bool = False,
 ) -> list[str]:
-    errors = efficiency_errors(scenario, metrics)
+    errors = efficiency_errors(
+        scenario,
+        metrics,
+        allow_filesystem_fallback=allow_filesystem_fallback,
+    )
     if scenario.skill_activation == "forbidden":
         if metrics.get("skill_read_calls", 0):
             errors.append("IWE skill guidance read for an out-of-scope task")
@@ -964,6 +975,7 @@ def snapshot(root: Path) -> dict[str, str]:
             not path.is_file()
             or ".git" in path.parts
             or ".agents" in path.parts
+            or path.name == "AGENTS.md"
             or "__pycache__" in path.parts
             or path.suffix == ".pyc"
         ):
@@ -1528,6 +1540,28 @@ def install_skill(workspace: Path, skill: SkillSpec | None) -> None:
     shutil.copytree(skill.path, destination)
 
 
+def install_agents_file(workspace: Path, source: Path | None) -> Path | None:
+    if source is None:
+        return None
+    destination = workspace / "AGENTS.md"
+    if destination.exists():
+        raise RuntimeError("worker fixture already contains AGENTS.md")
+    shutil.copy2(source, destination)
+    return destination
+
+
+def agents_file_provenance(source: Path | None) -> dict | None:
+    if source is None:
+        return None
+    payload = source.read_bytes()
+    return {"bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}
+
+
+def preinjected_guidance_bytes(source: Path | None) -> int:
+    provenance = agents_file_provenance(source)
+    return 0 if provenance is None else provenance["bytes"]
+
+
 def remove_tested_skill_for_judge(workspace: Path) -> None:
     agents = workspace / ".agents"
     if agents.exists():
@@ -1548,12 +1582,22 @@ def verify_iwe_binary(skill: SkillSpec) -> Path:
     return verify_runtime_binary(skill)
 
 
-def install_command_shims(bin_dir: Path, scenario: Scenario, real_iwe: Path) -> None:
+def install_command_shims(
+    bin_dir: Path,
+    scenario: Scenario,
+    real_iwe: Path,
+    *,
+    allow_filesystem_tools: bool = False,
+) -> None:
     bin_dir.mkdir(parents=True, exist_ok=True)
     for source in (EVAL / "shims").iterdir():
         if source.is_file():
             if (
-                (scenario.skill_activation == "forbidden" or scenario.allow_broad_fallback)
+                (
+                    allow_filesystem_tools
+                    or scenario.skill_activation == "forbidden"
+                    or scenario.allow_broad_fallback
+                )
                 and source.name in {"grep", "rg", "find"}
             ):
                 continue
@@ -2651,6 +2695,10 @@ def main() -> int:
         shutil.copytree(fixtures[scenario.fixture], workspace, ignore=shutil.ignore_patterns(".git"))
         prepare(workspace, scenario.fixture)
         install_skill(workspace, local_skill)
+        install_agents_file(
+            workspace,
+            local_target.agents_file if isinstance(task, MatrixCell) else None,
+        )
         activation_path = (
             workspace / ".agents/guidance/SKILL.md"
             if local_skill is not None
@@ -2662,7 +2710,12 @@ def main() -> int:
         codex_home = temporary / "codex-home"
         isolated_home.mkdir(); codex_home.mkdir()
         shim_bin = temporary / "shims"
-        install_command_shims(shim_bin, scenario, local_iwe_binary)
+        install_command_shims(
+            shim_bin,
+            scenario,
+            local_iwe_binary,
+            allow_filesystem_tools=local_skill is None,
+        )
         (isolated_home / ".bash_profile").write_text(
             f'export PATH="{shim_bin}:{local_iwe_binary.parent}:$PATH"\n',
             encoding="utf-8",
@@ -2708,6 +2761,11 @@ def main() -> int:
             agent["commands"],
             agent["metrics"],
             agent["iwe_telemetry"],
+            allow_filesystem_fallback=bool(
+                isinstance(task, MatrixCell)
+                and local_skill is None
+                and local_target.agents_file is None
+            ),
         )
         judge_schema = EVAL / "judge.schema.json"
         judge_command = config["judge_command"].format(
@@ -2808,6 +2866,9 @@ def main() -> int:
                 "hard_max_task_tool_calls": scenario.hard_max_task_tool_calls,
             },
             "agent": agent,
+            "preinjected_guidance_bytes": preinjected_guidance_bytes(
+                local_target.agents_file if isinstance(task, MatrixCell) else None
+            ),
             "efficiency_diagnostics": range_diagnostics,
             "judge": judge,
             "verdict": raw_sample_verdict,
@@ -2826,6 +2887,11 @@ def main() -> int:
                 ),
                 "skill_version": local_skill.skill_version if local_skill is not None else None,
                 "skill_sha256": payload_hash(local_skill_path) if local_skill_path is not None else None,
+                "agents_file": (
+                    str(local_target.agents_file.relative_to(ROOT))
+                    if local_target.agents_file is not None else None
+                ),
+                "agents_file_provenance": agents_file_provenance(local_target.agents_file),
                 "contract_file": str(local_target.contract_file.relative_to(ROOT)),
                 "contract_sha256": hashlib.sha256(local_target.contract_file.read_bytes()).hexdigest(),
                 "runtime_source": local_target.runtime.source,
@@ -2935,6 +3001,8 @@ def main() -> int:
                  "skill_mode": "installed" if target.has_skill else "none",
                  "skill_path": str(target.path.relative_to(ROOT)) if target.path else None,
                  "skill_version": target.skill_version,
+                 "agents_file": str(target.agents_file.relative_to(ROOT)) if target.agents_file else None,
+                 "agents_file_provenance": agents_file_provenance(target.agents_file),
                  "contract_file": str(target.contract_file.relative_to(ROOT)),
                  "runtime": {"cli": target.runtime.cli, "source": target.runtime.source,
                              "directory": str(target.runtime.directory), "version": target.runtime.version}}

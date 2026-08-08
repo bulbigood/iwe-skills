@@ -32,6 +32,12 @@ def _one_line(value: object) -> str:
 
 
 def _skill_metadata_line(target: dict) -> str:
+    agents = target.get("agents_file_provenance")
+    if agents:
+        return (
+            f"- Pre-injected `AGENTS.md`: `{agents['bytes']}` bytes, "
+            f"SHA-256 `{agents['sha256']}`"
+        )
     if target.get("skill_mode") == "none":
         return "- Skill guidance: `none` (control)"
     return f"- Skill version: `{target['skill_version']}`"

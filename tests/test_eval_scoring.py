@@ -2137,6 +2137,156 @@ class ProductionEvalCommandTests(unittest.TestCase):
 
 class PairedSkillEvalCommandTests(unittest.TestCase):
 
+    def test_agents_preinject_ab_is_two_arm_three_scenario_ten_pair_experiment(self) -> None:
+        module = load_module(
+            ROOT / "scripts/run_iwe_agents_preinject_ab.py",
+            "run_iwe_agents_preinject_ab",
+        )
+        with mock.patch.object(module, "verify_runtime_binary", return_value=Path("/bin/true")):
+            manifest_path = module.write_experiment(root=ROOT, jobs=10, agent="codex")
+        manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+        self.assertEqual(tuple(manifest["scenarios"]), module.SCENARIOS)
+        self.assertEqual(manifest["samples"], 10)
+        self.assertEqual(manifest["jobs"], 10)
+        self.assertEqual(manifest["worker_scheduling"], "balanced_waves")
+        self.assertEqual([target["id"] for target in manifest["targets"]], [
+            "iwe-agents-preinject", "iwe-no-guidance",
+        ])
+        self.assertEqual(manifest["targets"][0]["skill_mode"], "none")
+        self.assertEqual(
+            manifest["targets"][0]["agents_file"],
+            "tests/eval/guidance/iwe-routes.AGENTS.md",
+        )
+        self.assertEqual(manifest["targets"][1]["skill_mode"], "none")
+        self.assertNotIn("agents_file", manifest["targets"][1])
+        experiment = load_eval_module("experiment").load_experiment(manifest_path, ROOT)
+        scenarios = [
+            scenario for scenario in load_runner().load_scenarios()
+            if scenario.id in experiment.scenario_ids
+        ]
+        cells = load_runner().build_matrix(experiment, scenarios)
+        self.assertEqual(len(cells), 60)
+        self.assertEqual(len({cell.pair_id for cell in cells}), 30)
+        waves = load_runner().balanced_waves(cells, experiment.jobs)
+        self.assertEqual(len(waves), 6)
+        for wave in waves:
+            self.assertEqual([cell.target_id for cell in wave].count("iwe-agents-preinject"), 5)
+            self.assertEqual([cell.target_id for cell in wave].count("iwe-no-guidance"), 5)
+
+    def test_agents_preinject_is_arm_local_and_records_exact_payload(self) -> None:
+        runner = load_runner()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            treatment = root / "route.AGENTS.md"
+            treatment.write_text("# Routes\nUse one bounded IWE call.\n", encoding="utf-8")
+            workspace = root / "workspace"
+            workspace.mkdir()
+            installed = runner.install_agents_file(workspace, treatment)
+            self.assertEqual(installed, workspace / "AGENTS.md")
+            self.assertEqual(installed.read_bytes(), treatment.read_bytes())
+            provenance = runner.agents_file_provenance(treatment)
+            self.assertEqual(provenance["bytes"], len(treatment.read_bytes()))
+            self.assertRegex(provenance["sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual(runner.preinjected_guidance_bytes(treatment), provenance["bytes"])
+            control = root / "control"
+            control.mkdir()
+            self.assertIsNone(runner.install_agents_file(control, None))
+            self.assertEqual(runner.preinjected_guidance_bytes(None), 0)
+            self.assertFalse((control / "AGENTS.md").exists())
+            judge_temporary = root / "judge"
+            judge_temporary.mkdir()
+            judge = runner.create_judge_workspace(judge_temporary)
+            self.assertFalse((judge / "AGENTS.md").exists())
+            with self.assertRaisesRegex(RuntimeError, "already contains AGENTS.md"):
+                runner.install_agents_file(workspace, treatment)
+
+    def test_agents_preinject_installation_occurs_before_worker_timer(self) -> None:
+        source = (ROOT / "tests/eval/run.py").read_text(encoding="utf-8")
+        self.assertLess(source.index("install_agents_file(\n"), source.index("agent = run_process("))
+
+    def test_agents_preinject_is_hidden_from_oracle_and_judge_snapshots(self) -> None:
+        runner = load_runner()
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            (workspace / "AGENTS.md").write_text("treatment-only policy", encoding="utf-8")
+            (workspace / "note.md").write_text("evidence", encoding="utf-8")
+            self.assertEqual(runner.snapshot(workspace), {"note.md": "evidence"})
+
+    def test_both_preinject_arms_keep_identical_natural_filesystem_tools(self) -> None:
+        runner = load_runner()
+        scenario = next(
+            item for item in runner.load_scenarios()
+            if item.id == "ambiguous-discovery-with-one-follow-up"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for arm in ("treatment", "control"):
+                bin_dir = root / arm
+                runner.install_command_shims(
+                    bin_dir, scenario, Path("/bin/false"),
+                    allow_filesystem_tools=True,
+                )
+                for name in ("grep", "rg", "find"):
+                    self.assertFalse((bin_dir / name).exists())
+
+    def test_agents_preinject_policy_gives_one_exact_route_without_fixture_answers(self) -> None:
+        text = (ROOT / "tests/eval/guidance/iwe-routes.AGENTS.md").read_text(encoding="utf-8")
+        self.assertLessEqual(len(text.encode("utf-8")), 1800)
+        lowered = text.lower()
+        for required in (
+            "do not read or activate the IWE skill",
+            "Do not call `iwe --help`, subcommand help, or documentation",
+            "Do not scan with `rg`, `grep`, filesystem `find`",
+            "Use exactly one matching route",
+            "iwe retrieve --lexical \"<concept>\" --filter '{ type: project }'",
+            "--limit 1 --max-documents 1",
+            "--max-tokens 1200 --max-document-tokens 1200 --format json",
+            "Replace only angle-bracket placeholders",
+            "iwe retrieve --lexical \"<names and topic>\"",
+            "iwe find --key \"<first-key>\" --key \"<second-key>\"",
+            "then stop",
+        ):
+            self.assertIn(required.lower(), lowered)
+        for leaked in (
+            "api-integration",
+            "API Integration",
+            "graph/api-integration.md",
+            "Marcus Aurelius",
+            "Machiavelli",
+            "Nietzsche",
+            '"power"',
+            '"morality"',
+        ):
+            self.assertNotIn(leaked, text)
+
+    def test_control_filesystem_route_is_not_a_procedure_error(self) -> None:
+        runner = load_runner()
+        scenario = next(
+            item for item in runner.load_scenarios()
+            if item.id == "ambiguous-discovery-with-one-follow-up"
+        )
+        metrics = {
+            "unbounded_read_calls": 0,
+            "iwe_telemetry_missing": 0,
+            "iwe_telemetry_extra": 0,
+            "iwe_telemetry_mismatch": 0,
+            "iwe_telemetry_invalid": 0,
+            "iwe_output_truncated": 0,
+            "web_calls": 0,
+            "docs_calls": 0,
+            "iwe_calls": 0,
+            "forbidden_fallback_calls": 2,
+            "broad_workspace_reads": 0,
+            "skill_read_calls": 0,
+        }
+        self.assertIn("forbidden fallback tool used", runner.procedure_errors(scenario, [], metrics))
+        self.assertNotIn(
+            "forbidden fallback tool used",
+            runner.procedure_errors(
+                scenario, [], metrics, allow_filesystem_fallback=True,
+            ),
+        )
+
     def test_guidance_efficiency_ab_profile_is_two_arm_three_scenario_ten_sample(self) -> None:
         module = load_module(
             ROOT / "scripts/run_iwe_guidance_efficiency_ab.py",
@@ -2324,6 +2474,15 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
         self.assertEqual(
             renderer._skill_metadata_line({"skill_mode": "none", "skill_version": None}),
             "- Skill guidance: `none` (control)",
+        )
+        self.assertEqual(
+            renderer._skill_metadata_line({
+                "skill_mode": "none",
+                "skill_version": None,
+                "agents_file": "tests/eval/guidance/iwe-routes.AGENTS.md",
+                "agents_file_provenance": {"bytes": 859, "sha256": "a" * 64},
+            }),
+            "- Pre-injected `AGENTS.md`: `859` bytes, SHA-256 `" + "a" * 64 + "`",
         )
         self.assertEqual(renderer._cell({"applicable": False}), "—")
         no_skill_raw = {

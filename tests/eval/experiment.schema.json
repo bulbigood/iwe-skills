@@ -26,6 +26,7 @@
           "skill_mode": {"enum": ["installed", "none"]},
           "skill_path": {"type": "string", "minLength": 1},
           "skill_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+          "agents_file": {"type": "string", "minLength": 1},
           "contract_file": {"type": "string", "minLength": 1},
           "runtime": {
             "type": "object", "additionalProperties": false,
