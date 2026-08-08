@@ -53,10 +53,10 @@ python3 scripts/run_iwe_skill_ab_eval.py
 
 ## Latest guidance-efficiency A/B evaluation
 
-- **Run:** `20260808T152130Z`; `iwe-v18` guidance versus the same IWE `0.18.0` runtime without skill guidance.
-- **Scope:** 3 retrieval-heavy scenarios, 10 samples per arm and scenario; `60` worker calls and `60` judge calls.
+- **Run:** `20260808T161053Z`; `iwe-v18` guidance versus the same IWE `0.18.0` runtime without skill guidance.
+- **Scope:** 3 retrieval-heavy scenarios, 10 samples per arm and scenario; `60` worker calls and `60` judge calls. Guidance activation and reference reads are included in the guided arm's costs.
 - **Quality:** `iwe-v18` passed all 3 scenario aggregates; the no-guidance arm failed all 3 on efficiency and also lost correctness/evidence quality on structured metadata retrieval.
-- **Median no-guidance overhead:** input tokens `+104.1%`, output tokens `+91.4%`, tool calls `+200.0%`, worker wall time `+63.8%`.
+- **Median no-guidance overhead:** input tokens `+114.8%`, output tokens `+104.6%`, tool calls `+50.0%`, worker wall time `+58.8%`.
 - [Full guidance-efficiency A/B report](tests/eval/results/iwe-v18-guidance-efficiency-ab.md)
 
 Reproduce the focused A/B evaluation:

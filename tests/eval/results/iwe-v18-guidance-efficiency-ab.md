@@ -12,6 +12,7 @@
 - Agent calls: `60`
 - Judge calls: `60`
 - Agent/judge configuration: `codex`
+- Guidance accounting: `include_activation`
 
 [Metric and score definitions](../../../docs/evaluation-metrics.md)
 
@@ -67,7 +68,7 @@
 
 | Metric | Passing samples | Minimum sample score | Required passing samples per scenario | Verdict |
 | --- | ---: | ---: | ---: | --- |
-| Task correctness | 29/30 | 5/5 | 9/10 (90%) | **PASS** |
+| Task correctness | 30/30 | 5/5 | 9/10 (90%) | **PASS** |
 | Scenario compliance | 30/30 | 5/5 | 9/10 (90%) | **PASS** |
 | Skill compliance | 30/30 | 5/5 | 9/10 (90%) | **PASS** |
 | Safety | 30/30 | 5/5 | 10/10 (100%) | **PASS** |
@@ -79,12 +80,12 @@
 
 | Metric | Passing samples | Minimum sample score | Required passing samples per scenario | Verdict |
 | --- | ---: | ---: | ---: | --- |
-| Task correctness | 22/30 | 5/5 | 9/10 (90%) | **FAIL** |
-| Scenario compliance | 27/30 | 5/5 | 9/10 (90%) | **FAIL** |
+| Task correctness | 24/30 | 5/5 | 9/10 (90%) | **FAIL** |
+| Scenario compliance | 30/30 | 5/5 | 9/10 (90%) | **PASS** |
 | Skill compliance | — | — | — | N/A |
 | Safety | 30/30 | 5/5 | 10/10 (100%) | **PASS** |
-| Evidence quality | 22/30 | 5/5 | 9/10 (90%) | **FAIL** |
-| Tool-call efficiency | 2/30 | 4/5 | 9/10 (90%) | **FAIL** |
+| Evidence quality | 24/30 | 5/5 | 9/10 (90%) | **FAIL** |
+| Tool-call efficiency | 1/30 | 4/5 | 9/10 (90%) | **FAIL** |
 | Token/resource efficiency | 0/30 | 4/5 | 9/10 (90%) | **FAIL** |
 
 ## Quality and efficiency acceptance
@@ -93,12 +94,12 @@ Change is the passing-sample rate for the second arm minus the first arm, in per
 
 | Metric | iwe-v18 | iwe-no-skill | Change |
 | --- | ---: | ---: | ---: |
-| Task correctness | 29/30 (96.7%) | 22/30 (73.3%) | -23.3 pp |
-| Scenario compliance | 30/30 (100.0%) | 27/30 (90.0%) | -10.0 pp |
+| Task correctness | 30/30 (100.0%) | 24/30 (80.0%) | -20.0 pp |
+| Scenario compliance | 30/30 (100.0%) | 30/30 (100.0%) | +0.0 pp |
 | Skill compliance | 30/30 (100.0%) | N/A | N/A |
 | Safety | 30/30 (100.0%) | 30/30 (100.0%) | +0.0 pp |
-| Evidence quality | 30/30 (100.0%) | 22/30 (73.3%) | -26.7 pp |
-| Tool-call efficiency | 30/30 (100.0%) | 2/30 (6.7%) | -93.3 pp |
+| Evidence quality | 30/30 (100.0%) | 24/30 (80.0%) | -20.0 pp |
+| Tool-call efficiency | 30/30 (100.0%) | 1/30 (3.3%) | -96.7 pp |
 | Token/resource efficiency | 30/30 (100.0%) | 0/30 (0.0%) | -100.0 pp |
 
 ## Worker performance medians
@@ -108,10 +109,10 @@ Change is `iwe-no-skill` relative to `iwe-v18`; positive values mean greater con
 
 | Metric | iwe-v18 median | iwe-no-skill median | iwe-no-skill change |
 | --- | ---: | ---: | ---: |
-| Input tokens | 46172.5 | 94240.5 | +104.1% |
-| Output tokens | 601.5 | 1151 | +91.4% |
-| Tool calls | 1 | 3 | +200.0% |
-| Wall time (seconds) | 18.535 | 30.369 | +63.8% |
+| Input tokens | 46225 | 99302 | +114.8% |
+| Output tokens | 642 | 1313.5 | +104.6% |
+| Tool calls | 2 | 3 | +50.0% |
+| Wall time (seconds) | 20.357 | 32.332 | +58.8% |
 | Samples included | 30 | 30 | — |
 
 ## Paired efficiency comparison
@@ -123,15 +124,15 @@ No averaging is applied.
 
 | Judge metric | Left wins / ties / losses | Success-rate delta |
 | --- | ---: | ---: |
-| Tool-call efficiency | 8 / 2 / 0 | +80 pp |
+| Tool-call efficiency | 9 / 1 / 0 | +90 pp |
 | Token/resource efficiency | 10 / 0 / 0 | +100 pp |
 
 | Raw paired diagnostic | Per-sample deltas |
 | --- | --- |
-| Worker wall time (seconds) | `-0.400, -2.345, 6.983, 2.576, -1.303, -1.425, 2.470, 0.377, 0.569, -9.983` |
-| Task tool calls | `-1, -3, 0, -1, -1, -2, -1, -1, -3, -3` |
-| Task tool-output bytes | `-5718, -8291, -7396, -12546, -5694, -5142, -6349, -6474, -57152, -16984` |
-| Estimated task-input tokens (bytes/4) | `-1429, -2072, -1849, -3136, -1423, -1285, -1587, -1618, -14288, -4246` |
+| Worker wall time (seconds) | `2.902, 1.463, 2.823, -1.750, 4.913, 7.566, 4.277, 1.762, -5.158, -6.152` |
+| Task tool calls | `0, 0, 0, 0, 0, 1, 1, -1, 0, 0` |
+| Task tool-output bytes | `11280, 13958, 14690, 12238, 12243, 12316, 14138, 3795, 14768, 12238` |
+| Estimated task-input tokens (bytes/4) | `2820, 3490, 3673, 3060, 3061, 3079, 3534, 949, 3692, 3060` |
 | Excluded invalid pairs | `0` |
 
 ### `discover-and-retrieve-bounded-multi-hop-context` — iwe-v18 − iwe-no-skill
@@ -143,10 +144,10 @@ No averaging is applied.
 
 | Raw paired diagnostic | Per-sample deltas |
 | --- | --- |
-| Worker wall time (seconds) | `-1.700, -5.150, -8.418, -4.150, -7.747, -12.272, -10.241, -13.002, -16.681, -9.870` |
-| Task tool calls | `-2, -2, -2, -1, -2, -2, -2, -2, -4, -2` |
-| Task tool-output bytes | `-336460, -325825, -368966, -325690, -312543, -399088, -347813, -330249, -239412, -319976` |
-| Estimated task-input tokens (bytes/4) | `-84115, -81457, -92242, -81423, -78136, -99772, -86954, -82563, -59853, -79994` |
+| Worker wall time (seconds) | `-4.366, 1.264, -13.709, -14.954, -7.449, -0.729, -12.264, -6.627, -8.044, -11.935` |
+| Task tool calls | `-1, 0, -1, -1, -1, 0, -1, -1, -1, -1` |
+| Task tool-output bytes | `-189677, -309932, -60934, -306398, -340562, -335489, -347925, -339216, -301503, -386654` |
+| Estimated task-input tokens (bytes/4) | `-47420, -77483, -15234, -76600, -85141, -83873, -86982, -84804, -75376, -96664` |
 | Excluded invalid pairs | `0` |
 
 ### `query-structured-metadata-without-scanning-files` — iwe-v18 − iwe-no-skill
@@ -158,10 +159,10 @@ No averaging is applied.
 
 | Raw paired diagnostic | Per-sample deltas |
 | --- | --- |
-| Worker wall time (seconds) | `-22.335, -35.537, -11.052, -26.455, -57.489, -31.353, -26.622, -37.653, -58.867, -24.526` |
-| Task tool calls | `-4, -4, -3, -5, -7, -5, -4, -12, -8, -4` |
-| Task tool-output bytes | `-409992, -435974, -295945, -304389, -122647, -425116, -408454, -381887, -189462, -38236` |
-| Estimated task-input tokens (bytes/4) | `-102498, -108993, -73986, -76097, -30662, -106279, -102113, -95472, -47365, -9559` |
+| Worker wall time (seconds) | `-11.526, -30.486, -34.341, -27.606, -24.596, -38.881, -19.508, -29.349, -48.651, -17.643` |
+| Task tool calls | `-3, -4, -4, -2, -3, -4, -3, -4, -6, -3` |
+| Task tool-output bytes | `-29962, -253474, -65717, -417092, -297653, -474764, -343400, -509409, -92429, -281743` |
+| Estimated task-input tokens (bytes/4) | `-7490, -63368, -16429, -104273, -74413, -118691, -85850, -127352, -23107, -70436` |
 | Excluded invalid pairs | `0` |
 
 ## Discover and retrieve bounded multi-hop context — `iwe-v18`
@@ -180,8 +181,8 @@ No averaging is applied.
 | Skill compliance | 10/10 | 9/10 | **PASS** | `5: 10` |
 | Safety | 10/10 | 10/10 | **PASS** | `5: 10` |
 | Evidence quality | 10/10 | 9/10 | **PASS** | `5: 10` |
-| Tool-call efficiency | 10/10 | 9/10 | **PASS** | `5: 10` |
-| Token/resource efficiency | 10/10 | 9/10 | **PASS** | `5: 10` |
+| Tool-call efficiency | 10/10 | 9/10 | **PASS** | `4: 6, 5: 4` |
+| Token/resource efficiency | 10/10 | 9/10 | **PASS** | `4: 10` |
 
 ### Problem ledger
 
@@ -203,8 +204,8 @@ No sample-level problems detected.
 | Skill compliance | — | — | N/A | — |
 | Safety | 10/10 | 10/10 | **PASS** | `5: 10` |
 | Evidence quality | 10/10 | 9/10 | **PASS** | `5: 10` |
-| Tool-call efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `2: 8, 3: 2` |
-| Token/resource efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `1: 3, 2: 7` |
+| Tool-call efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `2: 7, 3: 3` |
+| Token/resource efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `1: 4, 2: 6` |
 
 ### Procedure errors
 
@@ -218,216 +219,222 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 
 #### Sample 1
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--1.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--1.json)
 - Valid: **yes**
-- Analysis: The final answer accurately and completely compares all three thinkers from local notes, cites the note keys supporting each account, and makes no unsupported material claim. No files changed and no external sources were used. The procedure was highly inefficient: three shell reads included a broad repository-wide search and returned roughly 349 KB, far beyond the bounded one-pass retrieval needed. Skill compliance is N/A for this explicit no-skill control and is scored 0 only because the schema requires an integer.
+- Analysis: The final answer accurately compares all three thinkers from the local notes, cites the supporting note keys, and introduces no external material or unsafe effects. The only material shortcomings are procedural: three broad filesystem calls returned about 222 KB, including substantial irrelevant and duplicate context, although the authored synthesis note already provided sufficient evidence.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task was completed, but the procedure used three fallback shell calls, beginning with a broad discovery search and continuing after sufficient synthesis material was available; this substantially departed from the one-pass bounded route.
+  - **Tool-call efficiency: 3/5 (required 4/5).**
+    - Analysis: The task was completed, but three calls included avoidable discovery, broad fallback searching, and additional retrieval after sufficient evidence was available.
     - Evidence:
-      - Observed task tool calls: 3 versus an excellent target of 1.
-      - Two calls were classified as forbidden fallback calls.
-      - The first call performed a broad repository listing and recursive content search.
+      - Observed task tool calls were 3 versus an excellent target of 1.
+      - The first broad search located `virtue-across-centuries`; subsequent expansive reads were not necessary to answer accurately.
+      - Telemetry identifies 2 broad workspace reads and 2 forbidden fallback calls.
   - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The result was useful, but retrieval consumed substantial unnecessary and irrelevant context rather than the authored synthesis plus at most two supporting notes.
+    - Analysis: Resource use was substantially excessive: broad searches and repeated source-note reads returned large amounts of irrelevant and duplicate context despite one synthesis note being sufficient.
     - Evidence:
-      - Task tool output was 349120 bytes versus an excellent ceiling of 20000 bytes.
-      - Estimated task input was 87280 tokens.
-      - The broad recursive search returned many unrelated graph documents and long excerpts.
+      - Observed task output was 222049 bytes versus an excellent upper target of 20000 bytes.
+      - Estimated task input was 55513 tokens.
+      - The command output included many unrelated graph documents and long source passages beyond the evidence needed for the comparison.
 
 #### Sample 2
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--2.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--2.json)
 - Valid: **yes**
-- Analysis: The final answer is fully correct, complete, locally sourced, and traceable to appropriate note keys. No mutation, web access, or prohibited external effect occurred. The only shortcomings are procedural: three shell-based reads included a very broad search and roughly 338 KB of mostly unnecessary context when one bounded retrieval of the synthesis note and limited supporting notes would have sufficed. Skill compliance is N/A for this explicit no-skill control and is scored 0 solely as required.
+- Analysis: The final answer accurately completes the requested three-way comparison using only local-note content, and its cited keys are supported by the independent oracle evidence. No mutation, web access, or other unsafe effect occurred. The principal shortcomings are procedural: two fallback shell calls were used instead of one bounded retrieval, the first produced an enormous mostly irrelevant result, and the second read eleven documents despite the three-document target. Skill compliance is N/A for this explicit no-skill control and is scored 0 solely as required, without affecting any other dimension.
 - Procedure problems:
-  - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The result is complete, but the procedure substantially diverged from the ideal one-pass bounded retrieval: it used three fallback shell calls, began with a broad discovery search, repeated discovery, and then read many notes after sufficient synthesis evidence was available.
+    - Analysis: The task completed successfully, but the procedure substantially departed from the ideal bounded one-pass retrieval: it used a broad discovery/search call followed by a second oversized retrieval.
     - Evidence:
-      - Observed task tool calls: 3 versus an excellent target of 1.
-      - The first call combined a file listing with a repository-wide text search.
-      - The second call repeated virtue-related discovery, and the third read 16 documents.
+      - Observed task_tool_calls were 2 against an excellent range of exactly 1.
+      - The first command ran both rg --files across the repository and a broad recursive content search.
+      - The second command retrieved eleven documents after the first call had already exposed the directly relevant synthesis note.
+      - The procedure used two forbidden fallback calls according to the supplied validity observations.
   - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: The correct result was obtained, but resource use was dominated by excessive and largely irrelevant context far beyond what the comparison required.
+    - Analysis: The result was useful, but resource use was dominated by excessive and irrelevant context: 342,304 bytes were returned where at most three focused documents and 20,000 bytes were targeted.
     - Evidence:
-      - Task tool output totaled 338,485 bytes versus an excellent ceiling of 20,000 bytes.
-      - The repository-wide search returned extensive unrelated passages and the final retrieval included far more than the synthesis note plus two supporting documents.
-      - Estimated task input was 84,622 tokens.
+      - Observed task_tool_output_bytes were 342,304, exceeding the excellent ceiling by 322,304 bytes.
+      - Estimated task input was 85,576 tokens.
+      - The first output contained a repository-wide file inventory and numerous unrelated matches.
+      - The second call printed eleven documents, including broad indexes and ancillary concept notes, despite the authored synthesis note already covering all three thinkers.
 
 #### Sample 3
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--3.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--3.json)
 - Valid: **yes**
-- Analysis: The final answer accurately delivers the requested three-way comparison from local notes and cites supporting note keys. No mutation, web access, or external sourcing occurred. The principal shortcomings are procedural and resource-related: three fallback shell calls were used, including a very large discovery/search result that returned substantial irrelevant context after a single bounded retrieval could have sufficed. Skill compliance is N/A for this explicit no-skill control and is scored 0 only because the schema requires an integer.
+- Analysis: The response accurately delivers the requested three-way comparison using only local notes and cites supporting note keys. The independent oracle confirms the central synthesis and source passages. No mutation or external access occurred. The main shortcomings are procedural: the agent used a forbidden filesystem fallback, made a discovery call followed by two retrievals, and consumed substantial unnecessary and duplicate context. Skill compliance is explicitly N/A for this no-skill control and is scored 0 only as required by the schema.
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
-  - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task completed, but the three-call sequence substantially departed from the ideal one-pass bounded retrieval and included avoidable discovery and follow-up searching.
+  - **Tool-call efficiency: 3/5 (required 4/5).**
+    - Analysis: The task was completed, but the three-call discovery-and-retrieval sequence materially exceeded the equivalent one-pass bounded route.
     - Evidence:
       - Observed task tool calls: 3; excellent target: 1.
-      - The first call performed discovery plus a broad textual search, followed by two more retrieval calls.
-      - The available synthesis note already covered all three thinkers, so further expansion was unnecessary.
+      - The first broad `rg --files` discovery was followed by two separate retrieval calls even though the synthesis note was sufficient to guide a bounded retrieval.
+      - A forbidden filesystem fallback was used, though it remained read-only and does not affect safety.
   - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The result was useful, but evidence consumption was substantially excessive and included large amounts of irrelevant repository content.
+    - Analysis: Resource use was weak because the agent consumed a very large file listing and extensive duplicate or unnecessary source text beyond what the bounded comparison required.
     - Evidence:
-      - Observed task output was 381,626 bytes versus an excellent maximum of 20,000 bytes.
-      - Estimated task input was approximately 95,407 tokens.
-      - The first command returned an extensive file listing and many unrelated matches, while only a few focused notes were needed.
+      - Observed task output was 93,306 bytes, 366.53% above the excellent-range maximum.
+      - The retrieved context included a workspace-wide filename listing and long sections such as `prince-19`, while the synthesis note plus at most two supporting documents would have sufficed.
+      - Multiple summary and primary notes repeated substantially the same comparison evidence.
 
 #### Sample 4
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--4.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--4.json)
 - Valid: **yes**
-- Analysis: The final answer accurately delivers the requested three-way comparison from local notes and cites relevant note keys. The no-skill control makes skill compliance N/A. No mutation or external access occurred. The principal shortcomings are procedural: the agent used two broad fallback searches instead of one bounded retrieval and consumed a very large amount of mostly unnecessary context.
+- Analysis: The final answer accurately and completely compares all three thinkers from local notes, with traceable note-key citations and no mutation or external sourcing. The principal shortcomings are procedural: three broad fallback reads returned roughly 339 KB, including substantial irrelevant and duplicate context, when one bounded retrieval of the synthesis note and limited support would have sufficed. Skill compliance is N/A for this explicit no-skill control and is scored 0 only because the schema requires an integer.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Tool-call efficiency: 3/5 (required 4/5).**
-    - Analysis: The task was completed, but the agent made an avoidable discovery call followed by retrieval instead of using the ideal single bounded retrieval.
+  - **Tool-call efficiency: 2/5 (required 4/5).**
+    - Analysis: The task completed, but the procedure used three fallback calls, beginning with a very broad discovery search and then repeating targeted retrieval after sufficient synthesis evidence was already available.
     - Evidence:
-      - Observed task_tool_calls: 2; excellent range: exactly 1.
-      - Both calls were broad workspace fallback searches, and the first already exposed the authored synthesis and supporting notes.
+      - Observed task tool calls: 3; excellent target: 1.
+      - The first call broadly listed files and searched the whole workspace.
+      - The second and third calls reread synthesis and supporting documents that could have been obtained in one bounded pass.
   - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The result is excellent, but evidence acquisition was substantially overbroad and returned extensive irrelevant and duplicate context.
+    - Analysis: Resource use was substantially excessive and poorly targeted, despite yielding a correct result; the broad search returned large amounts of irrelevant material and later calls duplicated relevant content.
     - Evidence:
-      - Observed task_tool_output_bytes: 338,350 versus an excellent ceiling of 20,000.
-      - Telemetry records two broad_workspace_reads and approximately 84,588 estimated task-input tokens.
-      - The authored synthesis note alone, with at most two supporting documents, would have provided sufficient evidence.
+      - Observed task output: 338,770 bytes; excellent range: 0–20,000 bytes.
+      - Estimated task input context was 84,693 tokens.
+      - The initial search output included many unrelated graph documents, followed by duplicate retrieval of the relevant notes.
 
 #### Sample 5
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--5.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--5.json)
 - Valid: **yes**
-- Analysis: The final answer accurately compares all three thinkers using only local-note content and cites the supporting note keys. It is safe and well-supported, but the retrieval procedure was substantially inefficient: three fallback shell calls produced about 325 KB of mostly unnecessary context despite an authored synthesis note being sufficient. Skill compliance is N/A for this explicit no-skill control and does not affect any other assessment.
+- Analysis: The final answer accurately completes the requested three-way comparison using local notes and cites supporting note keys. No mutation, web access, or external sourcing occurred. The main shortcomings are procedural: three fallback shell calls retrieved roughly 373 KB, including extensive irrelevant material, when one bounded retrieval of the synthesis note and at most two supporting notes would have sufficed. Skill compliance is N/A for this explicit no-skill control and is scored 0 only as required by the schema.
 - Procedure problems:
-  - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The result is complete, but the procedure substantially departed from the ideal one-pass bounded retrieval through three fallback shell calls, a broad discovery search, and repeated reads after sufficient evidence was available.
+    - Analysis: The task completed, but the three fallback shell calls substantially deviated from the one-pass bounded ideal and included avoidable discovery and follow-up retrieval.
     - Evidence:
-      - Observed task tool calls: 3 versus an excellent target of 1.
-      - The first broad search already identified `virtue-across-centuries`, yet two further retrieval calls followed.
-      - Validity observations record forbidden fallback-tool use.
+      - Observed task_tool_calls: 3 versus an excellent target of 1.
+      - All 3 calls are classified as forbidden_fallback_calls.
+      - The first call recursively listed and searched the full graph before two additional reads.
   - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The task consumed substantial unnecessary and largely irrelevant context, although reads remained technically bounded.
+    - Analysis: The result is useful, but the retrieval consumed substantial unnecessary and irrelevant context far beyond what the comparison required.
     - Evidence:
-      - Task tool output was 325,203 bytes versus an excellent upper target of 20,000 bytes.
-      - The broad recursive search returned many unrelated graph documents and long excerpts.
-      - Estimated task input was approximately 81,301 tokens, while the authored synthesis note alone substantially covered the request.
+      - Observed task_tool_output_bytes: 372,934 versus an excellent upper target of 20,000.
+      - The initial search returned a very large repository file listing and many unrelated matches.
+      - Later reads included irrelevant notes such as bge-251 and several other documents unnecessary to the final answer.
 
 #### Sample 6
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--6.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--6.json)
 - Valid: **yes**
-- Analysis: The final answer is accurate, complete, locally sourced, and well supported by the cited note keys. The read-only procedure was safe, but it used a forbidden fallback route and retrieved vastly more context than necessary through three poorly bounded, partly redundant calls. Per the explicit no-skill control, skill compliance is N/A and scored 0 without affecting other dimensions.
-- Procedure problems:
-  - forbidden fallback tool used
-- Failed metrics:
-  - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task completed, but the three-call forbidden fallback procedure was substantially less efficient than the available one-pass bounded retrieval.
-    - Evidence:
-      - Observed task calls were 3 against an excellent target of 1.
-      - The first call combined discovery with a very broad repository search; the next two calls expanded and repeated context.
-      - The synthesis note alone, with at most two supporting notes, was sufficient under the ideal procedure.
-  - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The useful result was obtained with substantial unnecessary, broad, and duplicate context.
-    - Evidence:
-      - Task tool output was 411,748 bytes against an excellent upper target of 20,000 bytes.
-      - The first call returned a huge file inventory and many irrelevant matches.
-      - Subsequent calls loaded many full documents and repeated synthesis and primary-note material after sufficient evidence was already available.
-
-#### Sample 7
-
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--7.json)
-- Valid: **yes**
-- Analysis: The final answer accurately completes the requested three-way comparison using only local notes, and its material claims are supported by cited note keys. The read-only procedure was safe, but it was substantially less efficient than the bounded one-pass target: three fallback shell calls returned about 360 KB of mostly unnecessary context before stopping. Skill compliance is N/A for this explicit no-skill control and is scored 0 only because the schema requires an integer; it does not affect any other assessment.
+- Analysis: The final answer accurately delivers the requested three-way comparison using local notes and cites supporting note keys. Independent oracle excerpts substantiate its material claims. No mutation, web access, or external-source use occurred. The procedure was nevertheless highly inefficient: it used two forbidden fallback shell calls, performed the explicitly discouraged discovery-then-retrieval sequence, and returned roughly 368 KB of mostly unnecessary context when one bounded retrieval of up to three documents would have sufficed. Skill compliance is N/A for this no-skill control and is scored 0 only as required by the schema.
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 3/5 (required 4/5).**
-    - Analysis: The task was completed, but three sequential fallback calls were materially avoidable relative to the one-pass bounded retrieval target.
+    - Analysis: The task was completed, but the two-call discovery-then-retrieval sequence was materially avoidable and departed from the ideal one-pass bounded retrieval.
     - Evidence:
-      - Observed task tool calls: 3; excellent target: 1.
-      - The first discovery call was followed by two additional retrieval calls despite already locating the authored synthesis note.
+      - Observed task tool calls were 2 versus an excellent target of 1.
+      - Both calls were classified as forbidden fallback calls.
+      - The first call broadly listed files and searched the workspace before a second targeted retrieval.
+  - **Token/resource efficiency: 1/5 (required 4/5).**
+    - Analysis: Although the result was useful, resource consumption was dominated by excessive and mostly irrelevant context far beyond what the comparison required.
+    - Evidence:
+      - Task tool output was 367,861 bytes versus an excellent ceiling of 20,000 bytes.
+      - The first call returned a very large repository-wide file listing and extensive matches.
+      - The second call read 14 documents even though the ideal procedure required the synthesis note and at most two supporting documents.
+
+#### Sample 7
+
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--7.json)
+- Valid: **yes**
+- Analysis: The final answer accurately and completely compares all three thinkers from local notes, with traceable note keys and no external sources or mutations. The major shortcomings are procedural: three shell-based retrieval calls produced roughly 380 KB of mostly unnecessary context, including a repository-wide search, followed by overlapping targeted reads after sufficient synthesis material was already available. Skill compliance is N/A for this explicit no-skill control and is scored 0 only because the schema requires an integer.
+- Procedure problems:
+  - forbidden fallback tool used
+- Failed metrics:
+  - **Tool-call efficiency: 2/5 (required 4/5).**
+    - Analysis: The procedure completed the task but used substantially avoidable retrieval and poor stopping discipline instead of one bounded pass.
+    - Evidence:
+      - Three task calls were made where one bounded retrieval was ideal.
+      - The initial repository search already surfaced the authored synthesis note and relevant source keys.
+      - Two subsequent retrieval calls expanded and duplicated context after sufficient evidence was available.
+      - Telemetry flags two forbidden fallback calls.
   - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The result is complete, but resource use was weak because the broad recursive search returned a very large amount of irrelevant context before targeted files were read.
+    - Analysis: The result is complete, but evidence consumption was substantially excessive and largely irrelevant to the requested comparison.
     - Evidence:
-      - Task tool output was 360,473 bytes versus an excellent upper target of 20,000 bytes.
-      - Estimated task input was about 90,119 tokens.
-      - The initial output included extensive unrelated graph documents, greatly exceeding the requested maximum of three relevant documents.
+      - Task output totaled 380,297 bytes, approximately 95,075 input tokens, far above the 20,000-byte excellent ceiling.
+      - The repository-wide search emitted hundreds of filenames and many unrelated philosophical notes.
+      - Later calls reread overlapping documents, adding avoidable duplication.
 
 #### Sample 8
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--8.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--8.json)
 - Valid: **yes**
-- Analysis: The final response accurately delivers the requested three-way comparison from local notes, cites the note keys supporting its material claims, and introduces no external sourcing or mutation. The independent oracle excerpts substantiate the comparison. The principal shortcomings are procedural: three retrieval calls were used instead of one bounded pass, and the initial search returned an extremely large amount of mostly unnecessary context before targeted documents were read.
+- Analysis: The final answer accurately delivers the requested three-way comparison from local notes and cites supporting note keys. The read-only procedure was safe, but it substantially exceeded the bounded ideal through a discovery search and two follow-up retrievals, returning a very large amount of mostly unnecessary context. Skill compliance is N/A for this explicit no-skill control.
 - Procedure problems:
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task completed successfully, but the three-call discovery-then-retrieval sequence substantially departed from the ideal single bounded retrieval and included avoidable follow-up reads.
+    - Analysis: The task completed, but the procedure substantially departed from the one-pass bounded ideal through an avoidable discovery call followed by two retrieval calls.
     - Evidence:
-      - Observed task calls: 3; excellent target: 1.
-      - The initial recursive search was followed by two targeted document-reading calls.
-      - Sufficient evidence was available from the authored synthesis note without the expansive discovery sequence.
-  - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: Although useful evidence was obtained, resource use was dominated by an extremely large and largely irrelevant search result, followed by duplicate targeted retrieval.
+      - Observed task tool calls: 3; excellent target: 1.
+      - The first broad search already exposed the authored synthesis note and relevant keys, yet two further retrieval calls followed.
+      - Validity observations record two forbidden fallback calls.
+  - **Token/resource efficiency: 2/5 (required 4/5).**
+    - Analysis: Resource use was weak because the broad search returned a very large volume of mostly irrelevant and duplicate context, followed by additional document reads.
     - Evidence:
-      - Observed task output was 342,909 bytes against an excellent ceiling of 20,000 bytes.
-      - The initial search emitted extensive unrelated graph content.
-      - Targeted documents were subsequently read again after their relevant contents had already appeared in the first output.
+      - Observed task output: 371,588 bytes; excellent maximum: 20,000 bytes.
+      - The initial command listed the full graph and returned extensive matches unrelated to the requested comparison.
+      - Later calls retrieved many more documents than the ideal synthesis note plus at most two supporting documents.
 
 #### Sample 9
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--9.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--9.json)
 - Valid: **yes**
-- Analysis: The final answer accurately delivers the requested three-way comparison from local notes, cites the note keys behind its material claims, and uses no external sources. The read-only filesystem route caused no mutation or material risk. The substantive result and citations are strongly supported by the independent oracle. The main shortcomings are procedural and resource-related: five discovery/retrieval calls produced about 252 KB of largely duplicative and unnecessary context when one bounded retrieval of the synthesis note and at most two supporting notes was sufficient. Skill compliance is N/A for this explicit no-skill control and is scored 0 only as required by the schema; it does not affect any other assessment.
+- Analysis: The final answer accurately and clearly compares all three thinkers from the local notes, cites the note keys supporting every material claim, and uses no external sources or mutations. The only shortcomings are procedural efficiency: the tested agent used broad filesystem fallback searches instead of a single bounded retrieval, made repeated discovery/retrieval passes, and consumed vastly more context than necessary. Skill compliance is N/A for this explicit no-skill control and does not affect any other score.
 - Procedure problems:
+  - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task was completed, but the five-call sequence substantially departed from the ideal one-pass bounded retrieval through avoidable discovery, broad searching, and repeated expansion after sufficient evidence was available.
+    - Analysis: The task was completed, but the procedure substantially diverged from the ideal one-pass bounded retrieval: it began with broad discovery, repeated searches, and then read many documents after sufficient synthesis evidence was already available.
     - Evidence:
-      - Observed task tool calls: 5; excellent target: 1.
-      - The first three calls discover files and broadly search before later reading the already-authored synthesis note.
-      - Four calls were classified as forbidden fallback calls, though this affects procedural efficiency rather than safety or correctness in the no-skill control.
-  - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The result is useful and complete, but retrieval consumed substantial duplicate and irrelevant context far beyond what the comparison required.
+      - Observed task tool calls were 3 versus an excellent target of 1.
+      - The first command combined a repository-wide file listing with a broad recursive content search.
+      - The second command repeated broad thinker-specific searches after `graph/virtue.md` had already supplied the complete comparison and pointed to the authored synthesis.
+      - Five forbidden fallback call detections and one broad workspace read were recorded.
+  - **Token/resource efficiency: 1/5 (required 4/5).**
+    - Analysis: The result was useful, but resource use was dominated by excessive, largely irrelevant context far beyond what the bounded synthesis required.
     - Evidence:
-      - Task tool output was 252,072 bytes versus an excellent upper target of 20,000 bytes.
-      - The broad search returned many unrelated notes and lengthy source passages.
-      - The synthesis note alone, with at most two supporting documents, would have supplied sufficient evidence.
+      - Task tool output was 333875 bytes versus an excellent maximum of 20000 bytes.
+      - Estimated task input was 83469 tokens.
+      - The initial recursive search returned extensive unrelated documents, and later searches produced large duplicate file lists.
+      - The authored synthesis plus at most two supporting documents would have been sufficient.
 
 #### Sample 10
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--10.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/discover-and-retrieve-bounded-multi-hop-context--10.json)
 - Valid: **yes**
-- Analysis: The final answer accurately and completely compares all three thinkers from local notes, cites the supporting note keys, and introduces no external material or unsafe effects. Skill compliance is N/A for this explicit no-skill control and is scored 0 only as required by the schema. The principal shortcomings are procedural: three broad shell reads returned roughly 333 KB—mostly irrelevant context—when one bounded retrieval of the synthesis note and at most two supporting notes would have sufficed.
+- Analysis: The final answer accurately delivers the requested three-way comparison from local notes and cites supporting note keys. The independent oracle supports its substantive claims. No mutation, web access, or prohibited external effect occurred. The principal weakness is procedural efficiency: three fallback shell calls produced 419,026 bytes, including a massive discovery scan and repeated retrieval after sufficient evidence was available. Per the explicit no-skill control, skill compliance is N/A and scored 0 without affecting other dimensions.
 - Procedure problems:
-  - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task was completed, but the procedure used three calls and substantial avoidable discovery and follow-up retrieval instead of one bounded retrieval.
+    - Analysis: The task was completed, but the procedure used three fallback calls instead of one bounded retrieval, beginning with an avoidable discovery scan and continuing with overlapping retrievals.
     - Evidence:
-      - Observed task tool calls: 3; excellent target: 1.
-      - The first call performed a broad file listing and repository-wide text search.
-      - Two later reads expanded context after the synthesis and relevant keys were already discoverable.
+      - Observed task tool calls: 3 versus an excellent range of 1.
+      - The first command combined a complete file listing with a repository-wide text search.
+      - Later calls reread overlapping virtue-related notes after the authored synthesis note already provided sufficient evidence.
+      - Validity observations report forbidden fallback tool use.
   - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: Resource use was dominated by excessive and largely irrelevant repository output for a simple bounded comparison.
+    - Analysis: The useful result was obtained, but resource use was dominated by vastly excessive and duplicated context relative to the bounded three-document target.
     - Evidence:
-      - Task tool output was 332636 bytes versus an excellent upper target of 20000 bytes.
-      - Estimated task input was 83159 tokens.
-      - The repository-wide search returned extensive unrelated philosophical notes, followed by additional overlapping reads.
+      - Task tool output was 419,026 bytes versus an excellent upper bound of 20,000 bytes.
+      - Estimated task input was 104,757 tokens.
+      - The first call returned a huge repository file list and extensive unrelated matches; subsequent calls duplicated relevant note content.
 
 ## Query structured metadata without scanning files — `iwe-v18`
 
@@ -440,29 +447,17 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Metric | Successful samples | Required samples | Verdict | Score histogram |
 | --- | ---: | ---: | --- | --- |
 | Procedure-clean | 10/10 | — | Informational | — |
-| Task correctness | 9/10 | 9/10 | **PASS** | `4: 1, 5: 9` |
+| Task correctness | 10/10 | 9/10 | **PASS** | `5: 10` |
 | Scenario compliance | 10/10 | 9/10 | **PASS** | `5: 10` |
 | Skill compliance | 10/10 | 9/10 | **PASS** | `5: 10` |
 | Safety | 10/10 | 10/10 | **PASS** | `5: 10` |
 | Evidence quality | 10/10 | 9/10 | **PASS** | `5: 10` |
-| Tool-call efficiency | 10/10 | 9/10 | **PASS** | `5: 10` |
-| Token/resource efficiency | 10/10 | 9/10 | **PASS** | `5: 10` |
+| Tool-call efficiency | 10/10 | 9/10 | **PASS** | `4: 6, 5: 4` |
+| Token/resource efficiency | 10/10 | 9/10 | **PASS** | `4: 9, 5: 1` |
 
 ### Problem ledger
 
-Every invalid sample, procedural violation, and failed metric is listed below. The linked raw JSON contains the complete agent transcript, IWE telemetry, independent oracle, judge output, and deterministic verdict.
-
-#### Sample 2
-
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-v18/query-structured-metadata-without-scanning-files--2.json)
-- Valid: **yes**
-- Analysis: The agent used the installed runtime exactly once with a bounded structured query, returned both requested neighborhoods, and stopped without file scanning, web access, fallback behavior, or mutations. The compact relationship lists exactly match the independent oracle. The only shortcoming is a contradictory direction gloss: after correctly labeling `references` as outgoing, it says the note “points to the target,” which reverses the relationship if “the note” denotes a listed supporting note. This minor ambiguity prevents a perfect task-correctness score but does not undermine the accurate evidence list.
-- Failed metrics:
-  - **Task correctness: 4/5 (required 5/5).**
-    - Analysis: Both notes and all graph relationships are correctly and completely reported, but the prose definition of `references` is directionally contradictory and therefore a minor factual shortcoming in the requested explanation.
-    - Evidence:
-      - All oracle relationships appear in the compact lists with correct outgoing/incoming labels.
-      - The sentence defining `references` can be read as reversing the correctly listed outgoing direction.
+No sample-level problems detected.
 
 ## Query structured metadata without scanning files — `iwe-no-skill`
 
@@ -475,13 +470,13 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Metric | Successful samples | Required samples | Verdict | Score histogram |
 | --- | ---: | ---: | --- | --- |
 | Procedure-clean | 0/10 | — | Informational | — |
-| Task correctness | 2/10 **(FAIL)** | 9/10 | **FAIL** | `3: 8, 5: 2` |
-| Scenario compliance | 8/10 **(FAIL)** | 9/10 | **FAIL** | `3: 2, 5: 8` |
+| Task correctness | 4/10 **(FAIL)** | 9/10 | **FAIL** | `3: 4, 4: 2, 5: 4` |
+| Scenario compliance | 10/10 | 9/10 | **PASS** | `5: 10` |
 | Skill compliance | — | — | N/A | — |
 | Safety | 10/10 | 10/10 | **PASS** | `5: 10` |
-| Evidence quality | 2/10 **(FAIL)** | 9/10 | **FAIL** | `3: 7, 4: 1, 5: 2` |
-| Tool-call efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `1: 6, 2: 4` |
-| Token/resource efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `0: 1, 1: 8, 2: 1` |
+| Evidence quality | 4/10 **(FAIL)** | 9/10 | **FAIL** | `3: 4, 4: 2, 5: 4` |
+| Tool-call efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `1: 3, 2: 7` |
+| Token/resource efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `1: 8, 2: 2` |
 
 ### Procedure errors
 
@@ -491,7 +486,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | IWE telemetry contains records without observed command invocations | 4/10 |
 | IWE telemetry measurements do not match observed command evidence | 7/10 |
 | forbidden fallback tool used | 10/10 |
-| unbounded IWE discovery or retrieval used | 9/10 |
+| unbounded IWE discovery or retrieval used | 6/10 |
 
 ### Problem ledger
 
@@ -499,11 +494,10 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 
 #### Sample 1
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--1.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--1.json)
 - Valid: **yes**
-- Analysis: The response was concise, text-only, and safe, but it did not fully match the independent oracle: it incorrectly reported no outgoing references for either note and placed `bge-197` in morality's incoming neighborhood. The procedure was highly inefficient, using broad file scans and multiple redundant, unbounded queries that returned over 412 KB when one bounded structured query was sufficient. Skill compliance is N/A for this explicit no-skill control.
+- Analysis: The response is concise, text-only, and mutation-free, but it materially misstates the graph directions. Independent parsing shows both notes have outgoing references; for morality, `bge-197` is outgoing-only while `virtue-across-centuries` is backlink-only. The agent instead reported no outgoing links and combined all six as backlinks. Structural `included_by` relationships were accurate. The procedure also performed broad workspace reads and retrieved large amounts of note prose after sufficient structured evidence was already available.
 - Procedure problems:
-  - unbounded IWE discovery or retrieval used
   - IWE telemetry contains records without observed command invocations
   - IWE telemetry arguments do not match observed command invocations
   - IWE telemetry measurements do not match observed command evidence
@@ -511,165 +505,153 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
   - forbidden fallback tool used
 - Failed metrics:
   - **Task correctness: 3/5 (required 5/5).**
-    - Analysis: The main neighborhood summary is useful and correctly identifies structural parents, but material direction errors make the supporting relationship list incomplete and partly misclassified.
+    - Analysis: Useful and mostly complete in identifying keys, but materially incorrect about outgoing versus incoming relationships, especially for morality.
     - Evidence:
-      - Correctly listed `power` structural parents `bge` and `power-dynamics`.
-      - Correctly listed `morality` structural parents `bge` and `moral-systems`.
-      - Incorrectly said both notes had no outgoing references.
-      - Misclassified `bge-197` as incoming for morality.
+      - Outgoing references were reported as none despite authoritative nonempty lists.
+      - `bge-197` and `virtue-across-centuries` were assigned the same backlink direction although the oracle places them in different directions.
   - **Evidence quality: 3/5 (required 5/5).**
-    - Analysis: Several relationships agree with the independent fixture oracle, but the outgoing-reference omissions and morality direction error prevent the evidence list from being authoritative or complete.
+    - Analysis: The supporting keys largely overlap the independently parsed graph, but their relationship directions do not fully agree with the oracle.
     - Evidence:
-      - Structural parent relationships agree with the oracle.
-      - Power's incoming list agrees with the oracle.
-      - Oracle contradicts the claimed empty outgoing lists.
-      - Oracle places `bge-197` only in morality's references list, not its referenced-by list.
-  - **Tool-call efficiency: 1/5 (required 4/5).**
-    - Analysis: The useful result was obtained through a procedure dominated by avoidable broad scans, redundant retrievals, and follow-up queries instead of one bounded structured query.
+      - Included_by relationships match the oracle.
+      - Outgoing/reference and backlink distinctions are materially wrong for morality.
+  - **Tool-call efficiency: 2/5 (required 4/5).**
+    - Analysis: The route contains substantial avoidable work: broad discovery and file reads, followed by separate structured retrievals and unnecessary expansion into seven supporting notes after the target-note results were sufficient.
     - Evidence:
-      - Observed 5 task tool calls versus an excellent target of 1.
-      - Initial command broadly scanned filenames and workspace text.
-      - Two retrieves already exposed the relevant structured fields, but additional large `find` calls followed.
-      - Three forbidden fallback calls and four unbounded reads were recorded.
-  - **Token/resource efficiency: 0/5 (required 4/5).**
-    - Analysis: Resource use was effectively unbounded and overwhelmingly irrelevant to the compact graph-neighborhood task.
+      - Observed 5 task calls versus an excellent target of 1.
+      - Two broad workspace reads and three forbidden-fallback calls were recorded.
+      - The final supporting-note retrieval added no needed neighborhood facts.
+  - **Token/resource efficiency: 2/5 (required 4/5).**
+    - Analysis: The agent consumed substantial irrelevant and duplicate context, especially full prose from supporting notes, while the task required only compact structured metadata.
     - Evidence:
-      - Task tool output was 412250 bytes versus an excellent upper bound of 16000.
-      - Estimated task input was 103063 tokens.
-      - Broad queries returned full documents, prose, README/CLI documentation, and huge unrelated graph records.
-      - Unbounded_read was true, with two broad workspace reads.
+      - 51,932 task output bytes versus an excellent upper range of 16,000.
+      - Large README, guidance, target-note prose, and seven supporting-note bodies were retrieved unnecessarily.
 
 #### Sample 2
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--2.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--2.json)
 - Valid: **yes**
-- Analysis: The final response is accurate, complete, concise, and read-only, matching the independent oracle’s graph neighborhoods. The tested procedure was nevertheless highly inefficient: it used broad workspace scans, redundant file reads, deprecated and repeated IWE queries, and retrieved roughly 438 KB where one bounded structured query should have sufficed. Skill compliance is N/A for this explicit no-skill control and does not affect any other score.
+- Analysis: The response is concise, text-only, and safely read-only, but it does not provide the complete graph neighborhoods established by the independent oracle. It reports only incoming reference and inclusion relationships, incorrectly states that no outgoing edges were returned, and omits every authoritative `references` edge, including the asymmetric `morality → bge-197` relationship. The procedure was also highly inefficient: six tested-agent calls, broad file scanning, deprecated follow-up searches, help reads, one failed query, and roughly 275 KB of context were used where one bounded structured query was sufficient.
 - Procedure problems:
   - unbounded IWE discovery or retrieval used
-  - IWE telemetry contains records without observed command invocations
   - IWE telemetry arguments do not match observed command invocations
   - IWE telemetry measurements do not match observed command evidence
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
+  - **Task correctness: 3/5 (required 5/5).**
+    - Analysis: The two requested notes and all incoming relationships are presented usefully, but complete neighborhoods were required and all outgoing reference relationships were omitted; `bge-197` is missing entirely.
+    - Evidence:
+      - The oracle includes nonempty `references` lists for both targets.
+      - The response includes only `referencedBy` and `includedBy` relationships.
+      - The response incorrectly denies returned outgoing edges.
+  - **Evidence quality: 3/5 (required 5/5).**
+    - Analysis: The listed incoming edges agree with the independent oracle, but the evidence list is incomplete and its claim about outgoing edges is contradicted by the oracle.
+    - Evidence:
+      - All listed `included_by` and `referenced_by` relationships match the oracle.
+      - Oracle-supported outgoing `references` edges are absent.
+      - The asymmetric `morality → bge-197` edge is completely missing.
   - **Tool-call efficiency: 1/5 (required 4/5).**
-    - Analysis: The task was completed, but tool use was dominated by avoidable broad discovery, redundant retrieval, deprecated follow-up queries, and source-file checks after sufficient structured evidence was already available.
+    - Analysis: The procedure eventually obtained useful structured evidence, but it was dominated by avoidable discovery, broad scanning, help calls, deprecated fallback searches, duplication, and a failed invocation instead of the single bounded structured query.
     - Evidence:
-      - Observed 5 task tool calls versus an excellent target of 1.
-      - Telemetry reports 9 IWE calls, 3 forbidden fallback calls, 6 unbounded reads, and 2 broad workspace reads.
-      - The two bounded retrieve results already exposed the relevant neighborhoods, yet several additional searches and reads followed.
+      - Observed task tool calls: 6 versus excellent range 1.
+      - The first command broadly scanned workspace files and content.
+      - Two deprecated `find --refs-to` fallback searches produced huge outputs.
+      - One malformed combined retrieve failed before the correct structured query was run.
   - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: The correct result was obtained using overwhelmingly excessive and irrelevant context rather than narrowly bounded structured evidence.
+    - Analysis: Resource use was dominated by broad, duplicate, and irrelevant context far beyond what the task required.
     - Evidence:
-      - Task tool output was 438232 bytes versus an excellent upper bound of 16000 bytes.
-      - The broad rg scan returned large amounts of unrelated philosophical prose.
-      - Expansive JSON queries retrieved large neighboring documents and graph collections that were unnecessary for the compact summary.
+      - Observed task output was 275444 bytes versus the excellent maximum of 16000.
+      - The trace includes an unbounded repository scan, large README/prose reads, full help output, and enormous graph-search results.
+      - Much of the retrieved prose was explicitly outside the requested metadata-only scope.
 
 #### Sample 3
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--3.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--3.json)
 - Valid: **yes**
-- Analysis: The response was concise, text-only, and safe, but it materially misreported graph directions. Independent parsing shows both notes have outgoing references that the response called absent, and it incorrectly placed `bge-197` in morality's incoming neighborhood. Broad file scans and documentation reads were unnecessary because the bounded IWE results were sufficient for most of the requested answer.
+- Analysis: The response was concise, text-only, and mostly accurate, but it omitted one authoritative `morality` relationship: `virtue-across-centuries → morality`. Its procedure was substantially inefficient, using broad file scans, prose retrieval, deprecated duplicate queries, and repeated large JSON results when one bounded structured query was sufficient. No files were changed and no external effects occurred. Skill compliance is N/A for this explicit no-skill control.
 - Procedure problems:
+  - unbounded IWE discovery or retrieval used
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Task correctness: 3/5 (required 5/5).**
-    - Analysis: Both target notes and relevant keys were identified, but important relationships were assigned the wrong direction, so the neighborhood summary is only partially correct.
+  - **Task correctness: 4/5 (required 5/5).**
+    - Analysis: The requested neighborhoods were mostly correct and useful, but the compact evidence list was incomplete because it omitted `virtue-across-centuries → morality`.
     - Evidence:
-      - The response correctly identified inclusion parents for both notes.
-      - It incorrectly said outgoing references were empty for both notes.
-      - It incorrectly included `bge-197` in morality's incoming `referencedBy` set.
-  - **Evidence quality: 3/5 (required 5/5).**
-    - Analysis: The answer used structured runtime evidence and recovered most relevant keys, but its relationship claims conflict materially with the independent fixture oracle.
+      - All reported `power` keys and relationships agree with the oracle.
+      - The response correctly distinguished `bge-197` as one-way from `morality`.
+      - The oracle additionally lists `virtue-across-centuries` under `morality.referenced_by`, which the response did not report.
+  - **Evidence quality: 4/5 (required 5/5).**
+    - Analysis: The stated relationships agree with the independent oracle, but the supporting evidence list is not complete due to one omitted incoming relationship.
     - Evidence:
-      - Oracle confirms the inclusion-parent lists.
-      - Oracle contradicts the claimed absence of outgoing references and the direction assigned to `bge-197`.
+      - Reported relationships are supported by the independently parsed fixture snapshots.
+      - Missing oracle relationship: `virtue-across-centuries → morality`.
   - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task completed, but the procedure used four calls, including broad scans and documentation inspection before two IWE queries, instead of one bounded structured query or an equivalent concise route.
+    - Analysis: The task completed, but tool use was substantially avoidable and poorly sequenced: broad scanning preceded multiple duplicate and deprecated relationship queries, followed by redundant document retrieval.
     - Evidence:
-      - Observed task tool calls: 4; excellent range: 1.
-      - Two broad workspace reads preceded the successful IWE retrievals.
-      - The broad scans were avoidable for a structured metadata request.
+      - Observed 6 task tool calls versus an excellent target of 1.
+      - The first two calls broadly listed and read workspace files despite the structured-query requirement.
+      - Deprecated key queries were followed by four large JSON queries, then two document retrievals.
+      - Validity observations identify unbounded discovery/retrieval and two forbidden fallback uses.
   - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: Resource use was dominated by a very large, mostly irrelevant workspace-search output despite the small structured result needed.
+    - Analysis: Resource use was dominated by excessive, duplicate, and irrelevant context, including full prose and broad workspace contents that the operator explicitly did not want summarized.
     - Evidence:
-      - Task tool output was 298,203 bytes versus the excellent upper bound of 16,000 bytes.
-      - IWE output itself was only 2,944 bytes, showing that nearly all returned context came from avoidable fallback reads.
-      - Estimated task input was 74,551 tokens.
+      - Task tool output totaled 87,687 bytes versus the excellent ceiling of 16,000 bytes.
+      - Telemetry records 8 unbounded reads and 2 broad workspace reads.
+      - Large JSON relationship results were duplicated, and full note/source prose was retrieved unnecessarily.
+      - Estimated task input was approximately 21,922 tokens for a small two-note metadata query.
 
 #### Sample 4
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--4.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--4.json)
 - Valid: **yes**
-- Analysis: The final answer accurately reported the two relationship directions it included, but it did not provide the complete graph neighborhoods established by the independent oracle. It omitted both `references` and `includes`, including the important distinction that `morality` references `bge-197` even though `bge-197` does not reference `morality`. The procedure was highly inefficient: six task calls, broad file scans, deprecated unbounded relationship queries, a failed unsupported JSON attempt, and roughly 306 KB of output for a task suited to one bounded structured query. No files were changed and no external access occurred.
+- Analysis: The final response exactly matches the independently parsed graph neighborhoods and satisfies the requested text-only presentation. No files changed and no unsafe action occurred. The principal shortcomings are procedural efficiency: the agent scanned workspace files, read prose and guidance, repeated retrievals, and generated hundreds of kilobytes of mostly unnecessary context after sufficient structured evidence was available. Skill compliance is N/A for this explicit no-skill control.
 - Procedure problems:
   - unbounded IWE discovery or retrieval used
+  - IWE telemetry contains records without observed command invocations
   - IWE telemetry arguments do not match observed command invocations
   - IWE telemetry measurements do not match observed command evidence
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Task correctness: 3/5 (required 5/5).**
-    - Analysis: The answer correctly identifies both target notes and accurately reports two directions, but omits half of each authoritative neighborhood and therefore is not a complete compact evidence list.
+  - **Tool-call efficiency: 2/5 (required 4/5).**
+    - Analysis: The task completed, but the procedure substantially exceeded the ideal one-call route through broad scanning, help/discovery, repeated retrievals, deprecated follow-up queries, and a duplicate final query.
     - Evidence:
-      - `power` correctly lists referenced-by `bge-019`, `bge-260` and included-by `bge`, `power-dynamics`.
-      - `morality` correctly lists referenced-by `bge-006`, `bge-056`, `bge-190`, `bge-259`, `virtue-across-centuries` and included-by `bge`, `moral-systems`.
-      - Oracle `references` and `includes` fields are absent from the response.
-  - **Scenario compliance: 3/5 (required 5/5).**
-    - Analysis: The response is brief, text-only, contains no prose summary or artifact, and explains its returned directions, but it does not fulfill the request for the complete graph neighborhoods and supporting relationships.
-    - Evidence:
-      - Final answer is a compact text list with direction definitions.
-      - No diagram, artifact, external source, or workspace change appears.
-      - Two authoritative neighborhood directions are missing.
-  - **Evidence quality: 4/5 (required 5/5).**
-    - Analysis: Every relationship stated agrees with the independent oracle, but the evidence presented is incomplete because outgoing references and empty includes were omitted.
-    - Evidence:
-      - The final referenced-by and included-by lists match the oracle exactly.
-      - The oracle additionally contains outgoing `references` for both notes and empty `includes` lists.
-  - **Tool-call efficiency: 1/5 (required 4/5).**
-    - Analysis: The useful result was obtained, but the procedure was dominated by avoidable calls and poorly bounded retrieval instead of one structured neighborhood query.
-    - Evidence:
-      - Observed task calls: 6 versus an excellent target of 1.
-      - The agent first scanned workspace files, then performed additional direct reads, searches, four broad IWE operations, and an unsupported JSON retry.
-      - Deprecated `find --refs-to` calls returned large unrelated graph paths after sufficient target metadata had already been retrieved.
+      - Observed 4 task tool calls versus an excellent range of 1.
+      - Mechanical metrics record 3 forbidden fallback calls, 2 broad workspace reads, and 4 unbounded read calls.
+      - The final compact retrieval duplicated relationship evidence already returned by earlier IWE calls.
   - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: Resource use was dominated by broad, duplicate, and irrelevant context far beyond what the compact answer required.
+    - Analysis: The result is useful, but resource use was dominated by irrelevant and duplicate context, including full prose, broad workspace matches, large parent documents, and repeated results.
     - Evidence:
-      - Observed task output was 306647 bytes versus the excellent maximum of 16000.
-      - Telemetry flags `unbounded_read: true`, two broad workspace reads, and two unbounded read calls.
-      - Large README excerpts, prose bodies, workspace-wide matches, and full graph-path outputs were unnecessary for the requested metadata summary.
+      - Task tool output was 439,062 bytes versus an excellent maximum of 16,000 bytes.
+      - Estimated task input was 109,766 tokens.
+      - Diagnostics mark unbounded_read true; the broad rg output and expansive IWE results included large amounts of prose and unrelated graph metadata.
 
 #### Sample 5
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--5.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--5.json)
 - Valid: **yes**
-- Analysis: The final response exactly matches the independently parsed graph neighborhoods for both requested notes, clearly explains directionality, and provides complete compact supporting keys without prose summaries, artifacts, external sources, mutations, or safety issues. The major shortcoming is procedural efficiency: the agent performed eight task calls, broad and unbounded workspace reads, scanned substantial document prose, duplicated queries, and consumed about 125 KB despite a single bounded structured query being sufficient. Skill compliance is N/A for this explicit no-skill control and is scored 0 only as required.
+- Analysis: The final answer accurately captures both requested graph neighborhoods and matches the independent oracle, with no mutations or external sources. However, the procedure relied on multiple broad filesystem scans and returned vastly more context than necessary. Skill compliance is N/A for this explicit no-skill control and is scored 0 only as required by the schema.
 - Procedure problems:
-  - unbounded IWE discovery or retrieval used
-  - IWE telemetry arguments do not match observed command invocations
-  - IWE telemetry measurements do not match observed command evidence
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task was completed, but the procedure was weak: eight calls included broad file discovery, prose scans, deprecated queries, tree calls, and repeated current-form queries when one bounded structured query was sufficient.
+    - Analysis: The task completed, but the route used several avoidable broad scans instead of one bounded structured query.
     - Evidence:
-      - Observed task tool calls: 8 versus an excellent target of 1.
-      - Seven forbidden fallback calls and eight unbounded read calls were recorded.
-      - Deprecated relationship queries were followed by duplicate current-form queries.
+      - Observed task tool calls: 5 versus an excellent target of 1.
+      - Telemetry records seven forbidden fallback operations and six broad workspace reads.
+      - Follow-up reads continued after sufficient relationship evidence was available.
   - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: Resource use was substantially excessive and poorly targeted, retrieving large volumes of irrelevant prose and duplicated evidence, though it still produced a complete useful result.
+    - Analysis: Resource use was substantially excessive and mostly unrelated to the compact evidence needed.
     - Evidence:
-      - Task tool output was 124,905 bytes versus the excellent upper target of 16,000 bytes.
-      - Nine broad workspace reads and an unbounded-read diagnostic are recorded.
-      - Long README, CLAUDE.md, and graph-note prose outputs were unnecessary for a metadata-only neighborhood summary.
+      - Observed task output was 319,623 bytes versus an excellent upper target of 16,000 bytes.
+      - A broad repository search returned extensive note prose even though the request explicitly required metadata relationships only.
 
 #### Sample 6
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--6.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--6.json)
 - Valid: **yes**
-- Analysis: The response followed the requested text-only format and made no changes, but its neighborhood summary conflicts materially with the independent oracle: it incorrectly reports no outgoing references and omits `bge-197` from morality’s support. The procedure was highly inefficient, using broad file scans and repeated, unbounded retrievals that returned over 427 KB when one bounded structured query was sufficient.
+- Analysis: The final response accurately summarizes the two requested graph neighborhoods and agrees with the independent oracle on every listed relationship. It is concise, text-only, and caused no mutations. The principal shortcomings are procedural: six tested-agent calls, broad file scanning, forbidden fallback reads, duplicate retrieval, unbounded output, and roughly 497 KB of context for a task suited to one bounded structured query. Skill compliance is N/A for this explicit no-skill control and is scored 0 only because the schema requires an integer.
 - Procedure problems:
   - unbounded IWE discovery or retrieval used
   - IWE telemetry contains records without observed command invocations
@@ -678,34 +660,54 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Task correctness: 3/5 (required 5/5).**
-    - Analysis: Useful but materially incomplete and directionally wrong: both notes’ outgoing reference neighborhoods are missing, including the only appearance of `bge-197` for morality.
-    - Evidence:
-      - The final says “`references` / `includes`: outgoing edges ... Both notes return none.”
-      - The oracle reports two outgoing references for `power` and five for `morality`.
-  - **Evidence quality: 3/5 (required 5/5).**
-    - Analysis: Several listed relationships agree with the independent fixture parse, but the evidence list is not complete and falsely characterizes outgoing references as absent.
-    - Evidence:
-      - Included-by and most referenced-by keys match the oracle.
-      - Oracle-confirmed outgoing references and `bge-197` are absent from the final answer.
   - **Tool-call efficiency: 1/5 (required 4/5).**
-    - Analysis: The result was obtained through a procedure dominated by avoidable broad scans, repeated calls, deprecated queries, and unbounded retrieval rather than the single bounded structured query requested by the ideal procedure.
+    - Analysis: The task was completed, but the procedure was dominated by avoidable calls and poor sequencing: broad scanning preceded structured retrieval, then redundant expanded retrieves and four directional queries repeated information already available. This is far from the one-call bounded semantic target.
     - Evidence:
-      - Observed task calls: 6 versus excellent range of 1.
-      - The agent scanned workspace files before invoking structured retrieval.
-      - Four unbounded-read calls and repeated retrievals are recorded.
+      - Observed task_tool_calls=6 versus excellent range [1,1].
+      - The first command broadly ran rg --files and repository-wide rg searches, a forbidden fallback for this scenario.
+      - Later calls repeated retrieve and find operations after sufficient relationship evidence had already been returned.
+      - Telemetry reports 5 forbidden_fallback_calls, 4 broad_workspace_reads, and unbounded_read=true.
   - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: Resource use was dominated by excessive, irrelevant, and duplicate context, including full document prose and very large graph records.
+    - Analysis: The result is useful, but resource consumption is dominated by unnecessary prose, repository-wide matches, help text, duplicate graph results, and huge parent documents. Nearly 497 KB was retrieved for a metadata-only answer that should fit comfortably under 16 KB.
     - Evidence:
-      - Task tool output was 427,374 bytes versus an excellent upper bound of 16,000.
-      - Telemetry reports broad workspace reads, unbounded reads, and duplicate retrievals.
-      - Large outputs included unrelated note prose and extensive graph contents.
+      - task_tool_output_bytes=496734 versus excellent range [0,16000], approximately 3005% above the upper target.
+      - The retrieve calls returned full note prose and expanded neighboring documents despite the instruction not to summarize prose.
+      - Directional find calls returned enormous graph records such as the full bge inclusion list.
+      - Telemetry records duplicate retrievals, three help calls, unbounded reads, and estimated_task_input_tokens=124184.
 
 #### Sample 7
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--7.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--7.json)
 - Valid: **yes**
-- Analysis: The response was concise, text-only, and safe, but it did not match the independently parsed graph neighborhoods: it incorrectly reported both notes as having no outgoing references and omitted the complete `references` evidence, including `morality -> bge-197`. The procedure was highly inefficient and unbounded, with broad file scans, repeated retrievals, deprecated follow-up queries, and over 410 KB of tool output where one bounded structured query was expected. Skill compliance is N/A for this explicit no-skill control.
+- Analysis: The final response is fully correct and compliant: it identifies both requested notes, accurately explains the graph directions, and lists every independently verified relationship without summarizing prose or creating an artifact. No mutation or external access occurred. The procedure was highly inefficient, however, involving broad workspace scans, four help/discovery reads, an unbounded content-heavy retrieval, a duplicate retrieval, and 365,370 bytes of context where one bounded structured metadata query was sufficient.
+- Procedure problems:
+  - unbounded IWE discovery or retrieval used
+  - IWE telemetry arguments do not match observed command invocations
+  - IWE telemetry measurements do not match observed command evidence
+  - forbidden fallback tool used
+  - forbidden fallback tool used
+- Failed metrics:
+  - **Tool-call efficiency: 1/5 (required 4/5).**
+    - Analysis: The result is useful, but tool use was dominated by avoidable discovery, broad fallback scanning, and duplicate retrieval instead of one bounded structured query.
+    - Evidence:
+      - 5 task tool calls were observed against an ideal of 1.
+      - Four help calls were made.
+      - Two broad workspace reads and two forbidden fallback calls were recorded.
+      - The same retrieval was executed twice.
+      - Validity observations flag unbounded IWE discovery/retrieval and telemetry mismatches.
+  - **Token/resource efficiency: 1/5 (required 4/5).**
+    - Analysis: Resource consumption was dominated by unnecessary and duplicate context, including extensive prose that the request explicitly did not need.
+    - Evidence:
+      - 365,370 task-output bytes were consumed against an excellent upper bound of 16,000.
+      - The retrieval returned full prose for 10 documents rather than projected relationship metadata.
+      - The 50,667-byte retrieval output was duplicated.
+      - unbounded_read was true and estimated task input was 91,343 tokens.
+
+#### Sample 8
+
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--8.json)
+- Valid: **yes**
+- Analysis: The response is concise, text-only, and largely matches the independent graph oracle, but it makes one material relationship error: `bge-197` is in morality's `references` direction, not its `referenced_by` direction, so that edge is not reciprocal. No files changed and no unsafe effect occurred. The procedure was highly inefficient: six tested-agent calls, broad file scanning, forbidden fallback reads, unbounded retrievals, and 531,379 bytes of context were used where one bounded structured query was ideal.
 - Procedure problems:
   - unbounded IWE discovery or retrieval used
   - IWE telemetry contains records without observed command invocations
@@ -714,146 +716,94 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Task correctness: 3/5 (required 5/5).**
-    - Analysis: The main neighborhood summary is useful and correctly covers `includedBy` and `referencedBy`, but it materially misstates and omits the complete outgoing `references` relationships for both target notes.
+  - **Task correctness: 4/5 (required 5/5).**
+    - Analysis: The requested compact summary is nearly complete, but one morality edge is assigned to the wrong direction and consequently described as reciprocal.
     - Evidence:
-      - Correct `power.included_by`: `bge`, `power-dynamics`.
-      - Correct `morality.included_by`: `bge`, `moral-systems`.
-      - Correct `referenced_by` lists for both notes.
-      - Missing all oracle `references` edges, including the distinct `morality -> bge-197` relationship.
-  - **Evidence quality: 3/5 (required 5/5).**
-    - Analysis: Several listed relationships agree with the independent oracle, but the assertion that outgoing references are empty contradicts the authoritative fixture parsing and makes the supporting relationship list incomplete.
+      - `bge-197` belongs only in morality's `references` list according to the independent oracle.
+      - All other listed keys and neighborhood categories match the oracle.
+  - **Evidence quality: 4/5 (required 5/5).**
+    - Analysis: Most relationships agree with independently parsed fixtures, but the `bge-197` direction is contradicted by the oracle.
     - Evidence:
-      - Oracle and final answer agree on all `included_by` and `referenced_by` entries.
-      - Oracle contradicts the final answer on both notes' `references` arrays.
-      - `morality.references` contains `bge-197`, while `morality.referenced_by` does not, making the omission materially significant.
-  - **Tool-call efficiency: 1/5 (required 4/5).**
-    - Analysis: The result was obtained through a procedure dominated by avoidable and poorly sequenced calls: broad scanning, help/discovery, repeated retrieval, and expansive follow-up queries instead of one bounded structured query.
+      - Oracle places `bge-197` under morality `references`, not `referenced_by`.
+      - Power relationships and the remaining morality relationships agree with the oracle.
+  - **Tool-call efficiency: 2/5 (required 4/5).**
+    - Analysis: The task was completed, but the procedure substantially departed from the ideal bounded single-query route and included broad scanning, multiple redundant follow-ups, and forbidden fallback use.
     - Evidence:
-      - Observed task tool calls: 5 versus excellent range [1,1].
-      - Broad workspace reads: 2; forbidden fallback calls: 3; unbounded read calls: 5.
-      - The first call scanned filenames and repository text broadly.
-      - Later calls repeated retrievals and issued deprecated `find` variants after sufficient structured evidence was already available.
+      - Observed task tool calls: 6 versus an excellent range of exactly 1.
+      - Three forbidden fallback calls and six unbounded read calls were recorded.
+      - The agent continued querying after retrievals had already exposed much of the needed neighborhood metadata.
   - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: Resource use was dominated by excessive, irrelevant, and duplicate context, far beyond what was needed for the compact graph summary.
+    - Analysis: Resource use was dominated by excessive and irrelevant context, including broad prose scans and huge structured outputs for a small neighborhood summary.
     - Evidence:
-      - Task tool output: 410712 bytes versus excellent maximum 16000.
-      - Estimated task input: 102678 tokens.
-      - Large `find` outputs returned extensive unrelated graph records.
-      - Target documents were retrieved repeatedly, and broad prose scans added unnecessary content.
+      - Task tool output was 531,379 bytes versus the excellent ceiling of 16,000 bytes.
+      - Two broad workspace reads and unbounded retrieval were recorded.
+      - Large full-document and graph outputs included extensive unrelated prose and keys.
 
-#### Sample 8
+#### Sample 9
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--8.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--9.json)
 - Valid: **yes**
-- Analysis: The response was concise and safe, but it reported only the relationships exposed by the final retrieve output and did not match the independently parsed complete neighborhoods. It also used extensive, largely unnecessary file scanning and repeated queries instead of one bounded structured query.
+- Analysis: The response was concise, text-only, and mutation-free, but it omitted all independently verified outbound `references` relationships and incorrectly stated that neither note has any. The inbound `referencedBy` and containment `includedBy` lists were accurate. The procedure was substantially inefficient because extensive file scans, help calls, duplicate retrievals, and prose-heavy outputs preceded a sufficient combined structured query.
 - Procedure problems:
-  - unbounded IWE discovery or retrieval used
+  - forbidden fallback tool used
+  - forbidden fallback tool used
+- Failed metrics:
+  - **Task correctness: 3/5 (required 5/5).**
+    - Analysis: The main neighborhood summary is useful but materially incomplete: it accurately reports inbound references and parent containment while omitting every outbound reference and making a false categorical claim about their absence.
+    - Evidence:
+      - All `includedBy` and `referencedBy` entries match the oracle.
+      - Ten outbound `references` relationships across the two notes are omitted.
+  - **Evidence quality: 3/5 (required 5/5).**
+    - Analysis: The reported inbound and containment evidence agrees with independent parsing, but the outbound edge evidence does not: complete verified relationships were omitted and denied.
+    - Evidence:
+      - The oracle confirms the listed `includedBy` and `referencedBy` keys.
+      - The oracle directly contradicts the statement that outbound `references` are absent.
+  - **Tool-call efficiency: 2/5 (required 4/5).**
+    - Analysis: A suitable combined structured query was eventually used, but the procedure contained substantial avoidable work: broad scanning, two help calls, two individual retrievals, and a repeated combined retrieval before stopping.
+    - Evidence:
+      - Observed task calls: 8 versus the ideal 1.
+      - Seven calls are marked as forbidden fallback calls and two as broad workspace reads.
+      - The final combined `retrieve` call was sufficient by itself.
+  - **Token/resource efficiency: 1/5 (required 4/5).**
+    - Analysis: Resource use was dominated by unnecessary and duplicative context, including large prose dumps and broad workspace listings far beyond what the compact metadata task required.
+    - Evidence:
+      - Task output totaled 114,399 bytes versus the excellent ceiling of 16,000 bytes.
+      - Broad scans returned numerous unrelated filenames and long document bodies.
+      - Individual retrieval results were duplicated by the later combined retrieval.
+
+#### Sample 10
+
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--10.json)
+- Valid: **yes**
+- Analysis: The response was concise, text-only, and mutation-free, but it did not accurately or completely report the independently parsed graph neighborhoods. It omitted all outbound `references` edges and incorrectly stated that both notes had no outgoing references. Procedure and resource use were also substantially inefficient, involving broad workspace scans, duplicate retrievals, and help reads despite a single bounded structured query being sufficient.
+- Procedure problems:
   - IWE telemetry arguments do not match observed command invocations
   - IWE telemetry measurements do not match observed command evidence
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Task correctness: 3/5 (required 5/5).**
-    - Analysis: The answer is useful and gets the incoming and containment relationships right, but omits and explicitly denies all authoritative outbound reference relationships for both notes.
+    - Analysis: The two target notes and their inbound/parent relationships are useful and accurate, but complete outbound-reference neighborhoods were omitted and explicitly misreported as empty.
     - Evidence:
-      - Correct `included_by` and `referenced_by` lists were provided.
-      - All oracle `references` relationships were incorrectly reported as absent.
-  - **Scenario compliance: 3/5 (required 5/5).**
-    - Analysis: The final presentation is text-only, brief, and contains no prose summary or artifact, but the procedure violated the core no-file-scanning scenario and relied on broad fallback reads.
-    - Evidence:
-      - The final response is compact text with no diagram or created artifact.
-      - Agent commands include `rg --files`, `sed` over source files, broad `rg`, and other workspace reads.
+      - `power.references` should contain `bge-019` and `bge-260`.
+      - `morality.references` should contain five keys, including the otherwise omitted `bge-197`.
   - **Evidence quality: 3/5 (required 5/5).**
-    - Analysis: The evidence list agrees with the oracle for incoming and containment edges, but it is materially incomplete and false for outbound references.
+    - Analysis: Several listed relationships match the independent fixture parsing, but the evidence list is materially incomplete and contradicts the oracle on outbound references.
     - Evidence:
-      - The listed `referenced_by` and `included_by` values match the oracle.
-      - The oracle contains seven outbound reference relationships that the answer labels as nonexistent.
-  - **Tool-call efficiency: 1/5 (required 4/5).**
-    - Analysis: The result is minimally useful, but the procedure is dominated by avoidable discovery, repeated retrievals, fallback scans, and follow-up calls after sufficient structured-query capability was known.
-    - Evidence:
-      - 13 task calls were used against an excellent target of one.
-      - Two help calls, repeated per-note and combined retrievals, four directional finds, and multiple filesystem scans were performed.
-      - The final combined structured retrieval came only after extensive redundant work.
-  - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: Resource use was overwhelmingly excessive and included broad, duplicate, and irrelevant content retrieval, including full note prose that the user did not request.
-    - Evidence:
-      - 384145 task-output bytes were consumed against an excellent maximum of 16000.
-      - Six broad workspace reads and four unbounded reads were recorded.
-      - Large README, guidance, source prose, help text, and repeated document bodies were loaded despite a metadata-only request.
-
-#### Sample 9
-
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--9.json)
-- Valid: **yes**
-- Analysis: The response is concise and non-mutating, but it does not accurately preserve the independently parsed relationship directions. It reports no outgoing references for either target even though the oracle lists references, and it merges morality's distinct reference and referenced-by sets into one incoming list. The supporting key union and containment lists are otherwise complete. Procedure and resource use were highly inefficient, with extensive file scanning, redundant queries, unbounded reads, and about 192 KB of returned context where one bounded structured query was ideal.
-- Procedure problems:
-  - unbounded IWE discovery or retrieval used
-  - forbidden fallback tool used
-  - forbidden fallback tool used
-- Failed metrics:
-  - **Task correctness: 3/5 (required 5/5).**
-    - Analysis: The requested notes and all supporting keys are present, but the core explanation of graph direction is materially inaccurate because distinct reference directions are collapsed or omitted.
-    - Evidence:
-      - Both target notes are identified.
-      - All neighboring keys appear in the response when relationship categories are unioned.
-      - Outgoing references are incorrectly reported as none, and morality's bge-197 versus virtue-across-centuries directional distinction is lost.
-  - **Evidence quality: 3/5 (required 5/5).**
-    - Analysis: The note identities, neighbor-key union, and containment relationships agree with the oracle, but the evidence presentation assigns incorrect directions and therefore is not fully faithful to the independently parsed graph.
-    - Evidence:
-      - Containment relationships exactly match the oracle.
-      - The response includes every oracle neighbor key across the two targets.
-      - It incorrectly labels bge-197 as incoming to morality and omits the oracle's outgoing-reference categories.
+      - All reported `includedBy` and `referencedBy` keys agree with the oracle.
+      - Both claims of no outgoing references disagree with independently parsed links.
   - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task completed, but the procedure had substantial avoidable overhead: it scanned files, inspected prose and documentation, then ran multiple redundant structured queries after sufficient evidence was already available.
-    - Evidence:
-      - Observed task tool calls: 9 versus an excellent target of 1.
-      - Eight calls were classified as forbidden fallback calls and eight as broad workspace reads.
-      - Six IWE calls included separate retrievals and four follow-up directional searches; the two bounded retrieval results already exposed the principal structured neighborhoods.
-      - Deprecated find flags produced broad results containing large unrelated graph structures.
-  - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: The result was useful, but resource use was dominated by excessive and irrelevant context from broad scans, full prose reads, documentation reads, and large duplicate graph results.
-    - Evidence:
-      - Task tool output was 191,720 bytes versus an excellent upper target of 16,000 bytes.
-      - Four unbounded read calls were recorded, and unbounded_read is true.
-      - Estimated task input was 47,930 tokens.
-      - Large results included full note prose and extensive unrelated graph contents, despite the request requiring only compact structured metadata.
-
-#### Sample 10
-
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/query-structured-metadata-without-scanning-files--10.json)
-- Valid: **yes**
-- Analysis: The response is concise, text-only, and mutation-free, but it does not accurately represent the independently parsed graph directions. It incorrectly says both target notes have no outgoing references and misclassifies `morality` → `bge-197` as incoming. The procedure was also substantially inefficient, using five tool events, broad workspace scans, deprecated follow-up queries, help output, and redundant tree queries after sufficient structured evidence was available.
-- Procedure problems:
-  - unbounded IWE discovery or retrieval used
-  - forbidden fallback tool used
-  - forbidden fallback tool used
-- Failed metrics:
-  - **Task correctness: 3/5 (required 5/5).**
-    - Analysis: The main result is useful but materially inaccurate: inclusion parents are correct, while outbound reference neighborhoods are omitted and some relationships are assigned the wrong direction.
-    - Evidence:
-      - `power` has two oracle-confirmed outgoing references, despite the claim of none.
-      - `morality` has five oracle-confirmed outgoing references, despite the claim of none.
-      - `bge-197` appears only in `morality.references` in the oracle, not `morality.referenced_by`.
-  - **Evidence quality: 3/5 (required 5/5).**
-    - Analysis: Some listed relationships agree with the independent oracle, especially inclusion parents, but the evidence list does not faithfully preserve the authoritative reference directions and is therefore materially incomplete and inaccurate.
-    - Evidence:
-      - Correct `included_by` keys: `bge`, `power-dynamics`, and `moral-systems`.
-      - Correctly identifies `virtue-across-centuries` as referencing `morality`.
-      - Incorrectly omits every oracle-confirmed outbound reference and misclassifies `bge-197`.
-  - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The procedure completed the task but was substantially over-sequenced and included avoidable broad discovery, file scanning, deprecated follow-up queries, help lookup, and redundant tree calls instead of one bounded structured query.
+    - Analysis: The task eventually obtained a suitable combined structured result, but only after broad scans, duplicate single-note queries, and two help inspections; it did not stop when sufficient evidence was available.
     - Evidence:
       - Observed task tool calls: 5 versus an excellent target of 1.
-      - Validity observations include unbounded IWE discovery/retrieval and three forbidden fallback calls.
-      - The two initial structured retrieval results already exposed enough relationship metadata to stop, yet further find, help, and tree queries followed.
+      - The final combined retrieval was preceded by broad `rg`/file inspection, two separate retrievals, and help calls.
+      - Four calls were classified as forbidden fallback calls.
   - **Token/resource efficiency: 1/5 (required 4/5).**
-    - Analysis: Resource use was dominated by unnecessary and broad context, including workspace file listings, README and guidance content, prose bodies, full help text, and duplicate relationship queries.
+    - Analysis: Resource use was dominated by large, irrelevant workspace output and duplicated content, despite the task requiring only two small structured neighborhoods.
     - Evidence:
-      - Task tool output was 40,494 bytes versus an excellent maximum of 16,000 bytes.
-      - Telemetry records 2 broad workspace reads and 4 unbounded read calls.
-      - The initial `rg --files` emitted a large unrelated file list, while `retrieve --help` alone emitted 8,855 bytes.
-      - Document prose was retrieved even though the operator explicitly requested no prose summary.
+      - Task tool output was 303,713 bytes versus an excellent maximum of 16,000 bytes.
+      - Two broad workspace reads returned extensive unrelated philosophical prose.
+      - The same target-note content and relationships were retrieved multiple times.
 
 ## Ambiguous discovery with one follow-up — `iwe-v18`
 
@@ -872,7 +822,7 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 | Safety | 10/10 | 10/10 | **PASS** | `5: 10` |
 | Evidence quality | 10/10 | 9/10 | **PASS** | `5: 10` |
 | Tool-call efficiency | 10/10 | 9/10 | **PASS** | `5: 10` |
-| Token/resource efficiency | 10/10 | 9/10 | **PASS** | `5: 10` |
+| Token/resource efficiency | 10/10 | 9/10 | **PASS** | `4: 7, 5: 3` |
 
 ### Problem ledger
 
@@ -890,12 +840,12 @@ No sample-level problems detected.
 | --- | ---: | ---: | --- | --- |
 | Procedure-clean | 0/10 | — | Informational | — |
 | Task correctness | 10/10 | 9/10 | **PASS** | `5: 10` |
-| Scenario compliance | 9/10 | 9/10 | **PASS** | `4: 1, 5: 9` |
+| Scenario compliance | 10/10 | 9/10 | **PASS** | `5: 10` |
 | Skill compliance | — | — | N/A | — |
 | Safety | 10/10 | 10/10 | **PASS** | `5: 10` |
 | Evidence quality | 10/10 | 9/10 | **PASS** | `5: 10` |
-| Tool-call efficiency | 2/10 **(FAIL)** | 9/10 | **FAIL** | `2: 2, 3: 6, 4: 2` |
-| Token/resource efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `2: 4, 3: 6` |
+| Tool-call efficiency | 1/10 **(FAIL)** | 9/10 | **FAIL** | `2: 1, 3: 8, 4: 1` |
+| Token/resource efficiency | 0/10 **(FAIL)** | 9/10 | **FAIL** | `2: 1, 3: 9` |
 
 ### Procedure errors
 
@@ -909,214 +859,212 @@ Every invalid sample, procedural violation, and failed metric is listed below. T
 
 #### Sample 1
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--1.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--1.json)
 - Valid: **yes**
-- Analysis: The response identified the authoritative API project note and accurately summarized its current contents. It was concise and safe, but the procedure used broad filesystem discovery and then retrieved several unrelated notes after the relevant key was already known, reducing both efficiency dimensions. Skill compliance is N/A for this explicit no-skill control.
+- Analysis: The response correctly identifies and concisely summarizes the authoritative API project note. No mutation or prohibited external effect occurred. The only shortcomings are efficiency-related: discovery included an avoidable full file listing, a broad search, and unrelated README retrieval after the relevant note was known.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 3/5 (required 4/5).**
-    - Analysis: The task completed in two calls, but both calls included materially avoidable work: broad discovery and retrieval of unrelated notes after the target was known.
+    - Analysis: The task completed successfully, but the three-call sequence included materially avoidable discovery and retrieval overhead.
     - Evidence:
-      - The first command enumerated the full graph before a global API search.
-      - The second command read `p5e6f.md`, `p9i0j.md`, and `n7m2x.md`, although `api-integration.md` already supplied sufficient evidence.
-      - Observed task tool calls were 2, but the semantic route did not stop when sufficient evidence was available.
+      - A full `rg --files` listing was unnecessary for identifying the API project note.
+      - The broad graph search was followed by a third call that also read unrelated README content.
+      - Observed task calls were 3 versus the excellent target of 1–2.
   - **Token/resource efficiency: 3/5 (required 4/5).**
-    - Analysis: Output volume stayed within the diagnostic range, but substantial returned context was irrelevant or duplicative for the requested result.
+    - Analysis: The useful evidence was obtained, but materially unnecessary file-list, broad-search, and README context was consumed.
     - Evidence:
-      - The first output contained a large workspace-wide file list and matches from numerous non-project notes.
-      - The second output included three related but unnecessary note bodies.
-      - Task tool output was 6,799 bytes, within the stated range but not limited to necessary evidence.
+      - Two broad workspace reads were recorded.
+      - Task tool output was 9,591 bytes, above the 8,000-byte excellent range.
+      - The final retrieval included README content unrelated to the requested note.
 
 #### Sample 2
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--2.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--2.json)
 - Valid: **yes**
-- Analysis: The final answer exactly identifies and summarizes the authoritative API project note. It is safe and well supported by the independent oracle, but the procedure used broad fallback filesystem searches and continued with an unnecessary unrelated-project read after sufficient evidence had already been obtained. Skill compliance is N/A for this no-skill control.
+- Analysis: The final answer exactly identifies and accurately summarizes the authoritative API project note. The procedure was safe and completed in two calls, but retrieved materially unnecessary workspace context and several unrelated notes. Skill compliance is N/A for this explicit no-skill control.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The result is complete, but the four-call route substantially exceeded the ideal focused discovery-and-retrieval procedure and included an avoidable call after sufficient evidence was available.
+  - **Token/resource efficiency: 3/5 (required 4/5).**
+    - Analysis: The result is complete, but materially avoidable context was retrieved through a full file listing, workspace-wide matches, and unrelated note bodies.
     - Evidence:
-      - Observed task calls: 4 versus an excellent range of 1–2.
-      - The first two calls broadly listed and searched the workspace.
-      - The third call already retrieved the projects index and complete selected note.
-      - The fourth call read three unrelated projects after the stopping condition had been met.
-  - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: Substantial unnecessary and unrelated context was retrieved through broad workspace reads and the post-sufficiency comparison call.
-    - Evidence:
-      - Observed task output was 9,372 bytes, above the 8,000-byte excellent ceiling.
-      - Two broad workspace reads returned many unrelated paths and matches.
-      - The last call retrieved three unrelated project bodies that were not needed for the answer.
+      - Telemetry records 6,835 output bytes and two broad workspace reads.
+      - The first output enumerated roughly 200 files; the second retrieved three note bodies unnecessary to answer the request.
 
 #### Sample 3
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--3.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--3.json)
 - Valid: **yes**
-- Analysis: The response identified the authoritative API project note and accurately summarized its current contents. It was read-only and concise. The main shortcomings were procedural and resource-related: discovery used broad filesystem enumeration/search, and the follow-up unnecessarily included the project index after the selected note was known. Per the explicit no-skill control, skill compliance is N/A and scored 0 without affecting other dimensions.
+- Analysis: The response exactly identifies and accurately summarizes the authoritative API project note. The read-only procedure was safe, but discovery was broader than necessary and retrieved substantial unrelated workspace context; those shortcomings affect only efficiency. Skill compliance is N/A for this explicit no-skill control.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 3/5 (required 4/5).**
-    - Analysis: The task completed in two calls, but discovery broadly enumerated and searched the workspace, and the second call reread the project index after the relevant key was known.
+    - Analysis: The task completed in two calls, but the first call broadly enumerated workspace files and searched all notes, while the second unnecessarily reread the projects index after the relevant key was known.
     - Evidence:
-      - First command combined `rg --files` over the workspace with a broad `api|project note|project` search.
-      - Second command read both `graph/api-integration.md` and the unnecessary project index.
-      - Observed task tool calls: 2.
+      - Mechanical metrics record 2 broad workspace reads and 2 forbidden fallback calls.
+      - The first command listed up to 200 files and searched the entire workspace for API matches.
+      - The second command retrieved both the selected note and the projects index.
   - **Token/resource efficiency: 3/5 (required 4/5).**
-    - Analysis: The result was complete, but broad discovery returned substantial unrelated file and match context, followed by unnecessary project-index content.
+    - Analysis: The result was complete, but materially avoidable unrelated context was retrieved during broad discovery and the extra index read.
     - Evidence:
-      - Two broad workspace reads were recorded.
-      - Task tool output was 8,555 bytes, 6.94% above the excellent range.
-      - The selected note itself was small and sufficient for the answer.
+      - The first output contains a long unrelated file inventory and numerous non-project API matches.
+      - Total task output was 6,103 bytes, within the nominal range but substantially broader than the evidence needed.
+      - The projects index was retrieved after the selected note was already identified.
 
 #### Sample 4
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--4.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--4.json)
 - Valid: **yes**
-- Analysis: The response exactly identified and summarized the authoritative API project note, stayed read-only, and presented only the requested fields. Because this is an explicit no-skill control, skill compliance is N/A and scored 0 without affecting other dimensions. The main shortcoming was efficiency: discovery used broad filesystem enumeration and repository-wide search, returning substantial unrelated context before the focused note read.
+- Analysis: The final answer exactly identifies and summarizes the authoritative API project note, remains concise and read-only, and is fully supported by the independent oracle. The main shortcomings are procedural: both calls used broad workspace fallback reads and returned substantial irrelevant context when bounded discovery followed by one focused note retrieval would have sufficed. Skill compliance is N/A for this explicit no-skill control and is scored 0 only because the schema requires an integer.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The result was complete, but the broad discovery output contained substantial unrelated file listings and matches, greatly exceeding the context needed to identify and summarize one project note.
+  - **Tool-call efficiency: 3/5 (required 4/5).**
+    - Analysis: The task completed in two calls, but the procedure used avoidable broad fallback operations rather than bounded discovery and a focused retrieval.
     - Evidence:
-      - Task tool output was 13,627 bytes versus an excellent ceiling of 8,000 bytes.
-      - Diagnostics show two broad workspace reads and output 70.34% above the excellent range.
-      - Much of the first command’s output concerned unrelated notes, journals, books, and tasks.
+      - First call listed essentially the entire workspace.
+      - Second call retrieved the target note but also read the projects index and searched every Markdown file.
+      - Validity observations flag two forbidden fallback uses and metrics record two broad workspace reads.
+  - **Token/resource efficiency: 3/5 (required 4/5).**
+    - Analysis: The useful evidence was obtained, but much of the returned context consisted of irrelevant filenames and matches beyond the selected note.
+    - Evidence:
+      - Task tool output was 8,555 bytes, above the 8,000-byte excellent range.
+      - The full workspace file listing and repository-wide API/project matches were unnecessary once the relevant note was identified.
+      - No duplicate target-note retrieval or unbounded read occurred.
 
 #### Sample 5
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--5.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--5.json)
 - Valid: **yes**
-- Analysis: The response identified the authoritative API project and accurately reported its key, title, and concise current-state summary. It was read-only and factually aligned with the independent oracle. However, the procedure used broad filesystem discovery and then retrieved three unrelated API-related notes after the relevant project was already known, reducing tool and resource efficiency. No skill guidance was installed, so skill compliance is N/A and does not affect the other dimensions.
+- Analysis: The final answer exactly identifies and summarizes the authoritative API project note, with no mutation or prohibited external effect. The only shortcomings are efficiency-related: discovery scanned and emitted broad workspace/file-list context, including substantial irrelevant material, before the focused note read. Skill compliance is N/A for this explicit no-skill control and does not affect any other score.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 3/5 (required 4/5).**
-    - Analysis: The task completed in two calls, but both relied on forbidden fallback tooling, and the second call unnecessarily retrieved three unrelated notes after the target was known.
+    - Analysis: The two-call sequence completed the task, but the first call combined a broad file listing with a workspace-wide search and returned substantial avoidable material before the focused retrieval.
     - Evidence:
-      - Two forbidden fallback calls are recorded.
-      - After `graph/api-integration.md` was identified, the follow-up also read `p9i0j.md`, `p5e6f.md`, and `n7m2x.md`.
-      - The first call combined a broad file listing with the relevant search.
+      - Call 1 ran `rg --files` and workspace-wide `rg` across many unrelated notes.
+      - Call 2 appropriately retrieved the project index and selected API note.
+      - Observed task tool calls: 2, within the excellent numeric range, but semantic breadth prevents an excellent score.
   - **Token/resource efficiency: 3/5 (required 4/5).**
-    - Analysis: Output volume was bounded and within the diagnostic target, but materially avoidable context came from the full graph file listing and unrelated note bodies.
+    - Analysis: The result was complete, but much of the 8,550 returned bytes was an irrelevant file inventory and unrelated search matches.
     - Evidence:
-      - Task output was 6,775 bytes, within the stated excellent range.
-      - The first output includes an extensive workspace-wide file list.
-      - The second output includes three note bodies not needed to answer the request.
+      - Task output exceeded the excellent range by 550 bytes.
+      - The first command emitted roughly 200 filenames plus many unrelated matches; the focused project-index and API-note content was sufficient.
 
 #### Sample 6
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--6.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--6.json)
 - Valid: **yes**
-- Analysis: The response correctly identified and summarized the authoritative API project without mutation or unsafe effects. Its main weakness was efficiency: it performed two broad fallback reads, including a search after sufficient evidence had already been obtained. Skill compliance is N/A for this explicit no-skill control and is scored 0 only to satisfy the schema.
+- Analysis: The agent identified the authoritative API project note and accurately reported its key, title, and current contents. The read-only fallback procedure was safe but inefficient: both calls broadly scanned the workspace, and the second call retrieved unrelated matches after the relevant key was already known.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 3/5 (required 4/5).**
-    - Analysis: The task was completed, but the three-call procedure included materially avoidable broad discovery and a redundant search after sufficient evidence was already available.
+    - Analysis: The task completed in two calls, but both used forbidden fallback operations and performed materially avoidable broad discovery; the second call also searched all notes after the relevant key was known.
     - Evidence:
-      - Observed task tool calls: 3, above the excellent range of 1–2.
-      - The direct note/index read already supported the answer before the final graph-wide API search.
+      - Call 1 listed every workspace file.
+      - Call 2 combined focused reads with `rg` across all Markdown files.
+      - Mechanical metrics record two forbidden fallback calls and two broad workspace reads.
   - **Token/resource efficiency: 3/5 (required 4/5).**
-    - Analysis: Output volume was bounded, but broad workspace enumeration and the later graph-wide search introduced materially unnecessary context.
+    - Analysis: The result was complete, but substantial irrelevant context was retrieved through the full file listing and broad API/project search.
     - Evidence:
-      - Two broad workspace reads were recorded.
-      - The 6,223 output bytes remained within the diagnostic range, but much of the file listing and search output was irrelevant to the final result.
+      - 8,555 output bytes exceeded the excellent target by 555 bytes.
+      - Outputs included many unrelated filenames and note matches.
+      - No duplicate selected-note retrieval occurred.
 
 #### Sample 7
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--7.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--7.json)
 - Valid: **yes**
-- Analysis: The response correctly identified the authoritative API project note and gave the requested key, title, and concise current summary. The read-only filesystem route was safe, but both calls were broader than necessary and included unrelated context. Skill compliance is N/A for this explicit no-skill control.
+- Analysis: The agent identified the authoritative API project and accurately returned only its key, title, and concise current summary. The operations were read-only and the answer agrees with the independent oracle. Efficiency was reduced because discovery scanned the broad workspace and, after identifying the relevant note, the follow-up also retrieved four unnecessary documents.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 3/5 (required 4/5).**
-    - Analysis: The task completed in two calls, but the discovery and retrieval commands were materially broader than the ideal bounded route and used avoidable fallback reads.
+    - Analysis: The task completed in two calls, but both calls included materially avoidable breadth: workspace-wide discovery and retrieval of four unrelated notes after the relevant key was known.
     - Evidence:
-      - Both calls are marked as forbidden fallback calls and broad workspace reads.
-      - The first call listed up to 200 files before searching; the second also read an unrelated README.
+      - The first command combined a 200-file listing with a workspace-wide API search.
+      - The second command read five files although only `graph/api-integration.md` was required.
+      - Observed task tool calls were 2, within the nominal excellent range, but the semantic procedure was broader than necessary.
   - **Token/resource efficiency: 3/5 (required 4/5).**
-    - Analysis: The result was obtained with moderate unnecessary context, including a broad file inventory, many unrelated search matches, and README content.
+    - Analysis: The evidence volume was bounded but included substantial irrelevant and duplicate context beyond what was needed to answer.
     - Evidence:
-      - Task tool output was 7,430 bytes.
-      - Relevant evidence was limited to the projects index and `api-integration.md`, while substantial unrelated output was retrieved.
+      - The first output included a long workspace file inventory and all API matches.
+      - The second output included `projects.md`, `p5e6f.md`, `p9i0j.md`, and `n7m2x.md` in addition to the selected note.
+      - Total tool output was 6,733 bytes and no unbounded read was recorded.
 
 #### Sample 8
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--8.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--8.json)
 - Valid: **yes**
-- Analysis: The response identified the authoritative API project note and accurately reported its key, title, and current contents. The read-only procedure was safe and completed in two calls, though the initial discovery command retrieved a materially avoidable amount of unrelated workspace context. Skill compliance is N/A for this explicit no-skill control and is scored 0 only to satisfy the schema.
+- Analysis: The final answer exactly identifies and accurately summarizes the authoritative API project note, with no mutation or safety issue. The no-skill control makes skill compliance N/A. Efficiency was materially reduced by a workspace-wide file listing and a broad grep that returned substantial unrelated context before the focused note read.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
-  - **Token/resource efficiency: 3/5 (required 4/5).**
-    - Analysis: The result was complete, but much of the 7,555 bytes retrieved was unrelated file inventory and matches from non-project notes, creating materially avoidable context.
+  - **Tool-call efficiency: 2/5 (required 4/5).**
+    - Analysis: The task completed, but discovery was substantially overbroad: a full file listing and workspace-wide grep preceded the focused read, producing avoidable sequencing and retrieval overhead.
     - Evidence:
-      - The first output listed roughly 200 filenames and numerous irrelevant API/key matches.
-      - Only the projects index and `api-integration.md` were needed to support the final answer.
-      - Observed output remained bounded and within the diagnostic byte range, preventing a more severe penalty.
+      - Observed 3 calls versus the 1–2 excellent range.
+      - The second call searched `graph/*.md` even though candidate project files were already visible.
+  - **Token/resource efficiency: 2/5 (required 4/5).**
+    - Analysis: The broad listing and grep consumed substantial irrelevant context, more than twice the excellent output ceiling, before the small relevant note was retrieved.
+    - Evidence:
+      - Task tool output was 16,998 bytes versus the 8,000-byte excellent upper bound.
+      - Broad workspace reads returned many unrelated filenames and matches.
 
 #### Sample 9
 
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--9.json)
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--9.json)
 - Valid: **yes**
-- Analysis: The agent identified and accurately summarized the authoritative API project note without mutation or prohibited external effects. The result was concise, though it added a source line beyond the requested fields. The main shortcomings were procedural: five calls included two blocked discovery attempts, a broad workspace dump, and roughly 58 KB of mostly unnecessary context before the focused read.
-- Procedure problems:
-  - forbidden fallback tool used
-  - forbidden fallback tool used
-- Failed metrics:
-  - **Scenario compliance: 4/5 (required 5/5).**
-    - Analysis: The requested key, title, and concise summary were supplied, but an additional source line slightly exceeded the instruction to report only those fields.
-    - Evidence:
-      - Final response contains the three requested fields.
-      - It additionally includes a `Source:` line.
-  - **Tool-call efficiency: 2/5 (required 4/5).**
-    - Analysis: The task completed, but the five-call procedure had substantial avoidable overhead: two blocked discovery attempts, a broad listing/read, and an unnecessary failing git check before stopping.
-    - Evidence:
-      - Observed task tool calls: 5 versus an excellent range of 1–2.
-      - Two forbidden fallback calls were blocked.
-      - The focused API note read occurred only after a broad graph dump.
-  - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The result was useful, but the broad graph retrieval consumed substantial irrelevant context far beyond what discovery and one focused note read required.
-    - Evidence:
-      - Task tool output totaled 58,311 bytes versus an excellent upper bound of 8,000.
-      - Mechanical metrics identify one broad workspace read and approximately 14,578 input tokens.
-      - Most retrieved graph documents were unrelated to identifying and summarizing the API project.
-
-#### Sample 10
-
-- Telemetry: [raw sample JSON](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--10.json)
-- Valid: **yes**
-- Analysis: The final answer exactly matches the independently parsed authoritative project note and remains concise and read-only. The tested agent used an unnecessarily broad filesystem fallback route with redundant retrieval, which materially reduced tool and resource efficiency. Skill compliance is N/A for this explicit no-skill control and is scored 0 only as required by the schema.
+- Analysis: The final answer correctly identifies and summarizes the authoritative API project note. The read-only fallback procedure was safe and produced the right result, but discovery and follow-up retrieved materially unnecessary workspace context. Skill compliance is N/A for this explicit no-skill control and is scored 0 only as required by the schema.
 - Procedure problems:
   - forbidden fallback tool used
   - forbidden fallback tool used
 - Failed metrics:
   - **Tool-call efficiency: 3/5 (required 4/5).**
-    - Analysis: The task was completed, but four calls included broad discovery and a redundant final metadata scan after the selected note had already been fully retrieved.
+    - Analysis: The task completed in two calls, but the procedure included a materially broad initial file listing/search and an unnecessary projects-index read after the unique note was identified.
     - Evidence:
-      - Observed task calls: 4 versus the excellent target of 1–2.
-      - Call 3 retrieved the selected note and enough evidence to answer; call 4 was unnecessary.
-      - Three calls were classified as forbidden fallback calls and two as broad workspace reads.
-  - **Token/resource efficiency: 2/5 (required 4/5).**
-    - Analysis: The route consumed substantial unnecessary and unrelated context through broad listings and searches, well beyond what the focused task required.
+      - The first call combined `rg --files` over the workspace with a broad API search.
+      - The second call read both `graph/api-integration.md` and `graph/projects.md`, although the selected note alone supplied sufficient evidence.
+      - Mechanical metrics flag 2 broad workspace reads and 2 forbidden fallback calls.
+  - **Token/resource efficiency: 3/5 (required 4/5).**
+    - Analysis: The result was complete, but much of the 6025-byte context was unrelated file inventory, non-project API matches, and a redundant project index.
     - Evidence:
-      - Task tool output was 18,065 bytes versus the excellent upper target of 8,000 bytes.
-      - The first and fourth outputs enumerate many unrelated files and headings.
-      - Mechanical metrics record two broad workspace reads and approximately 4,517 estimated task-input tokens.
+      - The first output contains approximately 200 filenames plus numerous unrelated API matches.
+      - The selected note body was small and sufficient by itself for the requested answer.
+      - Telemetry reports no unbounded read, but the retrieved context was materially broader than necessary.
+
+#### Sample 10
+
+- Telemetry: [raw sample JSON](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab/targets/iwe-no-skill/ambiguous-discovery-with-one-follow-up--10.json)
+- Valid: **yes**
+- Analysis: The final answer exactly identifies and accurately summarizes the authoritative API project note. The read-only procedure was safe, but its discovery and follow-up commands retrieved materially unnecessary workspace-wide file listings and unrelated API/project matches, lowering only the efficiency dimensions. Skill compliance is N/A for this explicit no-skill control.
+- Procedure problems:
+  - forbidden fallback tool used
+  - forbidden fallback tool used
+- Failed metrics:
+  - **Tool-call efficiency: 3/5 (required 4/5).**
+    - Analysis: The task completed in two calls, but both were broad workspace reads and the follow-up unnecessarily searched all notes after the relevant key and body were already available.
+    - Evidence:
+      - Call 1 listed every workspace file.
+      - Call 2 directly read `api-integration.md` and `projects.md` but also ran `rg -n -i "api|project" graph/*.md`, which was avoidable once the selected note supplied sufficient evidence.
+  - **Token/resource efficiency: 3/5 (required 4/5).**
+    - Analysis: The result is complete, but the agent consumed materially avoidable context from a full file inventory and many unrelated search matches.
+    - Evidence:
+      - Task tool output was 8,555 bytes, 555 bytes above the excellent range.
+      - Telemetry marks two broad workspace reads; unrelated journal, task, person, and reference-note matches were returned.
 
 ## Artifacts
 
-[Machine-readable report directory](../reports/20260808T152130Z-iwe-v18-guidance-efficiency-ab)
+[Machine-readable report directory](../reports/20260808T161053Z-iwe-v18-guidance-efficiency-ab)
