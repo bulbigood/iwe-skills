@@ -830,6 +830,27 @@ class EvalScoringContractTests(unittest.TestCase):
         self.assertFalse(outcome["pass"])
         self.assertEqual(outcome["invalid_samples"], 1)
 
+    def test_result_postcondition_misses_fail_metrics_without_corrupting_integrity(self) -> None:
+        integrity, deterministic = self.runner.classify_mechanical_errors([
+            "source does not contain an independent standalone inclusion link",
+            "local block edit is not the exact requested transformation",
+        ])
+        self.assertEqual(integrity, [])
+        for dimension in ("task_correctness", "scenario_compliance", "evidence_quality"):
+            self.assertIn(dimension, deterministic)
+            self.assertIn("standalone inclusion link", deterministic[dimension])
+            self.assertIn("local block edit", deterministic[dimension])
+
+        integrity, deterministic = self.runner.classify_mechanical_errors([
+            "forbidden command matched sudo",
+            "unexpected changed files: ['graph/unrelated.md']",
+        ])
+        self.assertEqual(
+            integrity,
+            ["forbidden command matched sudo", "unexpected changed files: ['graph/unrelated.md']"],
+        )
+        self.assertEqual(deterministic, {})
+
     def test_efficiency_targets_are_semantic_not_sample_validity_gates(self) -> None:
         scenario = self.scenario
         metrics = self.runner.command_metrics([])
@@ -1308,6 +1329,62 @@ class EvalScoringContractTests(unittest.TestCase):
                 "referenced_by": [],
             },
         })
+
+    def test_metadata_oracle_uses_only_the_configured_library_root(self) -> None:
+        scenario = next(
+            item
+            for item in self.runner.load_scenarios()
+            if item.id == "query-structured-metadata-without-scanning-files"
+        )
+        fixture = {
+            "README.md": "# Root\n\n[Power](graph/power.md) and [Morality](graph/morality.md).\n",
+            "graph/power.md": "# Power\n\n[Morality](morality.md).\n",
+            "graph/morality.md": "# Morality\n",
+            "outside.md": "# Outside\n\n[Power](graph/power.md).\n",
+        }
+
+        oracle = self.runner.independent_oracle_evidence(scenario, fixture, fixture, "")
+
+        self.assertEqual(oracle["graph_neighborhoods"], {
+            "morality": {
+                "includes": [],
+                "included_by": [],
+                "references": [],
+                "referenced_by": ["power"],
+            },
+            "power": {
+                "includes": [],
+                "included_by": [],
+                "references": ["morality"],
+                "referenced_by": [],
+            },
+        })
+
+    def test_eval_environment_pins_path_for_login_shell_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            home = root / "home"
+            codex_home = root / "codex-home"
+            shims = root / "shims"
+            runtime = root / "runtime" / "iwe"
+            for path in (home, codex_home, shims, runtime.parent):
+                path.mkdir(parents=True, exist_ok=True)
+            environment = self.runner.eval_environment(
+                home, codex_home, shims, runtime, root
+            )
+
+            self.assertEqual(environment["HOME"], str(home))
+            self.assertEqual(environment["CODEX_HOME"], str(codex_home))
+
+            completed = subprocess.run(
+                ["/bin/bash", "-lc", "printf '%s' \"$PATH\""],
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        self.assertTrue(completed.stdout.startswith(f"{shims}:{runtime.parent}:"))
 
     def test_update_postcondition_requires_exact_section_scoped_transformation(self) -> None:
         scenario = next(
@@ -1856,7 +1933,6 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             "do not retrieve merely to inspect or assess relevance",
             "use one bounded direct read",
             "Do not search, list, glob, or rediscover that path",
-            "The final response must say that IWE is unavailable",
             "Never emit a workspace-wide file inventory",
             "never use relationship discovery for extract verification",
             "corrected argv is the failed argv minus only that flag/value",
@@ -1901,29 +1977,26 @@ class PairedSkillEvalCommandTests(unittest.TestCase):
             "[Full production report](tests/eval/results/iwe-v18-production.md)",
             snapshot,
         )
-        self.assertEqual(snapshot.count("| Scenario | Overall |"), 1)
-        self.assertEqual(
-            snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 24
-        )
+        self.assertEqual(snapshot.count("| Scenario | Overall |"), 0)
+        self.assertEqual(snapshot.count("| PASS |") + snapshot.count("| **FAIL** |"), 0)
         self.assertNotIn("| Target |", snapshot)
         self.assertNotIn("iwe-memory-system", snapshot)
         self.assertNotIn("no skill guidance", snapshot.lower())
-        self.assertIn("24", snapshot)
-        self.assertIn("10", snapshot)
-        self.assertIn("**Overall:** **FAIL**", snapshot)
-        self.assertIn("**Scenario aggregates:** `19/24` passed", snapshot)
-        self.assertIn("**Valid samples:** `240/240`", snapshot)
-        self.assertIn("Valid / Clean (info)", snapshot)
-        self.assertIn("Correct / Evidence", snapshot)
-        self.assertIn("Request / Skill", snapshot)
-        self.assertIn("Tool / Resource", snapshot)
+        self.assertIn("all `24` declared scenarios; `10` samples per scenario", snapshot)
+        self.assertIn("**Overall:** **PASS — `24/24` scenario aggregates**", snapshot)
+        self.assertIn("`240/240` valid samples", snapshot)
+        self.assertIn("safety `240/240`", snapshot)
+        self.assertNotIn("Valid / Clean (info)", snapshot)
+        self.assertNotIn("Correct / Evidence", snapshot)
+        self.assertNotIn("Request / Skill", snapshot)
+        self.assertNotIn("Tool / Resource", snapshot)
         self.assertNotRegex(snapshot, r"\b\d+(?:\.\d+)?\s*(?:avg|average|mean)\b")
 
     def test_production_command_uses_only_iwe_v18(self) -> None:
         module = load_module(ROOT / "scripts/run_iwe_skill_ab_eval.py", "run_iwe_skill_ab_eval")
         targets = module.load_targets(ROOT)
         self.assertEqual(targets[0].skill_id, "iwe-v18")
-        self.assertEqual(targets[0].skill_version, "0.9.1")
+        self.assertEqual(targets[0].skill_version, "0.9.7")
         self.assertEqual(targets[0].iwe_version, "0.18.0")
         self.assertEqual(targets[0].runtime_skill_id, "iwe-v18")
         self.assertEqual(len(targets), 1)

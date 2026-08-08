@@ -3,7 +3,7 @@ name: iwe-v18
 description: Use IWE CLI to find, retrieve, analyze, create, update, or safely refactor an IWE Markdown knowledge graph.
 compatibility: Requires IWE CLI >=0.18.0.
 metadata:
-  version: "0.9.1"
+  version: "0.9.7"
 ---
 
 # IWE problem-solving policy
@@ -13,7 +13,9 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 ## Non-negotiable route overrides
 
 - After a metadata-only find, compare every returned key/title with the request-derived distinctive terms before any retrieve. Generic type words do not establish relevance. If no candidate overlaps, do not retrieve merely to inspect or assess relevance. Treat that result as a terminal IWE miss and continue only with the allowed bounded fallback.
-- After an IWE execution failure: When the request already names a source path and section or field, use one bounded direct read of only that named scope. Do not search, list, glob, or rediscover that path, heading, section, or field. The final response must say that IWE is unavailable and identify the fallback source.
+- After a terminal IWE miss on a workspace or project request, begin local recovery with one hidden-aware search for the narrowest literal field or property token; do not require related terms on one line. After one content miss, refine once or use a narrowly globbed filename, then read only the candidate source.
+- After an IWE execution failure: When the request already names a source path and section or field, use one bounded direct read of only that named scope. Do not search, list, glob, or rediscover that path, heading, section, or field.
+- When a requested retrieval expansion returns a seed and related documents, report the requested content for the seed and every returned document. Do not reduce the seed or an expansion to only its key or title.
 
 ## Hard execution rules
 
@@ -23,6 +25,8 @@ IWE is authoritative. Choose the narrowest route; stop on success.
 - Missing destructive scope is a blocking input, not a discovery task: when the target set or user-owned selection criterion is undefined, refuse without tools; never inspect the workspace to invent that criterion.
 - Use `iwe <command> --help` only after an IWE CLI command fails and its error does not provide enough information for one direct correction. Never call help proactively, globally, or after a successful command.
 - Do not run discovery or validation as preflight before a direct operation when its target, inputs, and guards are known from the request or prior evidence. Required mutation preview is execution, not preflight validation.
+- When a supported exact-key read, preview, or mutation route is known, use it before any manual reconstruction or indirect graph query. Never treat a failed exact IWE mutation or preview as permission to edit Markdown manually; follow the bounded error policy instead.
+- If an apply fails after its identical guarded preview succeeded, treat the mismatch as a consistency failure: stop and report it; do not mutate through another tool or a reconstructed command.
 - If an exact mutation key, selectors, replacement content, and expected counts are supplied, call 1 must be the guarded dry-run. Do not inspect the target first.
 - When discovery is necessary, make it task-shaped: include known selectors/class/heading/terms and request only the needed projection/block and limit. Do not retrieve after discovery when its shaped output already supplies the required scope.
 - Default result limit: 20. Use a smaller request-derived limit.
@@ -162,28 +166,7 @@ Safety calls are not waste. Refuse destructive work when scope or recovery is in
 
 ## Command glossary
 
-- `init` — initialize detected workspace configuration.
-- `create` — create exact, templated, typed, or validated documents.
-- `new` — create a simple title/body document.
-- `find` — discover metadata, relations, blocks, or lines.
-- `retrieve` — return content and finite graph context.
-- `count` — count a selected set.
-- `tree` — render inclusion hierarchy.
-- `squash` — flatten inclusions into Markdown.
-- `schema` — infer frontmatter shape and coverage.
-- `schema validate` — validate documents or explain binding.
-- `stats` — report structure and connectivity.
-- `stats similarity` — find near-duplicate pages.
-- `export` — render a selected graph as DOT.
-- `update` — atomically mutate metadata or body blocks.
-- `rename` — change key and rewrite references.
-- `extract` — move a section into an included document.
-- `inline` — replace an inclusion with target content.
-- `attach` — include a source under configured destinations.
-- `delete` — remove documents and clean references.
-- `normalize` — canonically rewrite the whole library.
-- `completions` — print completion scripts.
-- `docs` — print requested embedded reference.
+Core commands are routed above: `create`, `new`, `find`, `retrieve`, `count`, `tree`, `schema`, `schema validate`, `update`, `rename`, `extract`, `inline`, `attach`, and `delete`. Progressive routes cover `init`, `squash`, `stats`, `stats similarity`, `export`, `normalize`, `completions`, and `docs`.
 
 ## Complex IWE queries
 
@@ -199,8 +182,8 @@ Triggers: missing executable; still-unknown command/option; invalid YAML; empty 
 
 For a self-explanatory missing-executable error, skip the reference. Otherwise read `references/errors.md` only when classification is unclear.
 
-Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, one refinement stays empty, or candidates are unrelated. An unrelated candidate is a miss; do not retrieve it. The two-call fallback budget includes failed and corrected IWE attempts; then fallback/report—never call IWE a third time. If the operator limits search to IWE/notes/docs, report not found and stop. For workspace/project questions: Begin local recovery with one targeted, hidden-aware content search. For structured/config data, search the narrowest field/property token; do not require related terms on one line. Never emit a workspace-wide file inventory. After one content miss, refine once or use a narrowly globbed filename. If that search proves the requested fact and source path, stop; otherwise read only the candidate source. Stay local; expose no unrelated matches. Say "IWE is unavailable" only when execution failed; otherwise say the information was found outside IWE.
+Fallback is allowed only when IWE cannot execute, lacks the operation, the source is outside the index, one refinement stays empty, or candidates are unrelated. An unrelated candidate is a miss; do not retrieve it. The two-call fallback budget includes failed and corrected IWE attempts; then fallback/report—never call IWE a third time. If the operator limits search to IWE/notes/docs, report not found and stop. For workspace/project questions, follow the local-recovery override above. Never emit a workspace-wide file inventory. If a search proves the requested fact and source path, stop; otherwise read only the candidate source. Stay local; expose no unrelated matches. Say "IWE is unavailable" only when execution failed; otherwise say the information was found outside IWE.
 
 ## Completion
 
-Report `Result`, `Keys`, `Truncation`, and, for mutations, `Scope` and `Verification`. Stop when claims are supported.
+Follow the operator's requested answer shape and stop when supported. Do not add generic status fields such as `Result`, `Keys`, `Truncation`, `Scope`, or `Verification` unless the operator asks for them or they communicate a material limitation. When the operator asks for content from multiple documents, identify each document and make its requested content explicit rather than collapsing the answer into one unlabeled summary.
